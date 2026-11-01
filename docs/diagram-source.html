@@ -1,0 +1,162 @@
+<div id="agent-wide-view"><svg class="agent-diagram" role="img" aria-labelledby="agent-wide-title agent-wide-description"></svg></div>
+<style>
+  #agent-wide-view { width: 100%; }
+  #agent-wide-view .agent-diagram { display: block; width: 100%; height: 550px; }
+  #agent-wide-view .connection { fill: none; stroke: var(--muted-foreground); stroke-width: 1.5; stroke-linejoin: round; }
+  #agent-wide-view .step { stroke: var(--viz-series-1); }
+  #agent-wide-view .tools { stroke: var(--viz-series-2); }
+  #agent-wide-view .resource-link { stroke: var(--viz-series-3); stroke-dasharray: 5 4; }
+  #agent-wide-view .node rect { fill: var(--card); stroke: var(--border); stroke-width: 1.5; }
+  #agent-wide-view .director rect { fill: var(--secondary); stroke: var(--muted-foreground); }
+  #agent-wide-view text { fill: var(--foreground); font-family: inherit; }
+  #agent-wide-view .node text { font-weight: 500; }
+  #agent-wide-view .label-bg { fill: var(--background); }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('agent-wide-view');
+  const svg = root.querySelector('svg');
+  const ns = 'http://www.w3.org/2000/svg';
+  const make = (tag, attrs = {}, text = '') => {
+    const element = document.createElementNS(ns, tag);
+    Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
+    if (text) element.textContent = text;
+    return element;
+  };
+  function draw() {
+    const width = root.getBoundingClientRect().width;
+    if (!width) return;
+    const compact = width < 640;
+    const x = value => value * width / 1150;
+    svg.replaceChildren();
+    svg.setAttribute('viewBox', `0 0 ${width} 550`);
+    svg.append(make('title', { id: 'agent-wide-title' }, 'Agent environment'));
+    svg.append(make('desc', { id: 'agent-wide-description' }, 'Thirteen blocks and twenty-eight connections. Agents 1 and 2 form the left column. Actors 1 and 2 form the next column, with their Inboxes between them. The Director is to their right. Resources 1 connects to Agent 1, Actor 1, and Director. Resources 2 connects to Agent 2, Actor 2, and Director. The four new Agent and Actor resource connections are dashed and have no arrowheads: their existence is confirmed, but their directions are not yet specified. The existing Director to Resources arrows are retained. Database, Recurring events, and Clock form the far-right column. Database points to Director. Director advances Clock and initializes Recurring events. Clock points to Recurring events, which trigger Director. On narrow screens, R1 and R2 mean Resources 1 and Resources 2. DB means Database, and Events means Recurring events.'));
+    const defs = make('defs');
+    [['neutral','var(--muted-foreground)'],['step','var(--viz-series-1)'],['tools','var(--viz-series-2)']].forEach(([name,color]) => {
+      const marker = make('marker', { id: `wide-arrow-${name}`, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
+      marker.append(make('path', { d: 'M 1 1 L 9 5 L 1 9 Z', fill: color }));
+      defs.append(marker);
+    });
+    const edges = make('g'), nodes = make('g'), labels = make('g');
+    svg.append(defs,edges,nodes,labels);
+    const bounds = {};
+    const nodeData = [
+      ['agent-1',25,110,100,44,['Agent 1'],['Agent','1']],
+      ['agent-2',25,360,100,44,['Agent 2'],['Agent','2']],
+      ['actor-1',290,110,100,44,['Actor 1'],['Actor','1']],
+      ['actor-2',290,360,100,44,['Actor 2'],['Actor','2']],
+      ['inbox-1',290,185,100,40,['Inbox 1'],['Inbox','1']],
+      ['inbox-2',290,290,100,40,['Inbox 2'],['Inbox','2']],
+      ['board',25,235,100,50,['Message','board']],
+      ['director',610,220,120,75,['Director']],
+      ['resources-1',790,95,110,44,['Resources 1'],['R1']],
+      ['resources-2',790,360,110,44,['Resources 2'],['R2']],
+      ['database',1010,95,110,44,['Database'],['DB']],
+      ['clock',1010,360,110,44,['Clock']],
+      ['recurring-events',1010,235,110,50,['Recurring','events'],['Events']]
+    ];
+    nodeData.forEach(([id,px,py,w,h,lines,smallLines]) => {
+      const group = make('g', { class: `node ${id === 'director' ? 'director' : ''}`, 'data-node': id });
+      group.append(make('title', {}, lines.join(' ')));
+      const rect = make('rect', { y: py, height: h, rx: 7 });
+      const shown = compact && smallLines ? smallLines : lines;
+      const text = make('text', { y: py + h / 2 + 5 - (shown.length - 1) * 8, 'text-anchor': 'middle', class: compact ? 'text-small' : '' });
+      shown.forEach((line,i) => text.append(make('tspan', { x: 0, dy: i ? 16 : 0 }, line)));
+      group.append(rect,text);
+      nodes.append(group);
+      const boxWidth = Math.max(x(w),text.getBBox().width + 12);
+      const left = Math.max(4,Math.min(width - boxWidth - 4,x(px + w / 2) - boxWidth / 2));
+      rect.setAttribute('x',left); rect.setAttribute('width',boxWidth);
+      text.setAttribute('x',left + boxWidth / 2);
+      text.querySelectorAll('tspan').forEach(span => span.setAttribute('x',left + boxWidth / 2));
+      bounds[id] = { x: left, y: py, width: boxWidth, height: h };
+    });
+    const edgeData = [
+      ['chat-1','agent-1:right','actor-1:left',[[125,123],[290,123]],'neutral','both'],
+      ['chat-2','agent-2:right','actor-2:left',[[125,391],[290,391]],'neutral','both'],
+      ['inbox-tool-1','agent-1:right','inbox-1:left',[[125,145],[290,205]],'neutral','both'],
+      ['inbox-tool-2','agent-2:right','inbox-2:left',[[125,370],[290,310]],'neutral','both'],
+      ['board-1','agent-1:bottom','board:top',[[75,154],[75,235]],'neutral','both'],
+      ['board-2','board:bottom','agent-2:top',[[75,285],[75,360]],'neutral','both'],
+      ['send','inbox-1:bottom','inbox-2:top',[[340,225],[340,290]],'neutral','both'],
+      ['actor-inbox-1','actor-1:bottom','inbox-1:top',[[340,154],[340,185]],'neutral','none'],
+      ['actor-inbox-2','inbox-2:bottom','actor-2:top',[[340,330],[340,360]],'neutral','none'],
+      ['tools-1','agent-1:top','director:top',[[95,110],[95,75],[640,75],[640,220]],'tools'],
+      ['tools-2','agent-2:bottom','director:bottom',[[95,404],[95,435],[640,435],[640,295]],'tools'],
+      ['requests-1','actor-1:right','director:left',[[390,123],[565,123],[565,235],[610,235]]],
+      ['requests-2','actor-2:right','director:left',[[390,391],[565,391],[565,280],[610,280]]],
+      ['context-1','director:left','actor-1:right',[[610,250],[530,250],[530,143],[390,143]]],
+      ['context-2','director:left','actor-2:right',[[610,266],[530,266],[530,371],[390,371]]],
+      ['step-1','director:top','agent-1:top',[[680,220],[680,35],[50,35],[50,110]],'step'],
+      ['step-2','director:bottom','agent-2:bottom',[[680,295],[680,470],[50,470],[50,404]],'step'],
+      ['resources-1','director:top','resources-1:bottom',[[720,220],[720,170],[845,170],[845,139]]],
+      ['resources-2','director:bottom','resources-2:top',[[720,295],[720,345],[845,345],[845,360]]],
+      ['database','database:left','director:right',[[1010,117],[960,117],[960,205],[750,205],[750,235],[730,235]]],
+      ['advance-clock','director:right','clock:left',[[730,280],[750,280],[750,320],[960,320],[960,382],[1010,382]]],
+      ['clock-events','clock:top','recurring-events:bottom',[[1065,360],[1065,285]]],
+      ['events-trigger','recurring-events:left','director:right',[[1010,250],[730,250]]],
+      ['initialize-events','director:right','recurring-events:left',[[730,267],[1010,267]]],
+      ['agent-resource-1','agent-1:top','resources-1:top',[[35,110],[35,10],[845,10],[845,95]],'resource-link','none'],
+      ['actor-resource-1','actor-1:top','resources-1:left',[[340,110],[340,88],[760,88],[760,117],[790,117]],'resource-link','none'],
+      ['actor-resource-2','actor-2:bottom','resources-2:left',[[340,404],[340,420],[760,420],[760,382],[790,382]],'resource-link','none'],
+      ['agent-resource-2','agent-2:bottom','resources-2:bottom',[[35,404],[35,530],[845,530],[845,404]],'resource-link','none']
+    ];
+    edgeData.forEach(([id,source,target,points,type = 'neutral',ends = 'end']) => {
+      const coordinates = points.map(([px,py]) => {
+        let pxScaled = x(px);
+        if (compact && px === 750) pxScaled = Math.max(pxScaled,bounds.director.x + bounds.director.width + 10);
+        if (compact && px === 565) pxScaled = Math.min(pxScaled,bounds.director.x - 10);
+        if (compact && px === 530) pxScaled = Math.min(pxScaled,bounds.director.x - 22);
+        return [pxScaled,py];
+      });
+      [source,target].forEach((reference,i) => {
+        const [nodeId,side] = reference.split(':');
+        const b = bounds[nodeId], point = coordinates[i ? coordinates.length - 1 : 0];
+        if (side === 'left' || side === 'right') point[0] = b.x + (side === 'right' ? b.width : 0);
+        else { point[1] = b.y + (side === 'bottom' ? b.height : 0); point[0] = Math.max(b.x + 7,Math.min(b.x + b.width - 7,point[0])); }
+      });
+      let route = coordinates.map(([px,py],i) => `${i ? 'L' : 'M'} ${px} ${py}`).join(' ');
+      if (id.startsWith('actor-resource-')) {
+        const radius = Math.min(5,(x(680) - x(640)) / 4);
+        route = `M ${coordinates[0][0]} ${coordinates[0][1]}`;
+        for (let i = 1; i < coordinates.length; i++) {
+          const [previousX,previousY] = coordinates[i - 1];
+          const [nextX,nextY] = coordinates[i];
+          if (previousY === nextY && nextX > previousX) {
+            [x(640),x(680)].filter(crossing => crossing > previousX + radius && crossing < nextX - radius).forEach(crossing => {
+              const bendY = nextY + (id.endsWith('1') ? -10 : 10);
+              route += ` L ${crossing - radius} ${nextY} Q ${crossing} ${bendY} ${crossing + radius} ${nextY}`;
+            });
+          }
+          route += ` L ${nextX} ${nextY}`;
+        }
+      }
+      const path = make('path', { d: route, class: `connection ${type}`, 'data-connection': id, 'data-source': source, 'data-target': target, 'data-direction-status': type === 'resource-link' ? 'unspecified' : 'confirmed' });
+      if (ends !== 'none') path.setAttribute('marker-end',`url(#wide-arrow-${type})`);
+      if (ends === 'both') path.setAttribute('marker-start',`url(#wide-arrow-${type})`);
+      edges.append(path);
+    });
+    function label(px,py,lines) {
+      const group = make('g'), text = make('text', { x: x(px), y: py, 'text-anchor': 'middle', class: 'text-small' });
+      lines.forEach((line,i) => text.append(make('tspan', { x: x(px), dy: i ? 16 : 0 },line)));
+      group.append(text); labels.append(group);
+      const b = text.getBBox();
+      group.insertBefore(make('rect', { x: b.x - 3, y: b.y - 2, width: b.width + 6, height: b.height + 4, rx: 3, class: 'label-bg' }),text);
+    }
+    label(207,compact ? 100 : 113,['Chat']); label(207,420,['Chat']);
+    label(207,179,['Email tool']); label(207,346,['Tool']); label(compact ? 410 : 340,260,['Send']);
+    label(365,26,['Step']); label(365,493,['Step']);
+    label(365,67,['Tools: search, fetch, buy/sell']); label(365,455,['Tools: search, fetch, buy/sell']);
+    label(compact ? 500 : 478,109,[compact ? 'Req.' : 'Requests']); label(compact ? 500 : 478,compact ? 389 : 409,[compact ? 'Req.' : 'Requests']);
+    label(compact ? 545 : 470,172,compact ? ['Initial /','regular','context'] : ['Initial / regular','context']);
+    label(compact ? 545 : 470,334,['Initial','context']);
+    label(810,161,['Read / write']); label(850,compact ? 337 : 310,['Advance']);
+    label(868,compact ? 215 : 241,['Trigger']); label(868,289,[compact ? 'Init.' : 'Initialize']);
+    if (compact) label(800,493,['R1/R2 = Resources 1/2']);
+    label(compact ? 815 : 970,compact ? 52 : 42,['Dashed resource links:', 'direction not specified']);
+  }
+  new ResizeObserver(draw).observe(root);
+  draw();
+})();
+</script>

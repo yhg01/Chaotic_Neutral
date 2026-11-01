@@ -1,0 +1,287 @@
+{
+  "source": "diagram-source.html",
+  "nodes": [
+    {
+      "id": "agent-1",
+      "label": "Agent 1"
+    },
+    {
+      "id": "agent-2",
+      "label": "Agent 2"
+    },
+    {
+      "id": "actor-1",
+      "label": "Actor 1"
+    },
+    {
+      "id": "actor-2",
+      "label": "Actor 2"
+    },
+    {
+      "id": "inbox-1",
+      "label": "Inbox 1"
+    },
+    {
+      "id": "inbox-2",
+      "label": "Inbox 2"
+    },
+    {
+      "id": "board",
+      "label": "Message board"
+    },
+    {
+      "id": "director",
+      "label": "Director"
+    },
+    {
+      "id": "resources-1",
+      "label": "Resources 1"
+    },
+    {
+      "id": "resources-2",
+      "label": "Resources 2"
+    },
+    {
+      "id": "database",
+      "label": "Database"
+    },
+    {
+      "id": "clock",
+      "label": "Clock"
+    },
+    {
+      "id": "recurring-events",
+      "label": "Recurring events"
+    }
+  ],
+  "connections": [
+    {
+      "id": "chat-1",
+      "source": "agent-1",
+      "target": "actor-1",
+      "direction": "both",
+      "status": "confirmed",
+      "label": "Chat"
+    },
+    {
+      "id": "chat-2",
+      "source": "agent-2",
+      "target": "actor-2",
+      "direction": "both",
+      "status": "confirmed",
+      "label": "Chat"
+    },
+    {
+      "id": "inbox-tool-1",
+      "source": "agent-1",
+      "target": "inbox-1",
+      "direction": "both",
+      "status": "confirmed",
+      "label": "Email tool"
+    },
+    {
+      "id": "inbox-tool-2",
+      "source": "agent-2",
+      "target": "inbox-2",
+      "direction": "both",
+      "status": "confirmed",
+      "label": "Tool"
+    },
+    {
+      "id": "board-1",
+      "source": "agent-1",
+      "target": "board",
+      "direction": "both",
+      "status": "confirmed",
+      "label": null
+    },
+    {
+      "id": "board-2",
+      "source": "board",
+      "target": "agent-2",
+      "direction": "both",
+      "status": "confirmed",
+      "label": null
+    },
+    {
+      "id": "send",
+      "source": "inbox-1",
+      "target": "inbox-2",
+      "direction": "both",
+      "status": "confirmed",
+      "label": "Send"
+    },
+    {
+      "id": "actor-inbox-1",
+      "source": "actor-1",
+      "target": "inbox-1",
+      "direction": "none",
+      "status": "confirmed",
+      "label": null
+    },
+    {
+      "id": "actor-inbox-2",
+      "source": "inbox-2",
+      "target": "actor-2",
+      "direction": "none",
+      "status": "confirmed",
+      "label": null
+    },
+    {
+      "id": "tools-1",
+      "source": "agent-1",
+      "target": "director",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Tools: search, fetch, buy/sell"
+    },
+    {
+      "id": "tools-2",
+      "source": "agent-2",
+      "target": "director",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Tools: search, fetch, buy/sell"
+    },
+    {
+      "id": "requests-1",
+      "source": "actor-1",
+      "target": "director",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Requests"
+    },
+    {
+      "id": "requests-2",
+      "source": "actor-2",
+      "target": "director",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Requests"
+    },
+    {
+      "id": "context-1",
+      "source": "director",
+      "target": "actor-1",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Initial / regular context"
+    },
+    {
+      "id": "context-2",
+      "source": "director",
+      "target": "actor-2",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Initial context"
+    },
+    {
+      "id": "step-1",
+      "source": "director",
+      "target": "agent-1",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Step"
+    },
+    {
+      "id": "step-2",
+      "source": "director",
+      "target": "agent-2",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Step"
+    },
+    {
+      "id": "resources-1",
+      "source": "director",
+      "target": "resources-1",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Read / write"
+    },
+    {
+      "id": "resources-2",
+      "source": "director",
+      "target": "resources-2",
+      "direction": "end",
+      "status": "confirmed",
+      "label": null
+    },
+    {
+      "id": "database",
+      "source": "database",
+      "target": "director",
+      "direction": "end",
+      "status": "confirmed",
+      "label": null
+    },
+    {
+      "id": "advance-clock",
+      "source": "director",
+      "target": "clock",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Advance"
+    },
+    {
+      "id": "clock-events",
+      "source": "clock",
+      "target": "recurring-events",
+      "direction": "end",
+      "status": "confirmed",
+      "label": null
+    },
+    {
+      "id": "events-trigger",
+      "source": "recurring-events",
+      "target": "director",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Trigger"
+    },
+    {
+      "id": "initialize-events",
+      "source": "director",
+      "target": "recurring-events",
+      "direction": "end",
+      "status": "confirmed",
+      "label": "Initialize"
+    },
+    {
+      "id": "agent-resource-1",
+      "source": "agent-1",
+      "target": "resources-1",
+      "direction": "none",
+      "status": "unspecified",
+      "label": null,
+      "style": "dashed"
+    },
+    {
+      "id": "actor-resource-1",
+      "source": "actor-1",
+      "target": "resources-1",
+      "direction": "none",
+      "status": "unspecified",
+      "label": null,
+      "style": "dashed"
+    },
+    {
+      "id": "actor-resource-2",
+      "source": "actor-2",
+      "target": "resources-2",
+      "direction": "none",
+      "status": "unspecified",
+      "label": null,
+      "style": "dashed"
+    },
+    {
+      "id": "agent-resource-2",
+      "source": "agent-2",
+      "target": "resources-2",
+      "direction": "none",
+      "status": "unspecified",
+      "label": null,
+      "style": "dashed"
+    }
+  ]
+}

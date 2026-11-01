@@ -1,0 +1,27 @@
+{
+  "checked_at": "2026-10-27T16:48:34.079153+00:00",
+  "transport": "HTTP over loopback",
+  "agents": 15,
+  "rounds_per_agent": 10,
+  "expected_replies": 150,
+  "accepted_replies": 150,
+  "stored_replies": 150,
+  "missing_replies": 0,
+  "duplicate_response_ids": 0,
+  "errors": [],
+  "elapsed_seconds": 0.564,
+  "writes": {
+    "count": 150,
+    "p50_ms": 36.31,
+    "p95_ms": 82.83,
+    "max_ms": 131.74
+  },
+  "reads": {
+    "count": 150,
+    "p50_ms": 30.52,
+    "p95_ms": 77.52,
+    "max_ms": 142.66
+  },
+  "passed": true,
+  "scope": "One local cluster and thread; excludes model inference and remote networks."
+}

@@ -1,0 +1,148 @@
+"""Internal email tools. Identity comes from the Agent's authenticated client."""
+
+import asyncio
+from typing import Annotated, Literal
+from uuid import UUID, uuid4, uuid5
+
+import httpx
+from pydantic import Field, ValidationError
+
+from agentrpg.agent_tools import Cursor, Identifier, Limit, _Arguments, _error
+from agentrpg.mail_schema import MailBody, MailOwner, MailSubject
+
+
+class _ListMail(_Arguments):
+    mailbox: Literal["inbox", "sent", "all"] = "inbox"
+    unread_only: bool = False
+    query: Annotated[str, Field(min_length=1, max_length=200)] | None = None
+    limit: Limit = 20
+    cursor: Cursor | None = None
+
+
+class _ReadMail(_Arguments):
+    message_id: Identifier
+
+
+class _SendMail(_Arguments):
+    recipient_owner_id: MailOwner
+    subject: MailSubject
+    body: MailBody
+    in_reply_to: Identifier | None = None
+
+
+class _AcknowledgeMail(_Arguments):
+    message_ids: list[Identifier] = Field(min_length=1, max_length=100)
+
+
+INBOX_TOOLS = {
+    "list_mail": (
+        _ListMail,
+        "Read or search your private internal mailbox, newest first. mailbox selects inbox, sent, "
+        "or all. unread_only requires inbox. Use next_cursor for history pages. "
+        "Unread queries without a cursor find all unacknowledged mail, including late commits. "
+        "Reading does not acknowledge mail. This is simulated internal email only.",
+    ),
+    "read_mail": (_ReadMail, "Read one received or sent internal email by message ID."),
+    "send_mail": (
+        _SendMail,
+        "Send private internal email to an owner_id from read_run_view.participants. "
+        "Board author_id is an Agent UUID, not an owner_id. Read the directory first; "
+        "do not guess. Your sender identity is fixed. "
+        "Set in_reply_to to reply to mail in your mailbox, addressed to its other participant. "
+        "Use plain text. A successful response confirms delivery to that private inbox.",
+    ),
+    "acknowledge_mail": (
+        _AcknowledgeMail,
+        "Explicitly mark received internal emails as read after processing them. "
+        "The sender can see this receipt. Repeated acknowledgements are safe.",
+    ),
+}
+
+
+class InboxTools:
+    def __init__(self, client: httpx.AsyncClient, run_id, operation_namespace=None):
+        self.client = client
+        self.run_id = str(UUID(str(run_id)))
+        if operation_namespace is not None and not isinstance(operation_namespace, UUID):
+            raise ValueError("The operation namespace must be a UUID.")
+        self.operation_namespace = operation_namespace or uuid4()
+
+    def definitions(self):
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": description,
+                    "parameters": model.model_json_schema(),
+                },
+            }
+            for name, (model, description) in INBOX_TOOLS.items()
+        ]
+
+    async def execute(self, name, arguments, call_id):
+        if not isinstance(name, str) or name not in INBOX_TOOLS:
+            return _error(422, "Unknown inbox tool.")
+        if (
+            not isinstance(call_id, str)
+            or not call_id.strip()
+            or len(call_id) > 512
+            or any(ord(char) < 32 or 0xD800 <= ord(char) <= 0xDFFF for char in call_id)
+        ):
+            return _error(422, "A valid tool call ID is required.")
+        if not isinstance(arguments, dict):
+            return _error(422, "Tool arguments must be an object.")
+        try:
+            payload = (
+                INBOX_TOOLS[name][0]
+                .model_validate(arguments)
+                .model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+            )
+        except ValidationError:
+            return _error(422, "Invalid tool arguments. Follow the tool's parameter schema.")
+        method, path = "GET", f"runs/{self.run_id}/inbox"
+        if name == "read_mail":
+            path += "/" + payload.pop("message_id")
+        elif name == "send_mail":
+            method = "POST"
+            payload["request_id"] = str(uuid5(self.operation_namespace, call_id))
+        elif name == "acknowledge_mail":
+            method, path = "POST", path + "/receipts"
+        for attempt in range(3):
+            try:
+                response = await self.client.request(
+                    method,
+                    path,
+                    **({"params": payload} if method == "GET" else {"json": payload}),
+                    follow_redirects=False,
+                )
+            except httpx.RequestError:
+                if attempt == 2:
+                    return _error(503, "The inbox could not be reached. Retry later.")
+            else:
+                if response.status_code != 503 or attempt == 2:
+                    if not response.is_success:
+                        detail = {
+                            401: "The Agent credential was rejected.",
+                            403: "This inbox operation is not permitted.",
+                            404: (
+                                "The mail or recipient was not found. Use owner_id from "
+                                "read_run_view.participants, not a board Agent UUID."
+                            ),
+                            409: "The operation conflicts with the saved mail or run state.",
+                            422: "The inbox rejected the arguments.",
+                            503: "The inbox is unavailable. Retry later.",
+                        }.get(response.status_code, "The inbox request failed.")
+                        return _error(response.status_code, detail)
+                    try:
+                        data = response.json()
+                    except (ValueError, UnicodeDecodeError):
+                        return _error(502, "The inbox returned an invalid response.")
+                    if not isinstance(data, dict):
+                        return _error(502, "The inbox returned an invalid response.")
+                    return {"ok": True, "data": data}
+            await asyncio.sleep(0.1 * (attempt + 1))
+        raise AssertionError("The bounded request loop must return a result.")

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#151816">
+  <title>Run console · agentRPG</title>
+  <link rel="stylesheet" href="/assets/run-console.css">
+  <script src="/assets/run-console.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#dialogue">Skip to conversation</a>
+
+  <div id="workspace" class="workspace">
+    <header class="console-topbar">
+      <a class="wordmark" href="/console" aria-label="agentRPG run console"><span class="brand-mark" aria-hidden="true"></span><span>agentRPG</span><span class="wordmark-suffix">RUN CONSOLE</span></a>
+      <div class="run-picker">
+        <label class="sr-only" for="run-select">Saved run</label>
+        <select id="run-select"><option value="">Select a saved run</option></select>
+        <button id="refresh-runs" class="icon-button" type="button" title="Refresh saved runs" aria-label="Refresh saved runs"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 7A7 7 0 1 0 17 11M16.5 3v4h-4"/></svg></button>
+        <button id="more-runs" class="quiet-button" type="button" hidden>Load more</button>
+      </div>
+      <div class="topbar-actions"><span id="connection-status" class="connection-status" role="status" aria-live="polite">Ready</span><a id="open-observer" class="quiet-link" href="/runs">Data observer <span aria-hidden="true">↗</span></a></div>
+    </header>
+
+    <section class="run-overview" aria-label="Current run">
+      <div class="run-heading"><span id="view-mode-label" class="eyebrow">REPLAY</span><h1 id="run-name">Select a run</h1><span id="run-status" class="badge">No run selected</span></div>
+      <p id="run-summary">Choose a saved run to inspect its turns.</p>
+      <div class="console-mode" role="group" aria-label="Console mode"><button id="mode-replay" type="button" aria-pressed="true" class="is-active">Replay</button><button id="mode-live" type="button" aria-pressed="false">Live controls</button></div>
+      <a id="parent-run-link" class="parent-run-link" hidden></a>
+    </section>
+
+    <section id="live-controls" class="live-controls" aria-labelledby="live-heading" hidden>
+      <div class="execution-panel">
+        <div class="execution-heading"><h2 id="live-heading">LIVE RUN</h2><span id="execution-status" class="badge">Loading</span></div>
+        <p id="execution-caption">Select a run to use live controls.</p>
+        <div class="execution-buttons"><button id="live-step" class="primary-button" type="button" disabled>Step one turn</button><button id="live-continue" type="button" disabled>Continue</button><button id="live-pause" type="button" disabled>Pause run</button></div>
+        <p id="execution-budget" class="execution-budget"></p>
+        <p id="execution-reason" class="control-note"></p>
+      </div>
+      <form id="prompt-form" class="prompt-panel">
+        <div class="prompt-heading"><label for="operator-prompt">Prompt for <strong id="prompt-owner">selected person</strong></label><label class="sr-only" for="prompt-target">Prompt destination</label><select id="prompt-target"><option value="actor">Actor · Director cue</option><option value="agent">Agent · owner message</option></select></div>
+        <textarea id="operator-prompt" rows="2" maxlength="12000" placeholder="Change the situation, or add a new request…" aria-describedby="prompt-help operation-receipt"></textarea>
+        <div class="prompt-actions"><button id="send-prompt" type="submit" disabled>Queue prompt</button><button id="branch-turn" type="button" disabled>Branch before selected turn</button><button id="restart-scenario" class="quiet-button" type="button" hidden>Restart initial scenario</button></div>
+        <p id="prompt-help" class="control-note">A queued prompt is applied at the next available turn. A branch starts a separate run before the selected turn.</p>
+        <p id="branch-reason" class="control-note"></p>
+      </form>
+      <div id="operation-feedback" class="operation-feedback" hidden><p id="operation-receipt" role="status" aria-live="polite"></p><button id="retry-operation" type="button" hidden>Retry same request</button><button id="refresh-controls" class="quiet-button" type="button">Refresh controls</button></div>
+    </section>
+
+    <div id="error-banner" class="error-banner" role="alert" hidden><span class="error-symbol" aria-hidden="true">!</span><p id="error-message"></p><button id="retry-button" type="button">Retry</button></div>
+    <section id="empty-runs" class="empty-runs empty-state" hidden><span class="empty-symbol" aria-hidden="true">◇</span><h2>No saved runs</h2><p>Run a scenario, then refresh this list.</p></section>
+
+    <div id="run-content" class="console-grid">
+      <aside class="cast-rail" aria-labelledby="cast-heading">
+        <div class="panel-heading"><h2 id="cast-heading">CAST</h2><span id="cast-count" class="count-label">0</span></div>
+        <p class="rail-caption">Select a person to inspect.</p>
+        <div id="owner-list" class="owner-list" aria-label="People and agents"></div>
+        <div class="cast-footer"><label class="check-label" for="focus-only"><input id="focus-only" type="checkbox"><span>Show selected pair only</span></label><p>Each person has one personal agent.</p></div>
+      </aside>
+
+      <main class="scene-panel" aria-labelledby="turn-heading">
+        <header class="scene-heading"><div><div class="eyebrow">CONVERSATION</div><h2 id="turn-heading">Choose a turn</h2><p id="turn-caption">Saved owner and agent messages appear here.</p></div><span class="scene-key"><span class="owner-symbol" aria-hidden="true"></span> PERSON <span class="agent-symbol" aria-hidden="true"></span> AGENT</span></header>
+        <div id="dialogue" class="dialogue" tabindex="-1" aria-label="Owner and agent conversations"></div>
+        <section class="log-dock" aria-labelledby="log-heading">
+          <div class="log-toolbar"><h2 id="log-heading">EVENT LOG <span id="log-count" class="count-label">0</span></h2><div class="log-search-wrap"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><label class="sr-only" for="log-search">Search this turn's logs</label><input id="log-search" type="search" placeholder="Search this turn" autocomplete="off"></div></div>
+          <div id="channel-tabs" class="channel-tabs" role="group" aria-label="Filter log channel"><button type="button" class="is-active" data-channel="all" aria-pressed="true">All</button><button type="button" data-channel="chat" aria-pressed="false">Chat</button><button type="button" data-channel="mail" aria-pressed="false">Mail</button><button type="button" data-channel="board" aria-pressed="false">Board</button><button type="button" data-channel="tools" aria-pressed="false">Tools</button><button type="button" data-channel="director" aria-pressed="false">Director</button><button type="button" data-channel="errors" aria-pressed="false">Errors</button></div>
+          <div id="log-list" class="log-list" aria-label="Saved events for this turn"></div>
+        </section>
+      </main>
+
+      <aside class="inspector" aria-labelledby="inspector-title">
+        <header class="inspector-heading"><div class="eyebrow">INSPECT</div><h2 id="inspector-title">Select a person</h2><p>Private simulation records</p></header>
+        <div id="inspector-tabs" class="inspector-tabs" role="group" aria-label="Inspector view"><button type="button" class="is-active" data-inspect="persona" aria-pressed="true">Persona</button><button type="button" data-inspect="agent" aria-pressed="false">Agent</button><button type="button" data-inspect="resources" aria-pressed="false">Resources</button></div>
+        <div id="inspector-body" class="inspector-body"><p class="empty-note">Select a person from the cast to inspect their persona and agent.</p></div>
+        <footer class="inspector-footer"><span class="square-indicator" aria-hidden="true"></span> Records are shown as saved.</footer>
+      </aside>
+    </div>
+
+    <footer class="transport" aria-label="Saved turn replay controls">
+      <div class="playback-controls"><button id="previous-turn" class="icon-button" type="button" title="Previous turn" aria-label="Previous turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12M15 5l-7 5 7 5z"/></svg></button><button id="play" class="play-button" type="button" disabled><svg class="play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 9 6-9 6z"/></svg><span id="play-label">Play</span></button><button id="next-turn" class="icon-button" type="button" title="Next turn" aria-label="Next turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12M5 5l7 5-7 5z"/></svg></button><label class="sr-only" for="speed">Replay speed</label><select id="speed" class="speed-select"><option value="1000">Fast</option><option value="2500" selected>Normal</option><option value="5000">Slow</option></select></div>
+      <div class="timeline"><div class="timeline-label"><label for="turn-slider">TURN <strong id="turn-now">—</strong><span class="timeline-divider">/</span><span id="turn-total">—</span></label><span>Replay · saved turns</span></div><input id="turn-slider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Select turn"><div id="turn-markers" class="turn-markers" aria-label="Turn markers"></div></div>
+      <div class="transport-actions"><label class="check-label" for="live-follow"><input id="live-follow" type="checkbox"><span>Follow latest</span></label><button id="refresh-turn" class="icon-button" type="button" title="Refresh current turn" aria-label="Refresh current turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 7A7 7 0 1 0 17 11M16.5 3v4h-4"/></svg></button><button id="copy-link" class="icon-button" type="button" title="Copy link to this turn" aria-label="Copy link to this turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 7 2-2a3.5 3.5 0 0 1 5 5l-2 2M12 13l-2 2a3.5 3.5 0 0 1-5-5l2-2M7.5 12.5l5-5"/></svg></button></div>
+    </footer>
+  </div>
+
+  <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title" aria-describedby="detail-meta">
+    <header class="detail-heading"><div><div class="eyebrow">SAVED RECORD</div><h2 id="detail-title">Record details</h2></div><button id="close-detail" class="icon-button" type="button" aria-label="Close record details"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
+    <p id="detail-meta" class="detail-meta"></p><div id="detail-content" class="detail-content"></div>
+  </dialog>
+</body>
+</html>

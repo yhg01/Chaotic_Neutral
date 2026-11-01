@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer"><title>Run observer · agentRPG</title>
+  <link rel="stylesheet" href="/assets/run-observer.css">
+  <script src="/assets/run-observer.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#activity">Skip to activity</a>
+<header><a class="brand" href="/">agent<span>RPG</span></a><span class="header-label">Run observer</span>
+  <div class="header-end"><a href="/console">Run console</a><span id="connection" role="status">Local environment</span></div>
+</header>
+<main>
+  <div id="error" class="error" role="alert" hidden><p id="error-message"></p><button id="retry" type="button">Retry</button></div>
+  <div id="workspace">
+    <div class="page-heading"><div><span class="eyebrow">Environment activity</span><h1>Run observer</h1></div>
+      <div class="actions"><label class="check"><input id="live" type="checkbox" checked> Live updates</label><button id="refresh">Refresh</button></div></div>
+    <section class="selector panel"><div class="grow"><label for="run-select">Run</label><select id="run-select"><option value="">Select a run</option></select></div>
+      <button id="more-runs" hidden>Load older runs</button><div class="grow"><label for="owner-select">Participant</label><select id="owner-select"><option value="">All owners and Agents</option></select></div></section>
+    <section id="empty-runs" class="panel empty" hidden><h2>No runs yet</h2><p>Start a scenario with the local runner. This page will show it after the first saved run record.</p></section>
+    <div id="run-content" hidden>
+      <section class="run-heading"><div><h2 id="run-title"></h2><p id="run-id" class="muted mono"></p></div><span id="run-status" class="badge"></span></section>
+      <section class="metrics" aria-label="Run summary"><div class="panel metric"><span>Decision window</span><strong id="window"></strong><small id="phase"></small></div>
+        <div class="panel metric"><span>Saved events</span><strong id="event-count"></strong><small id="messages-count"></small></div>
+        <div class="panel metric"><span>Mail and resources</span><strong id="resource-count"></strong><small id="trade-count"></small></div>
+        <div class="panel metric"><span>Campaign cost · reported</span><strong id="cost"></strong><small id="remaining"></small></div></section>
+      <p id="run-notice" class="notice" hidden></p>
+      <section id="cost-detail" class="panel cost-detail" hidden></section>
+      <section class="panel activity" id="activity" tabindex="-1">
+        <div class="activity-heading"><div><h2>Saved activity</h2><p class="help">Newest activity appears first. Select a record to read its evidence.</p></div><span id="updated" class="help" role="status"></span></div>
+        <nav id="tabs" class="tabs" aria-label="Activity views">
+          <button data-view="timeline" class="selected" aria-current="page">Timeline</button><button data-view="chat">Owner chat</button><button data-view="board">Board</button>
+          <button data-view="mail">Mail</button><button data-view="resources">Resources</button><button data-view="market">Market</button>
+          <button data-view="receipts">Trade receipts</button><button data-view="trades">Transfers</button><button data-view="accounts">Accounts</button>
+          <button data-view="reservations">Transport receipts</button><button data-view="jobs">Steps and errors</button><button data-view="tools">Tool results</button>
+          <button data-view="plot">Plot</button><button data-view="report">Report</button><button data-view="costs">Model costs</button>
+        </nav>
+        <div class="filter-line"><label id="kind-label" for="kind">Event type <select id="kind"><option value="">All events</option></select></label>
+          <span id="record-count" class="help"></span><span id="loading" class="help" hidden>Loading…</span></div>
+        <div id="records" aria-live="polite"></div>
+        <div class="pagination"><button id="previous" hidden>← Newer records</button><button id="next" hidden>Older records →</button></div>
+      </section>
+      <p class="footnote">A completed run records execution. It does not by itself prove correct Actor behavior or successful Agent decisions. Receipts establish committed world changes. Pending receipts are not completed transactions.</p>
+    </div>
+  </div>
+</main>
+</body></html>

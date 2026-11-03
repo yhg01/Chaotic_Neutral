@@ -1,8 +1,9 @@
 """Durable cost reservations for every actual text-model HTTP attempt.
 
-Only GPT-4.1 text requests are supported by this cost-bound implementation.
-UTF-8 bytes bound byte-tokenizer content; generous framing allowances cover
-message and tool wrappers. Unknown models, paid plugins, and media fail closed.
+GPT-4.1 uses a byte-tokenizer content bound with explicit wrapper allowances.
+Two pinned DeepSeek/Qwen text models reserve their full declared input context
+instead of assuming that their tokenizers behave like GPT. Unknown models,
+paid plugins, reasoning options and media fail closed.
 OpenRouter enforces the stored provider price ceilings on each request.
 """
 
@@ -20,7 +21,13 @@ from uuid import UUID, uuid4
 import httpx
 from psycopg.types.json import Jsonb
 
-SUPPORTED_MODELS = frozenset({"openai/gpt-4.1", "openai/gpt-4.1-mini", "openai/gpt-4.1-nano"})
+CONTEXT_BOUND_MODELS = {
+    "deepseek/deepseek-chat-v3-0324": "DeepSeek",
+    "qwen/qwen3-30b-a3b-instruct-2507": "Qwen3",
+}
+SUPPORTED_MODELS = frozenset(
+    {"openai/gpt-4.1", "openai/gpt-4.1-mini", "openai/gpt-4.1-nano", *CONTEXT_BOUND_MODELS}
+)
 _context: ContextVar[dict | None] = ContextVar("model_budget_context", default=None)
 _QUANTUM = Decimal("0.000000000001")
 
@@ -76,7 +83,7 @@ class ModelPrice:
             raise BudgetError("Model context limit is missing or unsupported.")
 
     def snapshot(self):
-        return {
+        result = {
             "model": self.model,
             "prompt_per_token_usd": str(self.prompt),
             "completion_per_token_usd": str(self.completion),
@@ -85,6 +92,9 @@ class ModelPrice:
             "fetched_at": self.fetched_at,
             "source": "https://openrouter.ai/api/v1/models",
         }
+        if self.model in CONTEXT_BOUND_MODELS:
+            result["input_bound_strategy"] = "full_declared_context"
+        return result
 
     def maximum(self, prompt_tokens, output_tokens):
         return (
@@ -116,12 +126,19 @@ async def fetch_model_prices(models, *, client: httpx.AsyncClient | None = None)
             if model.get("id") not in wanted:
                 continue
             architecture = model.get("architecture", {})
-            if architecture.get("tokenizer") != "GPT" or architecture.get("output_modalities") != [
-                "text"
-            ]:
+            expected_tokenizer = CONTEXT_BOUND_MODELS.get(model["id"], "GPT")
+            if architecture.get("tokenizer") != expected_tokenizer or architecture.get(
+                "output_modalities"
+            ) != ["text"]:
                 raise BudgetError("The model does not have the expected text-token contract.")
             if "max_tokens" not in model.get("supported_parameters", []):
                 raise BudgetError("The model does not support a fixed output limit.")
+            if model["id"] in CONTEXT_BOUND_MODELS and (
+                architecture.get("input_modalities") != ["text"]
+                or not {"tools", "tool_choice", "response_format"}
+                <= set(model.get("supported_parameters", []))
+            ):
+                raise BudgetError("The comparison model lacks the required text/tool contract.")
             pricing = model["pricing"]
             levels = [pricing, *pricing.get("overrides", [])]
             prompt = max(amount(level.get("prompt", pricing["prompt"])) for level in levels)
@@ -353,7 +370,14 @@ def prepare_request(body: dict, prices):
     # At most one byte-level token per content byte, doubled for provider tool
     # formatting. Add explicit room for each message/tool and fixed wrappers.
     bound = len(serialized) * 2 + 8192 + 1024 * (len(messages) + len(tools))
-    if bound + output > price.context_length:
+    if model in CONTEXT_BOUND_MODELS:
+        # A successful request's prompt cannot exceed the declared model context.
+        # Reserve the whole input context plus the bounded output independently.
+        # This deliberately over-reserves and does not estimate a foreign tokenizer.
+        bound = price.context_length
+        if output > price.context_length:
+            raise BudgetError("The output limit exceeds the model context limit.")
+    elif bound + output > price.context_length:
         raise BudgetError("The conservative request token bound exceeds the model context limit.")
     body["provider"] = {
         "require_parameters": True,

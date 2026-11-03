@@ -1,5 +1,6 @@
 """Deterministic, consent-bound commerce in the simulated environment."""
 
+from contextlib import asynccontextmanager
 from uuid import UUID, uuid5
 
 from psycopg.types.json import Jsonb
@@ -34,6 +35,14 @@ class MarketService:
         self.pool = pool
         self.world = WorldService(pool)
         self.resources = ResourceService(pool)
+
+    @asynccontextmanager
+    async def _connection(self, connection=None):
+        if connection is not None:
+            yield connection
+        else:
+            async with self.pool.connection() as conn:
+                yield conn
 
     async def _permission(self, conn, run_id, owner_id):
         row = await _one(
@@ -225,6 +234,7 @@ class MarketService:
         quantity=1,
         unit_price=None,
         expected_version=None,
+        connection=None,
     ):
         if kind not in {"sell", "buy"}:
             raise MarketError("Commerce action must be sell or buy.", 422)
@@ -256,7 +266,7 @@ class MarketService:
             "unit_price": unit_price,
             "expected_version": expected_version,
         }
-        async with self.pool.connection() as conn:
+        async with self._connection(connection) as conn:
             async with conn.transaction():
                 run = await self.world._run(conn, run_id)
                 consent = await self._permission(conn, run_id, owner_id)

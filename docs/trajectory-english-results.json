@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-03T14:37:23.520013+00:00",
+  "scope": "English observer display and motion only; no simulation execution.",
+  "engine": "Local Argos zh-en 1.9, CTranslate2 CPU int8; approximate machine translation",
+  "warm_cache": {
+    "historical_dialogue": 498,
+    "translated_texts": 568,
+    "remaining_han": 0,
+    "seconds": 31.77,
+    "campaign_unchanged": true
+  },
+  "tests": {
+    "command": "scripts/test_local.py tests/test_english_display.py tests/test_console.py tests/test_observer.py --tb=short",
+    "passed": 47,
+    "seconds": 11.24
+  },
+  "manual_browser_checks": [
+    "Default English run names and historical messages, with no Han or unavailable markers in the inspected saved page",
+    "Whole-view original toggle and English comparison from original mode",
+    "Original message detail with retained ID and timestamp; close button and Escape",
+    "Rapid marker navigation and Home then Right select Turn 02 after slider correction",
+    "Saved-turn playback and pause",
+    "Animated inspector disclosure",
+    "Empty log search and unavailable-run error",
+    "93-turn saved trajectory: horizontal markers and End to Turn 93",
+    "1280x720 desktop and 390x844 narrow view without horizontal page overflow",
+    "No warning or error logs in the final history tab"
+  ],
+  "screenshots": [
+    "docs/images/trajectory-english-desktop.png",
+    "docs/images/trajectory-english-mobile.png"
+  ],
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "5",
+    "attempts": 1392,
+    "reported_usd": "4.5054840",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.407975200000",
+    "remaining_usd": "0.086540800000"
+  },
+  "campaign_matches_prior_evidence": true,
+  "paused_model_run": {
+    "id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+    "status": "paused",
+    "phase": "agents",
+    "current_window": 8
+  },
+  "active_console_executions": 0,
+  "limitations": [
+    "Machine translation is a reading aid; the original remains the authoritative saved evidence.",
+    "First uncached translation can take longer.",
+    "No new paid-model acceptance or long-duration autonomy claim."
+  ]
+}

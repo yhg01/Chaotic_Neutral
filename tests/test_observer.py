@@ -184,3 +184,20 @@ async def test_observer_page_and_assets_load_without_embedding_credentials(clien
     assert "localStorage" not in source and "sessionStorage" not in source
     assert "textContent" in source
     assert "Authorization" not in source
+
+
+async def test_compact_overview_skips_report_without_changing_default(client, pool):
+    from psycopg.types.json import Jsonb
+
+    run = await provision(client)
+    async with pool.connection() as conn:
+        await conn.execute(
+            "INSERT INTO run_reports(run_id,report) VALUES (%s,%s)",
+            (UUID(run["run_id"]), Jsonb({"large_evidence": "retained"})),
+        )
+    base = f"/api/v1/observer/runs/{run['run_id']}"
+    full = (await client.get(base)).json()
+    compact = (await client.get(base + "?compact=true")).json()
+    assert full["report"]["large_evidence"] == "retained"
+    assert compact["report"] is None
+    assert compact["run"] == full["run"]

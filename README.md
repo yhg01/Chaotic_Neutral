@@ -9,6 +9,12 @@ reservations, private internal mail, owner workspaces, and a simulated item mark
 It uses FastAPI, PostgreSQL, Deep Agents, LangChain, and LangGraph. Each cluster
 supports up to 15 Agents.
 
+The [task pipeline demo](docs/TASK_PIPELINE_DEMO.md) summarizes the local
+transfer and browser-shopping additions, saved model evidence, free reproduction
+commands and remaining limits. The current source passes 1,187 isolated local
+regression tests. Historical results below retain their original source and
+policy versions; they are not all independent model-autonomy trials.
+
 ## Source of truth
 
 The latest agreed diagram defines the system. Read the
@@ -173,6 +179,49 @@ identities or create separate identities for verification.
 
 ## Personal Agents
 
+For the first small task, see [repay a friend for lunch](docs/TRANSFER_TASK.md).
+After starting PostgreSQL, `uv run python scripts/try_transfer_task.py` verifies
+an exact 10-credit simulated transfer, notifications, owner reports, and safe
+retries. It uses real local persistence and fixed tool calls, with no model calls.
+It does not establish autonomous Agent behavior.
+With `OPENROUTER_API_KEY` configured, use `uv run python scripts/run_transfer_models.py`
+for the model-selected task. The [task record](docs/TRANSFER_TASK.md#real-model-task)
+separates the first incomplete attempt from completion after a notification reminder.
+Use `uv run python scripts/run_transfer_actors.py` for the next
+[Actor–Agent–Director task](docs/TRANSFER_ACTOR_TASK.md), where model Actors create
+the owner dialogue, grant exact payment authority, and react to actual results.
+The [six-run validation](docs/TRANSFER_VALIDATION_RESULTS.md) records repeated
+baselines, three variants, retained failures, actual costs and remaining behavior issues.
+The [Inbox and wait repairs](docs/INBOX_WAIT_REPAIRS.md) document the next
+implementation and its bounded real-assistant probe. The
+[comparison after those repairs](docs/TRANSFER_REPAIR_VALIDATION_RESULTS.md) records
+three passing baselines, two passing variants and a retained unknown-amount failure.
+The [empty-scratch repair and retests](docs/EMPTY_SCRATCH_REPAIRS.md) stop empty-file
+searches in three real-Actor runs. Actual unresolved waiting passes two of three;
+that snapshot preceded the later Actor-policy comparisons below.
+The later [v3 comparison](docs/QUIET_ACTOR_V3_RESULTS.md) retains three waiting
+failures and a passing transfer regression. The
+[v4 delegation repair](docs/DELEGATION_V4_RESULTS.md) adds structured Actor mail
+intent review, another passing transfer regression, one genuine safe-wait example,
+an incorrectly finished payer and a budget-blocked repeat. General waiting
+reliability remains open; these records are not an all-pass claim.
+The [owner-acknowledgement probe](docs/OWNER_ACK_V5_RESULTS.md) then isolates premature
+completion after a simple owner acknowledgement: two of three single-assistant
+probes fail despite consistent revised instructions. The later
+[explicit own-state context probes](docs/OWNER_ACK_V6_RESULTS.md) still retain one
+premature finish in three, with 981 local tests passing. Both are component
+diagnostics; full v6 Actor repeatability remains unverified.
+The [persistent transfer-task implementation](docs/TRANSFER_TASK_LIFECYCLE.md) then
+separates business work from activation results. Three deterministic local branches
+and 1,000 isolated PostgreSQL tests passed in that local-only snapshot. The later
+[real-model task results](docs/TRANSFER_TASK_MODEL_RESULTS.md) retain v7 failures
+and add optional yield, task-direction, authority and missing-task checks. One
+full v11 payment baseline passes 20 automatic checks; one full v12 unknown-amount
+run passes 14 wait/persistence checks. The latter still sends no active amount
+inquiry. Two repeats and a v12 payment baseline remain unrun; general stability
+is open. The latest isolated PostgreSQL suite passes 1,070 tests. All failed and
+resumed trajectories and the same-campaign 4 USD budget accounting remain saved.
+
 Deep Agents runs inside the local Python application. It uses LangChain model
 and tool interfaces and LangGraph execution with PostgreSQL checkpoints. All
 three libraries are open source. Versions are pinned in `pyproject.toml` and
@@ -266,6 +315,9 @@ Open <http://127.0.0.1:8000/console>, then select a run and a turn. Local access
 needs no token or sign-in. **Replay** shows saved evidence.
 The bottom **Play** control advances the display without model calls. Select a
 person to inspect their Persona, Agent, Resources, and delivered dialogue.
+The trajectory defaults to English, including historical Chinese messages.
+Use **Original** to inspect the saved source. The optional offline translation
+setup is in the [console guide](docs/RUN_CONSOLE.md#english-reading-view).
 
 Select **Live controls** to run models. **Step one turn** executes one full
 Actor, Agent, and settlement cycle. **Continue** runs until completion or pause.
@@ -478,3 +530,58 @@ References: [FastAPI](https://fastapi.tiangolo.com/),
 [PostgreSQL concurrency](https://www.postgresql.org/docs/18/mvcc-intro.html),
 [transaction visibility](https://www.postgresql.org/docs/18/transaction-iso.html),
 and the [official PostgreSQL image](https://hub.docker.com/_/postgres).
+
+## Browser shopping and continuous checks
+
+The opt-in local storefront and repeat-purchase runner are described in
+[Browser shop runtime](docs/BROWSER_SHOP_RUNTIME.md). Install the browser extra
+with `uv sync --extra browser --locked` and use installed Google Chrome.
+After starting the API, run:
+
+```sh
+uv run python scripts/try_browser_shop.py --mode control --rounds 30 \
+  --restart-every 6 --inject-checkout-interruption
+```
+
+This verifies real browser/graph/Director/database execution with supplied
+decisions and no provider calls. Model buyers use `--mode model --rounds 3
+--campaign <existing-campaign-uuid>`; they retain the existing campaign ceiling.
+Manifests and resume inputs stay under `.local/browser-shop-runs/`. Open
+`/shop?run=<id>&observer=1&owner=alice` for the read-only storefront or
+`/console?run=<id>` for its trajectory. This profile resumes through the script,
+not the general console model worker. Failed and passing evidence remains in
+[the results file](docs/browser-shop-results.json). Thirty control purchases and
+three model purchases do not establish multi-hour model reliability.
+
+`--mode model-actors` adds model owner generation, owner review and a model
+seller, with all calls charged to the same existing campaign. Use
+`--step-interval-seconds 2 --stop-after-windows 16` for a paced partial run, then
+start a separate invocation with `--resume <credentials.json>`. Immutable
+invocation reports retain failures and the original paused state. The
+[model-owner continuation](docs/BROWSER_SHOP_MODEL_RESULTS.md) separates these
+experiments from the supplied 30-order control and records remaining limits.
+
+For a new control run, `--supervise` freezes classified temporary-error recovery
+and business-progress checks. Operator pauses, budget stops and unknown errors
+remain stopped. Run `uv run python scripts/probe_supervision_restart.py` for a
+free 30-order process-termination and recovery check. See
+[Runtime supervision](docs/RUNTIME_SUPERVISION.md) for policy, evidence and limits.
+
+The [repayment and shopping closure](docs/TASK_CLOSURE.md) records the verified
+model repayment baseline and the original all-model shopping run completed at
+three of three purchases under the authorized cumulative 5.5 USD ceiling.
+General conversation quality and long-duration model operation remain open.
+
+The [autonomy acceptance guide](docs/AUTONOMY_ACCEPTANCE.md) separates repeated
+local controls, model trials, operator interventions and real invocation duration.
+Use `uv run python scripts/try_autonomy_controls.py --repeats 3` for the free
+five-case control matrix, or `scripts/report_autonomy.py` to audit saved model
+runs without executing them. Missing historical audit data remains unknown.
+
+The [renewal-funding and model comparison guide](docs/MODEL_COMPARISON.md)
+records a new zero-credit owner setting, funded and unfunded local controls,
+and one real DeepSeek/Qwen pilot. Assistants can use different bounded models
+per owner while keeping owner Actors fixed. The pilot paused before its funding
+deadline at the existing 5.5 USD campaign guard; role-swapped repeats and service
+suspension are not verified. Use `scripts/try_funding_control.py` for free local
+checks. Model execution is a separate explicit step under the same campaign.

@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-03",
+  "scope": "Local supplied-control recovery experiment with real Chrome, Agent graphs, HTTP and PostgreSQL. No model-provider calls.",
+  "restart_probe": {
+    "date": "2026-11-03T09:25:42.245425+00:00",
+    "run_id": "b4a4de1b-4b5f-45f4-87a1-ceffdca0ef75",
+    "first_process_id": 13049,
+    "first_exit_code": -15,
+    "second_process_id": 13137,
+    "second_exit_code": 0,
+    "original_retry_deadline": "2026-11-03T09:24:07.362409+00:00",
+    "events": [
+      {
+        "kind": "recovery_scheduled",
+        "payload": {
+          "attempt": 1,
+          "retry_at": "2026-11-03T09:24:07.362409+00:00",
+          "failure_kinds": [
+            "tool_transient"
+          ]
+        },
+        "created_at": "2026-11-03 09:23:58.604566+00:00"
+      },
+      {
+        "kind": "recovery_resumed",
+        "payload": {
+          "job_ids": [
+            "bd27b387-4cc4-5d1e-804a-a35f23af1af8"
+          ],
+          "attempts_preserved": [
+            1
+          ]
+        },
+        "created_at": "2026-11-03 09:24:07.374675+00:00"
+      }
+    ],
+    "checks": {
+      "new_process": true,
+      "one_original_deadline": true,
+      "no_early_resume": true,
+      "one_recovery": true,
+      "thirty_purchases_pass": true,
+      "zero_provider_attempts": true,
+      "campaign_unchanged": true
+    },
+    "campaign_before": {
+      "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+      "name": "Actor–Agent lunch repayment",
+      "limit_usd": "5",
+      "halted": false,
+      "created_at": "2026-11-02 16:51:29.675341+00:00",
+      "attempts": 1392,
+      "reported_usd": "4.5054840",
+      "reserved_usd": "0",
+      "uncertain_usd": "0.407975200000",
+      "committed_usd": "4.913459200000",
+      "remaining_usd": "0.086540800000",
+      "recent_attempts": [],
+      "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+    },
+    "campaign_after": {
+      "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+      "name": "Actor–Agent lunch repayment",
+      "limit_usd": "5",
+      "halted": false,
+      "created_at": "2026-11-02 16:51:29.675341+00:00",
+      "attempts": 1392,
+      "reported_usd": "4.5054840",
+      "reserved_usd": "0",
+      "uncertain_usd": "0.407975200000",
+      "committed_usd": "4.913459200000",
+      "remaining_usd": "0.086540800000",
+      "recent_attempts": [],
+      "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+    },
+    "scope": "Supplied decisions with actual Agent graph, Chrome, HTTP and PostgreSQL; no provider calls."
+  },
+  "shopping_result": {
+    "run_id": "b4a4de1b-4b5f-45f4-87a1-ceffdca0ef75",
+    "run_status": "completed",
+    "window": 92,
+    "checks": {
+      "run_completed": true,
+      "no_simulator_error": true,
+      "all_owner_tasks_completed": true,
+      "one_order_per_task": true,
+      "all_orders_settled": true,
+      "correct_total": true,
+      "wallets_match_and_conserve_credits": true,
+      "owner_received_each_order_report": true,
+      "reports_follow_accepted_settlement": true,
+      "browser_submitted_each_order": true,
+      "no_active_or_failed_jobs_at_end": true
+    },
+    "passed": true,
+    "buyer_balance": 560,
+    "seller_balance": 540,
+    "elapsed_seconds": 94.26,
+    "runtime_recreations": 16,
+    "model_usage": {
+      "requests": 0,
+      "completed_requests": 0,
+      "failed_requests": 0,
+      "peak_concurrent_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reported_cost_usd": 0.0,
+      "cost_reports": 0,
+      "models": [],
+      "request_unit": "logical model invocation; excludes internal HTTP retries"
+    },
+    "completed_window_count": 92,
+    "minimum_window_gap_seconds": 0.120944,
+    "maximum_window_gap_seconds": 12.2774,
+    "window_execution_span_seconds": 105.080527,
+    "supervision": {
+      "run_id": "b4a4de1b-4b5f-45f4-87a1-ceffdca0ef75",
+      "policy": {
+        "max_retries": 2,
+        "stagnant_windows": 3,
+        "max_delay_seconds": 30.0,
+        "base_delay_seconds": 8.0
+      },
+      "retry_signature": "794ef0fb69cb0f709d2a2697d91bf84b40d4955638090ac0853545e4934d2152",
+      "retry_due_at": null,
+      "recoveries": 1,
+      "last_health_window": 91,
+      "created_at": "2026-11-03 09:23:55.826714+00:00"
+    },
+    "task_health": []
+  },
+  "replayed_checkout_calls": [
+    {
+      "owner_id": "alice",
+      "window": 2,
+      "call_id": "a1fa2e5c-51f0-4c48-88d5-5cc34e9ce870",
+      "tool": "shop_click"
+    }
+  ],
+  "retained_failures": [
+    {
+      "kind": "job_failure",
+      "window": 2,
+      "payload": {
+        "job_id": "bd27b387-4cc4-5d1e-804a-a35f23af1af8",
+        "attempt": 1,
+        "component": "agent",
+        "retryable": true,
+        "failure_kind": "tool_transient"
+      }
+    },
+    {
+      "kind": "infrastructure_failure",
+      "window": 2,
+      "payload": {
+        "component": "agent",
+        "exhausted": false
+      }
+    }
+  ],
+  "verification": {
+    "focused_tests": 151,
+    "focused_seconds": 33.6,
+    "full_tests": 1130,
+    "full_seconds": 175.32,
+    "database": "Isolated PostgreSQL schemas; no development database reset.",
+    "static_checks": "Ruff, formatting and whitespace checks passed.",
+    "browser": "Restarted idle loopback API; in-app observer showed the completed control, saved recovery events, original job ID and preserved attempt.",
+    "screenshot": "docs/images/runtime-supervision-recovery.png"
+  },
+  "source_hashes": {
+    ".local/browser-shop-runs/b4a4de1b-4b5f-45f4-87a1-ceffdca0ef75/restart-probe.json": "cc5c58f32a6a8d7d375f376111ae71ce0128c6f413770722f4ee91fe615ea6a6",
+    ".local/browser-shop-runs/b4a4de1b-4b5f-45f4-87a1-ceffdca0ef75/report.json": "b6fa272858134d7c9b15b675ed9f2e258468b450f691f436fbe47286b772c187",
+    "migrations/016_run_supervision.sql": "922959af11039d2016e920a24323532d5ea2ccbe72eb2e4ded41a859a8f3502e",
+    "src/agentrpg/supervision.py": "f4933e30ff43c2c23af2d38e38c9516d6c8b6ffeff11bb1ea1ce26c9a7e202e0",
+    "src/agentrpg/runtime_failures.py": "37109dc5fc3a24e635146359aa7574a02a45bb243066f585dc81795722b1c5ab",
+    "src/agentrpg/run_engine.py": "ea6902e9476b1ede4fdcd61878bf6ea45891bb5a24bdd064faed2630f287f9c6",
+    "scripts/probe_supervision_restart.py": "328247f3fae953cca85a8f77c5b02f3b0b60a7d924423eb5645d106f252c1808"
+  },
+  "limits": [
+    "No paid-model continuation. Existing full-model run remains at two of three purchases.",
+    "Watchdog covers executable open shopping tasks. Legitimate waits for authority, stock, funds or settlement are excluded.",
+    "This is a bounded recovery experiment lasting minutes, not multi-hour model reliability.",
+    "No operating-system service restart or independent multi-process model-load study."
+  ]
+}

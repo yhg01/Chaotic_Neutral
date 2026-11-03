@@ -46,6 +46,20 @@ class InboxService:
         ):
             raise InboxError("Mailbox not found.", 404)
 
+    async def _missing_reference(self, conn, run_id, owner_id, ids):
+        # Inspect only this caller's own chat. A foreign private ID stays a 404.
+        if await row(
+            conn,
+            "SELECT 1 FROM owner_messages WHERE run_id=%s AND owner_id=%s AND id=ANY(%s)",
+            (run_id, owner_id, ids),
+        ):
+            raise InboxError(
+                "Owner-chat IDs are not Inbox email IDs. Owner chat needs no mail receipt. "
+                "Use received email IDs from list_mail/read_mail.",
+                422,
+            )
+        raise InboxError("One or more Inbox email references were not found.", 404)
+
     async def initialize(self, run_id, initial_mail, *, connection):
         for value in initial_mail:
             item = (
@@ -173,6 +187,9 @@ class InboxService:
                 f"mail:{message_id}",
                 payload.recipient_owner_id,
             )
+            from agentrpg.transfer_tasks import TransferTaskService
+
+            await TransferTaskService.received_mail(conn, existing)
             return _public(existing)
 
     async def list_messages(
@@ -264,7 +281,7 @@ class InboxService:
                 (run_id, message_id, owner_id, owner_id),
             )
             if message is None:
-                raise InboxError("Mail not found.", 404)
+                await self._missing_reference(conn, run_id, owner_id, [UUID(str(message_id))])
             return _public(message)
 
     async def acknowledge(self, run_id, owner_id, message_ids):
@@ -283,7 +300,7 @@ class InboxService:
                 (run_id, owner_id, ids),
             )
             if len(found) != len(ids):
-                raise InboxError("One or more received messages were not found.", 404)
+                await self._missing_reference(conn, run_id, owner_id, ids)
             for message_id in ids:
                 await conn.execute(
                     "INSERT INTO inbox_receipts(run_id,message_id,owner_id) VALUES (%s,%s,%s) "

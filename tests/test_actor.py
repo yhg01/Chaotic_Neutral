@@ -35,6 +35,22 @@ class Responses:
         return AIMessage(content=json.dumps(value))
 
 
+async def test_actor_uses_explicit_frozen_generation_and_review_policies():
+    model = Responses([{"kind": "wait", "text": ""}])
+    reviewer = Responses([{"accepted": True, "issues": []}])
+    actor = ModelActor(
+        model,
+        reviewer=reviewer,
+        prompt="Frozen owner policy.",
+        review_prompt="Frozen review policy.",
+    )
+    result = await actor.respond(view())
+    assert result.kind == "wait"
+    assert "Frozen owner policy." in model.calls[0][0].content
+    assert "Frozen review policy." in reviewer.calls[0][0].content
+    assert "Frozen review policy." not in model.calls[0][0].content
+
+
 def view(question=None, **kwargs):
     conversation = [{"id": "message-1", "role": "assistant", "text": question}] if question else []
     return build_actor_view(

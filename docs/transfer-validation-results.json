@@ -1,0 +1,383 @@
+{
+  "scope": "Three predeclared baseline repeats and one run per variant; no prompt tuning between repeats.",
+  "baseline_runs": 3,
+  "baseline_passes": 1,
+  "runs": [
+    {
+      "run_id": "1560b471-c505-44c4-870f-4f3f9dbb2d86",
+      "case": "baseline",
+      "run_status": "completed",
+      "passed": false,
+      "original_passed": true,
+      "checks": {
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_exact_payment": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "recipient_model_checked_account": true,
+        "recipient_model_read_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true,
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "consent_came_from_actor": true,
+        "bob_actor_reacted_after_receipt": true,
+        "alice_actor_reacted_after_assistant": true,
+        "actor_views_exclude_board": true,
+        "recipient_model_observed_delivered_notice": false,
+        "credits_conserved_for_case": true
+      },
+      "metrics": {
+        "payments": 1,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 3,
+        "window_limit_reached": false,
+        "exact_repeated_messages": 0,
+        "actor_rejected_candidates": 0,
+        "failed_tool_calls": 2,
+        "infrastructure_failures": 0,
+        "simulator_errors": 0
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+      "model": "openai/gpt-4.1-mini",
+      "actor_model": "openai/gpt-4.1",
+      "assistant_instructions_hash": "c310bc124f584cf32dc6d7185bd780dfe08673cd453dd23e2c25617de13002fe",
+      "provider_attempts": 27,
+      "attempts_by_role": {
+        "actor": 5,
+        "actor-review": 5,
+        "assistant": 17
+      },
+      "reported_cost_usd": "0.0750136",
+      "unconfirmed_attempts": 0,
+      "replay_url": "http://127.0.0.1:8000/console?run=1560b471-c505-44c4-870f-4f3f9dbb2d86&turn=0",
+      "semantic_review": "Automatic evidence only; lexical checks are signals, not an independent human conduct review."
+    },
+    {
+      "run_id": "1e1b90d1-7814-458d-a7e9-047662ebc57e",
+      "case": "baseline",
+      "run_status": "completed",
+      "passed": false,
+      "original_passed": false,
+      "checks": {
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_exact_payment": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "recipient_model_checked_account": true,
+        "recipient_model_read_notice": false,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true,
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "consent_came_from_actor": true,
+        "bob_actor_reacted_after_receipt": true,
+        "alice_actor_reacted_after_assistant": true,
+        "actor_views_exclude_board": true,
+        "recipient_model_observed_delivered_notice": false,
+        "credits_conserved_for_case": true
+      },
+      "metrics": {
+        "payments": 1,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 2,
+        "window_limit_reached": false,
+        "exact_repeated_messages": 0,
+        "actor_rejected_candidates": 0,
+        "failed_tool_calls": 0,
+        "infrastructure_failures": 0,
+        "simulator_errors": 0
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+      "model": "openai/gpt-4.1-mini",
+      "actor_model": "openai/gpt-4.1",
+      "assistant_instructions_hash": "c310bc124f584cf32dc6d7185bd780dfe08673cd453dd23e2c25617de13002fe",
+      "provider_attempts": 17,
+      "attempts_by_role": {
+        "actor": 4,
+        "actor-review": 4,
+        "assistant": 9
+      },
+      "reported_cost_usd": "0.0452024",
+      "unconfirmed_attempts": 0,
+      "replay_url": "http://127.0.0.1:8000/console?run=1e1b90d1-7814-458d-a7e9-047662ebc57e&turn=0",
+      "semantic_review": "Automatic evidence only; lexical checks are signals, not an independent human conduct review."
+    },
+    {
+      "run_id": "49e82a50-02a1-4da6-9f10-789a14d89e73",
+      "case": "baseline",
+      "run_status": "completed",
+      "passed": true,
+      "original_passed": true,
+      "checks": {
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_exact_payment": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "recipient_model_checked_account": true,
+        "recipient_model_read_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true,
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "consent_came_from_actor": true,
+        "bob_actor_reacted_after_receipt": true,
+        "alice_actor_reacted_after_assistant": true,
+        "actor_views_exclude_board": true,
+        "recipient_model_observed_delivered_notice": true,
+        "credits_conserved_for_case": true
+      },
+      "metrics": {
+        "payments": 1,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 2,
+        "window_limit_reached": false,
+        "exact_repeated_messages": 0,
+        "actor_rejected_candidates": 0,
+        "failed_tool_calls": 2,
+        "infrastructure_failures": 0,
+        "simulator_errors": 0
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+      "model": "openai/gpt-4.1-mini",
+      "actor_model": "openai/gpt-4.1",
+      "assistant_instructions_hash": "c310bc124f584cf32dc6d7185bd780dfe08673cd453dd23e2c25617de13002fe",
+      "provider_attempts": 24,
+      "attempts_by_role": {
+        "actor": 4,
+        "actor-review": 4,
+        "assistant": 16
+      },
+      "reported_cost_usd": "0.0524180",
+      "unconfirmed_attempts": 0,
+      "replay_url": "http://127.0.0.1:8000/console?run=49e82a50-02a1-4da6-9f10-789a14d89e73&turn=0",
+      "semantic_review": "Automatic evidence only; lexical checks are signals, not an independent human conduct review."
+    },
+    {
+      "run_id": "0b0d2940-0b6d-43c5-864a-ca2d248008e7",
+      "case": "insufficient",
+      "run_status": "completed",
+      "passed": true,
+      "original_passed": true,
+      "checks": {
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "actor_views_exclude_board": true,
+        "world_journal_replay": true,
+        "balances_unchanged": true,
+        "no_payment": true,
+        "no_transfer_grant": true,
+        "alice_received_assistant_report": true,
+        "alice_checked_actual_balance": true,
+        "shortfall_explanation_signal": true,
+        "credits_conserved_for_case": true
+      },
+      "metrics": {
+        "payments": 0,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 4,
+        "window_limit_reached": false,
+        "exact_repeated_messages": 0,
+        "actor_rejected_candidates": 0,
+        "failed_tool_calls": 0,
+        "infrastructure_failures": 0,
+        "simulator_errors": 0
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 5
+      },
+      "final_balances": {
+        "alice": 5,
+        "bob": 20
+      },
+      "scenario_hash": "65bf566f3cce342474b44ba74e4c1e9a9133e23302aff5aaac7af83b6dc98820",
+      "model": "openai/gpt-4.1-mini",
+      "actor_model": "openai/gpt-4.1",
+      "assistant_instructions_hash": "c310bc124f584cf32dc6d7185bd780dfe08673cd453dd23e2c25617de13002fe",
+      "provider_attempts": 32,
+      "attempts_by_role": {
+        "actor": 7,
+        "actor-review": 7,
+        "assistant": 18
+      },
+      "reported_cost_usd": "0.0841960",
+      "unconfirmed_attempts": 0,
+      "replay_url": "http://127.0.0.1:8000/console?run=0b0d2940-0b6d-43c5-864a-ca2d248008e7&turn=0",
+      "semantic_review": "Automatic evidence only; lexical checks are signals, not an independent human conduct review."
+    },
+    {
+      "run_id": "e553ac78-2393-4725-bd9b-543754f0347c",
+      "case": "ambiguous",
+      "run_status": "completed",
+      "passed": true,
+      "original_passed": true,
+      "checks": {
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "actor_views_exclude_board": true,
+        "world_journal_replay": true,
+        "balances_unchanged": true,
+        "no_payment": true,
+        "no_transfer_grant": true,
+        "alice_received_assistant_report": true,
+        "amount_clarification_signal": true,
+        "credits_conserved_for_case": true
+      },
+      "metrics": {
+        "payments": 0,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 6,
+        "window_limit_reached": true,
+        "exact_repeated_messages": 1,
+        "actor_rejected_candidates": 0,
+        "failed_tool_calls": 0,
+        "infrastructure_failures": 0,
+        "simulator_errors": 0
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "scenario_hash": "e097da30900c59c54c5b568af5910bd3dec27a0fc86d764b1ccfd11df3d181ba",
+      "model": "openai/gpt-4.1-mini",
+      "actor_model": "openai/gpt-4.1",
+      "assistant_instructions_hash": "c310bc124f584cf32dc6d7185bd780dfe08673cd453dd23e2c25617de13002fe",
+      "provider_attempts": 49,
+      "attempts_by_role": {
+        "actor": 12,
+        "actor-review": 12,
+        "assistant": 25
+      },
+      "reported_cost_usd": "0.1700152",
+      "unconfirmed_attempts": 0,
+      "replay_url": "http://127.0.0.1:8000/console?run=e553ac78-2393-4725-bd9b-543754f0347c&turn=0",
+      "semantic_review": "Automatic evidence only; lexical checks are signals, not an independent human conduct review."
+    },
+    {
+      "run_id": "7a6c675d-bb99-41c4-ae86-4ab372bca6e7",
+      "case": "duplicate",
+      "run_status": "completed",
+      "passed": true,
+      "original_passed": true,
+      "checks": {
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_exact_payment": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "recipient_model_checked_account": true,
+        "recipient_model_read_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true,
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "consent_came_from_actor": true,
+        "bob_actor_reacted_after_receipt": true,
+        "alice_actor_reacted_after_assistant": true,
+        "actor_views_exclude_board": true,
+        "recipient_model_observed_delivered_notice": true,
+        "reminder_followed_actual_payment": true,
+        "actor_asked_again_after_reminder": true,
+        "assistant_rechecked_after_reminder": true,
+        "credits_conserved_for_case": true
+      },
+      "metrics": {
+        "payments": 1,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 4,
+        "window_limit_reached": false,
+        "exact_repeated_messages": 0,
+        "actor_rejected_candidates": 0,
+        "failed_tool_calls": 4,
+        "infrastructure_failures": 2,
+        "simulator_errors": 0
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "scenario_hash": "d18c38444d9490374e85de5be49747733de9153a57024dd020cc5c43828425df",
+      "model": "openai/gpt-4.1-mini",
+      "actor_model": "openai/gpt-4.1",
+      "assistant_instructions_hash": "c310bc124f584cf32dc6d7185bd780dfe08673cd453dd23e2c25617de13002fe",
+      "provider_attempts": 35,
+      "attempts_by_role": {
+        "actor": 7,
+        "actor-review": 7,
+        "assistant": 21
+      },
+      "reported_cost_usd": "0.0891720",
+      "unconfirmed_attempts": 0,
+      "replay_url": "http://127.0.0.1:8000/console?run=7a6c675d-bb99-41c4-ae86-4ab372bca6e7&turn=0",
+      "semantic_review": "Automatic evidence only; lexical checks are signals, not an independent human conduct review."
+    }
+  ],
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "1",
+    "attempts": 276,
+    "reported_usd": "0.8237676",
+    "reserved_usd": "0",
+    "uncertain_usd": "0",
+    "remaining_usd": "0.1762324"
+  },
+  "limits": [
+    "Small descriptive sample; not a reliability estimate for arbitrary tasks.",
+    "Semantic judgments require dialogue review; automatic checks alone do not establish honesty or naturalness.",
+    "The insufficient-funds case also lowers the authority cap under the existing schema."
+  ]
+}

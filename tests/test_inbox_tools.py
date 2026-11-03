@@ -52,6 +52,32 @@ async def test_inbox_tools_routes_and_stable_ids():
         assert requests[-1].method == "GET"
 
 
+@pytest.mark.parametrize("mailbox", ["sent", "all"])
+async def test_unread_filter_requires_received_inbox_without_http(mailbox):
+    def handle(request):
+        pytest.fail("An invalid filter combination must not send a request")
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle), base_url="http://test/"
+    ) as client:
+        result = await InboxTools(client, uuid4()).execute(
+            "list_mail", {"mailbox": mailbox, "unread_only": True}, "list"
+        )
+        assert result["error"]["status"] == 422
+        assert "unread_only=true requires mailbox='inbox'" in result["error"]["detail"]
+        assert "IDs" not in result["error"]["detail"]
+
+
+async def test_rejected_mailbox_query_does_not_claim_bad_mail_ids():
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(422)),
+        base_url="http://test/",
+    ) as client:
+        result = await InboxTools(client, uuid4()).execute("list_mail", {}, "list")
+        assert "query" in result["error"]["detail"]
+        assert "IDs" not in result["error"]["detail"]
+
+
 @pytest.mark.parametrize(
     "name,arguments,call_id",
     [

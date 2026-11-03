@@ -219,3 +219,17 @@ or purchase real goods.
 A separate evaluator checks simulation validity and recorded outcomes. Semantic
 judgments cite evidence and require actual assistant records for assistant
 conduct. They require human calibration before use as research conclusions.
+
+The [acceptance audit](AUTONOMY_ACCEPTANCE.md) reuses the existing Director event
+store for operation and invocation metadata. It adds no node or connection to the
+diagram and does not advance simulation time. Trial duration and logical Clock
+windows are separate measurements. Raw observer evidence retains audit rows;
+the trajectory's story counts and event pagination omit these operational rows.
+
+Per-owner assistant model assignments use the same Agent nodes and private
+owner links. The Director, owner Actors, market and Clock keep their existing
+roles. The [funding comparison](MODEL_COMPARISON.md) uses scoped zero-credit
+state and actual market settlement to observe behavior. Its renewal target is
+an evaluation condition; it does not implement service suspension or change the
+diagram. Frozen assignments, source hashes and the existing cumulative campaign
+bound model comparisons and checkpoint reporting.

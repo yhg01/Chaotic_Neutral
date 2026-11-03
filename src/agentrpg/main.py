@@ -569,6 +569,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from agentrpg.observer_api import router as observer_router
     from agentrpg.resource_api import router as resource_router
     from agentrpg.run_branches import router as branches_router
+    from agentrpg.shop_api import router as shop_router
+    from agentrpg.transfer_api import router as transfer_router
 
     app.include_router(environment_router)
     app.include_router(inbox_router)
@@ -577,6 +579,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(console_router)
     app.include_router(execution_router)
     app.include_router(branches_router)
+    app.include_router(transfer_router)
+    app.include_router(shop_router)
 
     @app.get("/runs", include_in_schema=False)
     async def runs_observer():

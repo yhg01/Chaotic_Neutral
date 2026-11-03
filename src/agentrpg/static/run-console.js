@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   const $ = id => document.getElementById(id);
-  const colors = ["#91d9c3", "#e6bd82", "#b3a5e8", "#88bfdc", "#d99ca9"];
+  const colors = ["#243f6b", "#4f6d94", "#46518a", "#2f6883", "#656b83"];
   const collections = ["chat", "mail", "board", "events"];
   const initialURL = new URL(location.href);
   const requestedRun = initialURL.searchParams.get("run") || "";
@@ -11,17 +11,36 @@
     owner: "", replay: null, channel: "all", inspect: "persona", playing: false,
     timer: null, generation: 0, controller: null, loading: false, logRows: [],
     mode: "replay", execution: null, boundaries: null, controlsLoading: false, controlsError: "", controlEpoch: 0,
+    language: "en", translations: new Map(), pendingTurn: null, sliderTimer: null, detailRecord: null, detailOriginal: false,
     operationBusy: false, operations: new Map(), pendingOperation: null, lastIntervention: null,
   };
+  const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const han = /[\u3400-\u9fff]/;
+  const translate = (value, language = state.language) => typeof value === "string" && language === "en"
+    ? state.translations.get(value) || (han.test(value) ? "[English translation unavailable · Open original]" : value) : value;
+  const absorbEnglish = result => {
+    for (const [source, english] of Object.entries(result.english?.texts || {})) state.translations.set(source, english);
+  };
+  const displayValue = (value, language = state.language) => {
+    if (typeof value === "string") return translate(value, language);
+    if (Array.isArray(value)) return value.map(item => displayValue(item, language));
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, displayValue(item, language)]));
+    return value;
+  };
+  function soften(element) {
+    if (reducedMotion()) return;
+    element.getAnimations().forEach(animation => animation.cancel());
+    element.animate([{opacity: .65, transform: "translateY(4px)"}, {opacity: 1, transform: "translateY(0)"}], {duration: 180, easing: "cubic-bezier(.2,.7,.2,1)"});
+  }
   const node = (tag, content, className) => {
     const element = document.createElement(tag);
-    if (content !== undefined && content !== null) element.textContent = content;
+    if (content !== undefined && content !== null) element.textContent = translate(content);
     if (className) element.className = className;
     return element;
   };
-  const plain = value => typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  const plain = value => typeof value === "string" ? translate(value) : JSON.stringify(displayValue(value), null, 2);
   const preview = (value, length = 145) => {
-    const text = String(value || "").replace(/\s+/g, " ").trim();
+    const text = String(translate(value) || "").replace(/\s+/g, " ").trim();
     return text.length > length ? text.slice(0, length - 1) + "…" : text;
   };
   const readable = value => String(value || "").replaceAll("_", " ");
@@ -30,10 +49,10 @@
   const ownerName = id => {
     const person = state.overview?.run?.scenario?.owners?.find(owner => owner.id === id);
     const perspective = state.replay?.perspectives?.find(owner => owner.owner_id === id);
-    return perspective?.view?.owner_name || person?.name || id || "Director";
+    return translate(perspective?.view?.owner_name || person?.name || id || "Director");
   };
   const color = id => colors[Math.max(0, owners().findIndex(owner => owner.owner_id === id)) % colors.length];
-  const agentName = id => owners().find(owner => owner.owner_id === id)?.agent_name || "Assistant for " + ownerName(id);
+  const agentName = id => translate(owners().find(owner => owner.owner_id === id)?.agent_name) || "Assistant for " + ownerName(id);
   const activeSummary = () => state.turns.find(turn => turn.window === state.turn);
   const isCurrent = generation => generation === state.generation;
 
@@ -204,22 +223,24 @@
   }
   function loading(value) {
     state.loading = value;
+    $("workspace").classList.toggle("is-loading", value);
     $("run-content").setAttribute("aria-busy", String(value));
-    $("connection-status").textContent = value ? "Loading saved turn…" : "Local · saved replay";
+    $("connection-status").textContent = value ? (state.replay ? "Showing Turn " + padded(state.turn + 1) + " · Loading Turn " + padded((state.pendingTurn ?? state.turn) + 1) + "…" : "Loading saved turn…") : "Local · saved replay";
   }
   function navigation() {
     state.controller?.abort();
     state.controller = new AbortController();
     state.generation += 1;
     error("");
+    clearTimeout(state.sliderTimer);
     return state.generation;
   }
   async function api(path, signal = state.controller?.signal) {
     let response;
     try {
-      response = await fetch("/api/v1/observer" + path, {
+      response = await fetch("/api/v1/observer" + path + (path.includes("?") ? "&" : "?") + "display=en", {
         cache: "no-store", redirect: "error",
-        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120000)]) : AbortSignal.timeout(120000),
       });
     } catch (exception) {
       if (signal?.aborted) throw exception;
@@ -237,10 +258,20 @@
   }
   function fail(exception, generation) {
     if (!isCurrent(generation) || exception.name === "AbortError") return;
-    pause(); loading(false);
+    pause(); state.pendingTurn = null; loading(false); renderTransport();
     if (exception.auth) {
       disconnect(exception.message);
-    } else error(exception.message);
+    } else {
+      error(exception.message);
+      if (!state.overview) {
+        $("run-name").textContent = "Run unavailable";
+        $("run-status").textContent = "Unavailable";
+        $("run-summary").textContent = "Choose another saved run or retry this request.";
+        $("turn-heading").textContent = "Choose a turn";
+        $("dialogue").replaceChildren(node("p", "Saved records could not be loaded.", "empty-state"));
+        $("connection-status").textContent = "Run unavailable";
+      }
+    }
   }
   function setURL() {
     const url = new URL(location.href);
@@ -254,7 +285,7 @@
   function renderRunOptions() {
     $("run-select").replaceChildren();
     for (const run of state.runs) {
-      const option = node("option", (run.title || run.name || "Untitled run") + " · " + run.id.slice(0, 8));
+      const option = node("option", translate(run.title || run.name || "Untitled run") + " · " + run.id.slice(0, 8));
       option.value = run.id;
       $("run-select").append(option);
     }
@@ -271,6 +302,7 @@
     const generation = state.generation;
     const result = await api("/runs?limit=100&offset=" + (append ? state.runsNext || 0 : 0));
     if (!isCurrent(generation)) return;
+    absorbEnglish(result);
     state.runs = append ? [...state.runs, ...result.items.filter(run => !state.runs.some(old => old.id === run.id))] : result.items;
     state.runsNext = result.next_offset;
     renderRunOptions();
@@ -280,7 +312,8 @@
     const generation = navigation();
     state.controlEpoch += 1; state.controlsLoading = false; state.execution = null; state.boundaries = null;
     state.controlsError = ""; state.pendingOperation = null; state.lastIntervention = null; receipt(""); $("operator-prompt").value = "";
-    state.run = id; state.replay = null; state.overview = null; state.turns = []; state.owner = "";
+    state.pendingTurn = null; state.run = id; state.replay = null; state.overview = null; state.turns = []; state.owner = "";
+    $("dialogue").dataset.key = ""; $("owner-list").dataset.key = "";
     $("dialogue").replaceChildren(node("p", "Loading this run…", "empty-state"));
     $("inspector-body").replaceChildren(); $("log-list").replaceChildren(); $("owner-list").replaceChildren();
     $("turn-markers").replaceChildren();
@@ -298,11 +331,11 @@
     loading(true);
     try {
       const base = "/runs/" + encodeURIComponent(id);
-      const [overview, turns] = await Promise.all([api(base), api(base + "/turns")]);
+      const [overview, turns] = await Promise.all([api(base + "?compact=true"), api(base + "/turns")]);
       if (!isCurrent(generation)) return;
-      state.overview = overview; state.turns = turns.items;
+      absorbEnglish(overview); state.overview = overview; state.turns = turns.items;
       state.owner = owners()[0]?.owner_id || "";
-      $("run-name").textContent = overview.run.scenario.title || overview.run.scenario.name || "Untitled run";
+      $("run-name").textContent = translate(overview.run.scenario.title || overview.run.scenario.name || "Untitled run");
       $("run-status").textContent = readable(overview.run.status);
       $("run-status").className = "badge " + overview.run.status;
       $("run-summary").textContent = owners().length + " owner–agent pairs · " + state.turns.length + " recorded turns · " + id.slice(0, 8);
@@ -324,6 +357,7 @@
     for (let index = 0; index < 20; index += 1) {
       const page = await api("/runs/" + encodeURIComponent(state.run) + "/turns/" + window + "?limit=100&offset=" + offset);
       if (!isCurrent(generation)) return null;
+      absorbEnglish(page);
       if (!result) result = page;
       else {
         for (const key of collections) {
@@ -343,19 +377,28 @@
     if (!state.turns.some(turn => turn.window === window)) return;
     if (!keepPlaying) pause();
     const generation = navigation();
-    state.turn = window; state.replay = null;
-    loading(true); setURL(); renderTransport();
-    $("dialogue").replaceChildren(node("p", "Loading turn " + (window + 1) + "…", "empty-state"));
-    $("log-list").replaceChildren(); $("inspector-body").replaceChildren();
+    state.pendingTurn = window;
+    loading(true);
+    renderTransport();
+    if (!state.replay) $("dialogue").replaceChildren(node("p", "Loading turn " + (window + 1) + "…", "empty-state"));
     if ($("detail-dialog").open) $("detail-dialog").close();
     try {
       const result = await pages(window, generation);
       if (!isCurrent(generation) || !result) return;
-      state.replay = result;
-      renderReplay(); loading(false);
+      state.turn = window; state.pendingTurn = null; state.replay = result;
+      setURL(); renderReplay(); loading(false); soften($("dialogue"));
     } catch (exception) { fail(exception, generation); }
   }
   function renderCast() {
+    const castKey = state.language + owners().map(owner => owner.owner_id + ownerName(owner.owner_id) + agentName(owner.owner_id)).join("|");
+    if ($("owner-list").dataset.key === castKey) {
+      for (const button of $("owner-list").children) {
+        const selected = button.dataset.owner === state.owner;
+        button.classList.toggle("is-selected", selected); button.setAttribute("aria-pressed", String(selected));
+      }
+      return;
+    }
+    $("owner-list").dataset.key = castKey;
     $("owner-list").replaceChildren();
     for (const owner of owners()) {
       const id = owner.owner_id;
@@ -376,21 +419,25 @@
   }
   function renderTransport() {
     const index = state.turns.findIndex(turn => turn.window === state.turn);
+    const requestedIndex = state.turns.findIndex(turn => turn.window === (state.pendingTurn ?? state.turn));
     $("turn-now").textContent = index < 0 ? "00" : padded(state.turn + 1);
     $("turn-total").textContent = padded(state.turns.length);
     $("turn-heading").textContent = "Turn " + padded(state.turn + 1);
     $("turn-caption").textContent = "Saved dialogue · window " + state.turn;
     $("turn-slider").min = "0"; $("turn-slider").max = String(Math.max(0, state.turns.length - 1));
-    $("turn-slider").value = String(Math.max(0, index));
-    $("turn-slider").setAttribute("aria-valuetext", "Turn " + (state.turn + 1) + " of " + state.turns.length);
+    $("turn-slider").value = String(Math.max(0, requestedIndex));
+    $("turn-slider").setAttribute("aria-valuetext", "Turn " + ((state.pendingTurn ?? state.turn) + 1) + " of " + state.turns.length);
     $("turn-slider").disabled = !state.turns.length;
-    $("previous-turn").disabled = index <= 0;
-    $("next-turn").disabled = index < 0 || index >= state.turns.length - 1;
+    $("previous-turn").disabled = requestedIndex <= 0;
+    $("next-turn").disabled = requestedIndex < 0 || requestedIndex >= state.turns.length - 1;
     $("play").disabled = state.turns.length < 2;
     $("refresh-turn").disabled = !state.overview;
     $("copy-link").disabled = !state.overview || !state.turns.length;
-    $("turn-markers").replaceChildren();
-    for (const turn of state.turns) {
+    const markerKey = state.run + ":" + state.turns.map(turn => turn.window + "/" + (turn.jobs?.failed || 0)).join(",");
+    if ($("turn-markers").dataset.key !== markerKey) {
+      $("turn-markers").dataset.key = markerKey;
+      $("turn-markers").replaceChildren();
+      for (const turn of state.turns) {
       const marker = node("button", padded(turn.window + 1), "turn-marker" + (turn.window === state.turn ? " is-active" : ""));
       marker.type = "button"; marker.dataset.turn = turn.window;
       marker.title = "Turn " + (turn.window + 1) + " · " + (turn.counts?.events || 0) + " events";
@@ -399,6 +446,18 @@
       if (turn.jobs?.failed) marker.classList.add("has-error");
       marker.addEventListener("click", () => { $("live-follow").checked = false; selectTurn(turn.window); });
       $("turn-markers").append(marker);
+      }
+    }
+    for (const marker of $("turn-markers").children) {
+      const active = Number(marker.dataset.turn) === state.turn;
+      marker.classList.toggle("is-active", active);
+      marker.classList.toggle("is-pending", Number(marker.dataset.turn) === state.pendingTurn);
+      if (active) marker.setAttribute("aria-current", "step"); else marker.removeAttribute("aria-current");
+      if (active && !state.loading) {
+        const strip = $("turn-markers");
+        if (marker.offsetLeft < strip.scrollLeft || marker.offsetLeft + marker.offsetWidth > strip.scrollLeft + strip.clientWidth)
+          strip.scrollTo({left: marker.offsetLeft - strip.clientWidth / 2, behavior: reducedMotion() ? "instant" : "smooth"});
+      }
     }
     renderControls();
     $("play-label").textContent = state.playing ? "Pause" : "Play";
@@ -406,14 +465,21 @@
     $("play").querySelector("path").setAttribute("d", state.playing ? "M6 4h3v12H6zM12 4h3v12h-3z" : "m7 4 9 6-9 6z");
   }
   function renderDialogue() {
-    $("dialogue").replaceChildren();
     if (!state.replay) return;
     const visible = $("focus-only").checked ? owners().filter(owner => owner.owner_id === state.owner) : owners();
+    const key = state.run + ":" + state.turn + ":" + state.language + ":" + visible.map(owner => owner.owner_id).join(",") + ":" + state.replay.chat.map(message => message.id).join(",");
+    if ($("dialogue").dataset.key === key) {
+      for (const card of $("dialogue").children) card.classList.toggle("is-selected", card.dataset.owner === state.owner);
+      return;
+    }
+    $("dialogue").dataset.key = key;
+    $("dialogue").replaceChildren();
     $("dialogue").classList.toggle("is-focused", visible.length === 1);
     for (const owner of visible) {
       const id = owner.owner_id;
       const messages = state.replay.chat.filter(message => message.owner_id === id);
       const card = node("section", null, "dialogue-card" + (id === state.owner ? " is-selected" : ""));
+      card.dataset.owner = id;
       card.style.setProperty("--cast-color", color(id));
       card.setAttribute("aria-label", ownerName(id) + " and assistant, turn " + (state.turn + 1));
       const header = node("div", null, "dialogue-card-head");
@@ -421,7 +487,7 @@
       name.append(node("h3", ownerName(id)), node("span", id + " / " + agentName(id), "mini-label"));
       header.append(node("span", ownerName(id).slice(0, 1), "cast-avatar"), name, node("span", "PRIVATE", "badge"));
       const scroll = node("div", null, "dialogue-scroll");
-      scroll.tabIndex = 0; scroll.setAttribute("aria-label", ownerName(id) + " conversation");
+      scroll.dataset.owner = id; scroll.tabIndex = 0; scroll.setAttribute("aria-label", ownerName(id) + " conversation");
       if (!messages.length) scroll.append(node("p", "No dialogue was saved for this pair in this turn.", "empty-note"));
       for (const message of messages) {
         const isAgent = message.source === "agent";
@@ -433,6 +499,12 @@
         inspect.type = "button"; inspect.title = "Inspect saved message";
         inspect.setAttribute("aria-label", "Inspect " + (isAgent ? "agent" : "owner") + " message from " + ownerName(id));
         inspect.addEventListener("click", () => detail("Delivered owner chat", message, ownerName(id)));
+        if (han.test(message.content)) {
+          const original = node("button", state.language === "en" ? "Original" : "English", "source-button");
+          original.type = "button"; original.title = "Compare translation with saved source";
+          original.addEventListener("click", () => detail("Delivered owner chat", message, ownerName(id), state.language === "en"));
+          meta.append(original);
+        }
         meta.append(inspect);
         speech.append(meta, node("p", message.content, "speech-text")); scroll.append(speech);
       }
@@ -448,7 +520,7 @@
         jump.setAttribute("aria-label", "Jump to " + ownerName(id) + (source === "agent" ? "'s agent reply" : "'s message"));
         jump.addEventListener("click", () => {
           const target = scroll.querySelector('[data-source="' + source + '"]');
-          if (target) scroll.scrollTop += target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12;
+          if (target) scroll.scrollTo({top: scroll.scrollTop + target.getBoundingClientRect().top - scroll.getBoundingClientRect().top - 12, behavior: reducedMotion() ? "instant" : "smooth"});
         });
         jumps.append(jump);
       }
@@ -528,18 +600,47 @@
       if (!resources.items?.length) body.append(node("p", "No resources were visible in this saved view.", "empty-state"));
     }
   }
-  function detail(title, record, meta = "") {
-    $("detail-title").textContent = title;
+  function renderDetail() {
+    const original = state.detailOriginal;
+    $("detail-content").textContent = typeof state.detailRecord === "string"
+      ? (original ? state.detailRecord : displayValue(state.detailRecord, "en"))
+      : JSON.stringify(original ? state.detailRecord : displayValue(state.detailRecord, "en"), null, 2);
+    $("detail-language").textContent = original ? "Show English" : "Show original";
+    $("detail-language").setAttribute("aria-pressed", String(original));
+    $("detail-reading-note").textContent = original ? "Original saved record · Unchanged" : "Local English translation · Check the original for exact wording";
+  }
+  function detail(title, record, meta = "", original = false) {
+    state.detailRecord = record; state.detailOriginal = original;
+    $("detail-title").textContent = translate(title);
     $("detail-meta").textContent = "Turn " + (state.turn + 1) + (meta ? " · " + meta : "") + " · Saved evidence";
-    $("detail-content").textContent = plain(record);
-    $("detail-dialog").showModal();
+    renderDetail();
+    const dialog = $("detail-dialog");
+    dialog.showModal(); soften(dialog);
+  }
+  async function closeDetail() {
+    const dialog = $("detail-dialog");
+    if (!dialog.open) return;
+    if (!reducedMotion()) {
+      try { await dialog.animate([{opacity: 1, transform: "translateY(0)"}, {opacity: 0, transform: "translateY(5px)"}], {duration: 130, easing: "ease-in"}).finished; } catch { /* Superseded by navigation. */ }
+    }
+    dialog.close();
+  }
+  function setLanguage(language) {
+    state.language = language;
+    $("language-toggle").textContent = language === "en" ? "English" : "Original";
+    $("language-toggle").setAttribute("aria-pressed", String(language === "original"));
+    $("language-note").textContent = language === "en" ? "Local English translation · Original records available" : "Original saved text · Interface in English";
+    renderRunOptions();
+    if (state.overview) $("run-name").textContent = translate(state.overview.run.scenario.title || state.overview.run.scenario.name || "Untitled run");
+    if (state.replay) renderReplay();
+    if ($("detail-dialog").open) renderDetail();
   }
   function buildLogs() {
     const replay = state.replay;
     const records = [];
     const add = (category, title, description, record, related, problem = false) => {
       records.push({category, title, description: preview(description), record, related: related.filter(Boolean), problem,
-        time: record.created_at || "", haystack: (title + " " + plain(record)).toLowerCase()});
+        time: record.created_at || "", haystack: (title + " " + plain(record) + " " + JSON.stringify(record)).toLowerCase()});
     };
     for (const message of replay.chat) add("chat", message.source === "agent" ? "Agent reply" : "Owner message", message.content, message, [message.owner_id]);
     for (const message of replay.mail) add("mail", message.subject || "Private mail", message.body, message, [message.sender_owner_id, message.recipient_owner_id]);
@@ -553,7 +654,11 @@
           : payload.cue || payload.reason || payload.error || payload.output?.text || payload.text || "Saved environment event",
         event, [event.owner_id], problem);
     }
-    for (const job of replay.jobs.filter(item => item.error)) add("errors", "Job error · " + job.kind, job.error, job, [job.owner_id], true);
+    for (const job of replay.jobs.filter(item => item.error)) {
+      const reason = job.failure_kind === "budget" ? "Budget limit reached. "
+        : job.failure_kind ? readable(job.failure_kind) + ". " : "";
+      add("errors", "Job error · " + job.kind, reason + job.error, job, [job.owner_id], true);
+    }
     records.sort((a, b) => a.time.localeCompare(b.time) || String(a.record.id).localeCompare(String(b.record.id)));
     state.logRows = records;
   }
@@ -625,9 +730,9 @@
     const generation = navigation(); loading(true);
     try {
       const base = "/runs/" + encodeURIComponent(state.run);
-      const [overview, turns] = await Promise.all([api(base), api(base + "/turns")]);
+      const [overview, turns] = await Promise.all([api(base + "?compact=true"), api(base + "/turns")]);
       if (!isCurrent(generation)) return;
-      state.overview = overview; state.turns = turns.items;
+      absorbEnglish(overview); state.overview = overview; state.turns = turns.items;
       $("run-status").textContent = readable(overview.run.status); $("run-status").className = "badge " + overview.run.status;
       $("run-summary").textContent = owners().length + " owner–agent pairs · " + state.turns.length + " recorded turns · " + state.run.slice(0, 8);
       const target = $("live-follow").checked ? state.turns.at(-1)?.window : state.turn;
@@ -637,6 +742,8 @@
   }
   function disconnect(message) {
     pause(); navigation(); state.connected = false; state.overview = null; state.replay = null;
+    state.translations.clear(); state.detailRecord = null; state.pendingTurn = null;
+    $("owner-list").dataset.key = ""; $("turn-markers").dataset.key = ""; $("dialogue").dataset.key = "";
     state.runs = []; state.turns = []; state.logRows = []; state.run = ""; state.owner = "";
     state.controlEpoch += 1; state.controlsLoading = false; state.controlsError = ""; state.execution = null; state.boundaries = null;
     state.operationBusy = false; state.operations.clear(); state.pendingOperation = null; state.lastIntervention = null; $("operator-prompt").value = "";
@@ -702,6 +809,13 @@
     if (request?.run === state.run) operation(request.path, Object.fromEntries(Object.entries(request.body).filter(([key]) => key !== 'request_id')), request.kind, request);
   });
   $("refresh-controls").addEventListener("click", refreshControls);
+  $("toggle-log").addEventListener("click", () => {
+    const collapsed = $("workspace").classList.toggle("logs-collapsed");
+    $("toggle-log").textContent = collapsed ? "Expand log" : "Collapse log";
+    $("toggle-log").setAttribute("aria-expanded", String(!collapsed));
+    $("log-list").hidden = collapsed; $("channel-tabs").hidden = collapsed;
+    $("log-search").closest(".log-search-wrap").hidden = collapsed;
+  });
   $("run-select").addEventListener("change", event => { $("live-follow").checked = false; selectRun(event.target.value); });
   $("refresh-runs").addEventListener("click", async () => {
     if (!state.connected) { connect(); return; }
@@ -739,22 +853,50 @@
   $("log-search").addEventListener("input", renderLogs);
   $("previous-turn").addEventListener("click", () => {
     $("live-follow").checked = false;
-    const index = state.turns.findIndex(turn => turn.window === state.turn);
+    const index = state.turns.findIndex(turn => turn.window === (state.pendingTurn ?? state.turn));
     if (index > 0) selectTurn(state.turns[index - 1].window);
   });
   $("next-turn").addEventListener("click", () => {
     $("live-follow").checked = false;
-    const index = state.turns.findIndex(turn => turn.window === state.turn);
+    const index = state.turns.findIndex(turn => turn.window === (state.pendingTurn ?? state.turn));
     if (index >= 0 && index < state.turns.length - 1) selectTurn(state.turns[index + 1].window);
   });
-  $("turn-slider").addEventListener("input", event => {
+  function scrub(event, immediate = false) {
     $("live-follow").checked = false;
-    const target = state.turns[Number(event.target.value)]; if (target) selectTurn(target.window);
-  });
+    pause(); clearTimeout(state.sliderTimer);
+    const target = state.turns[Number(event.target.value)];
+    if (!target) return;
+    $("turn-slider").setAttribute("aria-valuetext", "Preview Turn " + (target.window + 1));
+    $("turn-now").textContent = padded(target.window + 1);
+    const commit = () => { if (target.window !== state.turn || state.loading) selectTurn(target.window); else renderTransport(); };
+    if (immediate) commit(); else state.sliderTimer = setTimeout(commit, 100);
+  }
+  $("turn-slider").addEventListener("input", event => scrub(event));
+  $("turn-slider").addEventListener("change", event => scrub(event, true));
   $("play").addEventListener("click", play);
   $("speed").addEventListener("change", schedule);
   $("live-follow").addEventListener("change", () => { if ($("live-follow").checked) { pause(); refresh(); } });
-  $("close-detail").addEventListener("click", () => $("detail-dialog").close());
+  $("close-detail").addEventListener("click", closeDetail);
+  $("detail-dialog").addEventListener("cancel", event => { event.preventDefault(); closeDetail(); });
+  $("detail-language").addEventListener("click", () => { state.detailOriginal = !state.detailOriginal; renderDetail(); });
+  $("language-toggle").addEventListener("click", () => setLanguage(state.language === "en" ? "original" : "en"));
+  // Animate disclosure height without replacing native keyboard semantics.
+  document.addEventListener("click", event => {
+    const summary = event.target.closest("summary");
+    if (!summary || reducedMotion()) return;
+    const box = summary.parentElement;
+    event.preventDefault();
+    const start = box.getBoundingClientRect().height;
+    const opening = !(box.dataset.expanded ? box.dataset.expanded === "true" : box.open);
+    box.getAnimations().forEach(animation => animation.cancel());
+    box.dataset.expanded = String(opening);
+    box.open = true;
+    const end = opening ? box.getBoundingClientRect().height : summary.getBoundingClientRect().height;
+    box.style.overflow = "hidden";
+    const animation = box.animate([{height: start + "px"}, {height: end + "px"}], {duration: 180, easing: "cubic-bezier(.2,.7,.2,1)"});
+    animation.onfinish = () => { box.open = opening; delete box.dataset.expanded; box.style.overflow = ""; };
+    animation.oncancel = () => { box.style.overflow = ""; };
+  });
   $("copy-link").addEventListener("click", async () => {
     const button = $("copy-link");
     try {

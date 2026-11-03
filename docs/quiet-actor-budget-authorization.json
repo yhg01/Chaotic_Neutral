@@ -1,0 +1,12 @@
+{
+  "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+  "authorized_at": "2026-11-03T05:33:54.374204+00:00",
+  "authorization": "User replied 好继续一步一步做 after the proposed increase of the same campaign total ceiling from USD 2 to USD 3 for waiting and normal-transfer verification.",
+  "previous_limit_usd": "2",
+  "limit_usd": "3",
+  "reported_before_usd": "1.6712420",
+  "uncertain_before_usd": "0.215625600000",
+  "attempts_before": 589,
+  "remaining_after_usd": "1.113132400000",
+  "scope": "Verify prepared v3 waiting guidance and complete a normal-transfer regression; do not start shopping or reset previous reservations."
+}

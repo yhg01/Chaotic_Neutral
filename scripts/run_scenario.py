@@ -26,9 +26,11 @@ from agentrpg.deep_agent import AgentRuntime
 from agentrpg.director import Director, emit, rows
 from agentrpg.environment_tools import EnvironmentTools
 from agentrpg.evaluation import ModelEvaluator, evaluate_trace
+from agentrpg.model_assignments import owner_models, validate_owner_models
 from agentrpg.resources import ResourceService
 from agentrpg.run_engine import RunEngine
 from agentrpg.scenario_schema import ScenarioSpec, vehicle_scenario
+from agentrpg.trial_audit import begin_trial, end_trial
 from agentrpg.world import WorldService
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -100,6 +102,9 @@ def parse_args(argv=None):
         help="HTTP loopback API; default: saved origin on resume, otherwise port 8000.",
     )
     parser.add_argument("--model", help="Assistant model; default: OPENROUTER_MODEL.")
+    parser.add_argument(
+        "--owner-model", action="append", help="Frozen OWNER_ID=MODEL_ID assistant override."
+    )
     parser.add_argument("--actor-model", help="Actor model; default: assistant model.")
     parser.add_argument("--max-model-calls", type=int, help="Calls per activation; default: 18.")
     parser.add_argument(
@@ -122,6 +127,12 @@ def parse_args(argv=None):
         "--budget-usd", type=Decimal, help="Campaign ceiling, including retries and all roles."
     )
     args = parser.parse_args(argv)
+    try:
+        owner_models(args.owner_model)
+    except ValueError as error:
+        parser.error(str(error))
+    if args.owner_model and not args.resume and (args.budget_usd is None or args.campaign is None):
+        parser.error("Per-owner model comparisons require an explicit shared campaign budget.")
     if args.budget_usd is not None and (
         not args.budget_usd.is_finite() or not 0 < args.budget_usd <= 1000000
     ):
@@ -217,6 +228,7 @@ def load_credentials(path: Path, root: Path) -> tuple[Path, dict]:
         if len(owners) != len(value["participants"]) or len(agents) != len(owners):
             raise ValueError
         config = value["configuration"]
+        validate_owner_models(config.get("owner_models", {}), owners)
         if config["actors"] not in {"scripted", "model"}:
             raise ValueError
         for key in ("model", "actor_model"):
@@ -602,6 +614,13 @@ async def collect_report(
         "result": run["result"],
         "agent_count": len(manifest["participants"]),
         "actors": manifest["configuration"]["actors"],
+        "assistant_models_by_owner": {
+            p["owner_id"]: manifest["configuration"]
+            .get("owner_models", {})
+            .get(p["owner_id"], manifest["configuration"].get("model"))
+            for p in manifest["participants"]
+        },
+        "actor_model": manifest["configuration"].get("actor_model"),
         "actor_response_review": manifest["configuration"]["actors"] == "model",
         "checks": checks,
         "verification_profile": spec.evaluation.verification_profile,
@@ -654,7 +673,7 @@ async def collect_report(
 
 def new_run_configuration(args, env):
     model_name = args.model or env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
-    return {
+    config = {
         "model": model_name,
         "actor_model": args.actor_model or env.get("OPENROUTER_ACTOR_MODEL") or model_name,
         "actors": args.actors or "model",
@@ -665,6 +684,9 @@ def new_run_configuration(args, env):
         "instructions": INSTRUCTIONS,
         "base_url": args.base_url or "http://127.0.0.1:8000",
     }
+    if getattr(args, "owner_model", None):
+        config["owner_models"] = owner_models(args.owner_model)
+    return config
 
 
 async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
@@ -676,6 +698,10 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
     )
     if manifest is not None:
         config = manifest["configuration"]
+        if getattr(args, "owner_model", None) and owner_models(args.owner_model) != config.get(
+            "owner_models", {}
+        ):
+            raise ScenarioRunError("Resume must keep the saved per-owner model assignments.")
         missing_timeout = "timeout_seconds" not in config
         config.setdefault("timeout_seconds", 240)
         for option in ("model", "actor_model", "actors", "max_model_calls", "timeout_seconds"):
@@ -716,12 +742,16 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             if manifest is not None:
                 save_private(credentials_path, manifest)
         binding = None
+        if config.get("owner_models") and not saved_budget:
+            raise ScenarioRunError("Per-owner comparisons require their original shared campaign.")
         if saved_budget:
             ledger = CampaignLedger(runtime.pool)
             await ledger.ensure_campaign(
                 saved_budget["campaign_id"], Decimal(saved_budget["limit_usd"])
             )
-            prices = await fetch_model_prices({config["model"], config["actor_model"]})
+            prices = await fetch_model_prices(
+                {config["model"], config["actor_model"], *config.get("owner_models", {}).values()}
+            )
             binding = BudgetBinding(ledger, UUID(saved_budget["campaign_id"]), prices)
         admin = await stack.enter_async_context(
             httpx.AsyncClient(
@@ -774,6 +804,14 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             raise ScenarioRunError("The saved scenario hash does not match its content.")
         if {p["owner_id"] for p in manifest["participants"]} != {owner.id for owner in spec.owners}:
             raise ScenarioRunError("The saved participants do not match the scenario owners.")
+        try:
+            assignments = validate_owner_models(
+                config.get("owner_models", {}), {o.id for o in spec.owners}
+            )
+        except ValueError:
+            raise ScenarioRunError(
+                "Assistant model assignments do not match this scenario."
+            ) from None
         agents, actors = {}, {}
         for participant in manifest["participants"]:
             owner = participant["owner_id"]
@@ -788,7 +826,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             )
             model = create_model(
                 env["OPENROUTER_API_KEY"],
-                config["model"],
+                assignments.get(owner, config["model"]),
                 max_tokens=2000,
                 **({"budget": binding, "budget_role": "assistant"} if binding else {}),
             )
@@ -859,6 +897,9 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             if run["status"] == "pending":
                 await director.control(run["id"], "start")
         first_window = run["current_window"]
+        invocation = await begin_trial(
+            runtime.pool, run["id"], profile="scenario", configuration=config, root=ROOT
+        )
         bounded_stop = False
         retries = 0
         execution_error = None
@@ -907,6 +948,9 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             except Exception:
                 execution_error = "Run execution failed. Saved inputs and outputs were retained."
         reviewer_model = None
+        await end_trial(
+            runtime.pool, run["id"], invocation, root=ROOT, returned_report=execution_error is None
+        )
         if args.semantic_review:
             reviewer_model = create_model(
                 env["OPENROUTER_API_KEY"],

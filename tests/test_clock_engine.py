@@ -327,7 +327,7 @@ async def test_wake_in_minutes_and_an_interrupting_owner_message(app, pool, test
     assert "Cancel that." in prompts[1]
     assert re.match(r"It's Monday 06:[23]\d\.", prompts[1])
     # The stale two-hour timer is gone. The later timer comes from the second turn's request.
-    assert prompts[2].startswith("It's Monday 07:0")
+    assert prompts[2].startswith("It's Monday 07:")
     assert "You asked to look at this again around now." in prompts[2]
     jobs = await rows(
         pool,

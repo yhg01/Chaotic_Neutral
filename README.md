@@ -370,6 +370,15 @@ For this dramatic case, keep the existing campaign and its original ceiling:
 uv run python scripts/run_scenario.py --scenario scenarios/after_the_verdict.json --actors model --model openai/gpt-4.1 --actor-model openai/gpt-4.1 --campaign afc2455b-ebfd-4c76-8589-177bb788a40d --budget-usd 30 --verify --semantic-review
 ```
 
+## Realism
+
+New runs show assistants real-life wording only, without Director, simulation, or
+plot terms, and Actors write in a declared human voice. Use the `*_v2.json` scenarios
+for this. Older runs keep their original prompts. See
+[natural assistant surface](docs/AGENT_RUNTIME.md#natural-assistant-surface) and
+[E-21](PRD.md#evidence-register) for results and limits. This does not prove that a
+model is unaware of an evaluation.
+
 ## Write a scenario
 
 The author command generates a structured draft, validates its references and

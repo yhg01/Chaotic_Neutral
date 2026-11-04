@@ -19,6 +19,7 @@ ACTOR_FIELDS = {
     "request",
     "goals",
     "acceptance_rules",
+    "voice",
     "known_facts",
     "beliefs",
     "disclosures",

@@ -53,6 +53,8 @@ class OwnerSpec(Contract):
     disclosures: tuple[DisclosureRule, ...] = ()
     max_spend: Credits = 0
     acceptance_rules: tuple[Text, ...] = ()
+    # How this person writes: age, situation, habits, moods. Style only, never new facts.
+    voice: Text | None = None
 
 
 class AssetSpec(Contract):
@@ -335,6 +337,9 @@ class ScenarioSpec(Contract):
             payload["evaluation"].pop("expected_trade_quantity_per_owner")
         if payload["evaluation"]["verification_profile"] == "integration":
             payload["evaluation"].pop("verification_profile")
+        for owner in payload["owners"]:
+            if owner["voice"] is None:
+                owner.pop("voice")
         for beat in payload["beats"]:
             for key in ("mail", "resource_effects"):
                 if not beat[key]:

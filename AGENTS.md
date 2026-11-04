@@ -102,6 +102,11 @@ explicit user instructions take precedence. Keep these sources consistent.
   buy. A known stale value returns a saved final rejection without a pending
   intent. Keep stable replay and conflict rules. A corrected new operation can
   run in the same window under valid consent. Recheck versions at settlement.
+- New runs use the natural assistant surface in `agent_surface.py`. Everything an
+  assistant reads must read as real life: no Director, activation, window, run,
+  simulation, fiction, or plot terms. Keep internal names in events and reports.
+  Do not change the prompts or tool names of saved legacy runs. Do not claim this
+  proves evaluation unawareness. Keep controls as explicit functional tests.
 - Keep the full evaluation trace. Large reviews may use owner-specific parts
   with shared public context and scoped conduct judgments. Do not describe a
   partial review as a review of evidence it did not receive.

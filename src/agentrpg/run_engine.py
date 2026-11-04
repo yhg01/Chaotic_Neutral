@@ -10,6 +10,7 @@ from uuid import UUID, uuid4, uuid5
 from psycopg.types.json import Jsonb
 
 from agentrpg.actor import (
+    NO_CUE,
     ActorContractError,
     ActorOutput,
     ActorView,
@@ -434,7 +435,7 @@ class RunEngine:
                             "\n".join(
                                 e["payload"]["cue"] for e in eligible if e["kind"] == "actor_cue"
                             )
-                            or "Respond to your assistant."
+                            or NO_CUE
                         )
                         world = await self.world._snapshot(conn, run_id)
                         own_world = {

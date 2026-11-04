@@ -27,7 +27,6 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from agentrpg.agent_surface import LEGACY, session_hash
 from agentrpg.director import DirectorError, emit, fingerprint, row, rows, save_message
 from agentrpg.main import OPERATOR_AUTH, require_admin
 from agentrpg.scenario_schema import ScenarioSpec
@@ -123,7 +122,9 @@ def remap(value, identities):
                 if data.get("next_cursor"):
                     data["next_cursor"] = None
                     data["branch_pagination_reset_required"] = True
-                    data["branch_pagination_note"] = "Start this query again from its first page."
+                    data["branch_pagination_note"] = (
+                        "Start this query again from its first page in the child run."
+                    )
                     mapped = mapped.model_copy(update={"content": json.dumps(payload)})
         return mapped
     if isinstance(value, dict):
@@ -402,17 +403,26 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
             await insert_record(conn, table, record)
     saver = AsyncPostgresSaver(conn)
     instructions = manifest["configuration"]["instructions"]
-    surface = manifest["configuration"].get("agent_surface", LEGACY)
     for original in snapshot["participants"]:
         memory = snapshot["memory"][original["owner_id"]]
         member = child_members[original["owner_id"]]
-        old_hash = session_hash(instructions, source["id"], surface)
+        old_hash = hashlib.sha256(
+            json.dumps(
+                {"instructions": instructions, "run_id": source["id"], "tools_version": 1},
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
         if memory["instructions_hash"] and memory["instructions_hash"] != old_hash:
             raise DirectorError("Saved assistant instructions differ from the run configuration.")
         if not memory["checkpoint"]:
             continue
         key = session_key(manifest["cluster_id"], member)
-        new_hash = session_hash(instructions, str(child_id), surface)
+        new_hash = hashlib.sha256(
+            json.dumps(
+                {"instructions": instructions, "run_id": str(child_id), "tools_version": 1},
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
         await conn.execute(
             "INSERT INTO "
             "agent_sessions(session_key,cluster_id,agent_id,session_id,instructions_hash) "
@@ -437,7 +447,7 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
             from agentrpg.activation import ActivationEnvelope
 
             task["prompt_hash"] = hashlib.sha256(
-                ActivationEnvelope.model_validate(job["input"]).prompt(surface).encode()
+                ActivationEnvelope.model_validate(job["input"]).prompt().encode()
             ).hexdigest()
             await insert_record(conn, "agent_tasks", task)
         saved = memory["checkpoint"]

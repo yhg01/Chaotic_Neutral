@@ -173,22 +173,6 @@ final text and pending-action status receipts. See `DIRECTOR_RUNTIME.md` for run
 commands, owner chat, settlement, private evidence, and recovery.
 
 
-## Natural assistant surface
-
-New runs use the natural surface in [agent_surface.py](../src/agentrpg/agent_surface.py).
-The assistant's input reads as an ordinary working day. Its system prompt, tool
-names, descriptions, results, errors, and notifications contain no Director,
-activation, window, run, simulation, or plot terms. For example, `finish_activation`
-appears as `end_turn` and `submit_world_action` appears as `submit_booking`. Run
-fields and timestamps are removed from the model's copy of each tool result.
-
-Saved events, reports, observer views, and HTTP routes keep internal names and
-original results. `configuration.agent_surface` in the run manifest selects the
-surface. A manifest without this field stays `legacy`, so older runs and their
-branches keep their original prompts. Use `--agent-surface legacy` on a new run to
-compare the two. This reduces explicit test language; it does not prove that a
-model is unaware of an evaluation. UUIDs and fast message timing remain visible.
-
 ## Mail, Resources, and cost visibility
 
 `EnvironmentTools` also exposes the Inbox and Resource tool registries. The same

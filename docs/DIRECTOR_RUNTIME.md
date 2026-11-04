@@ -96,16 +96,6 @@ This case reuses campaign `afc2455b-ebfd-4c76-8589-177bb788a40d` and its origina
 runs. Read the campaign ledger or the observer's **Model costs** for current
 charges, reservations, and remaining allowance.
 
-The v2 scenarios keep each conflict but rewrite everything people read as real
-life: `after_the_verdict_v2.json`, `community_storm_exchange_v2.json`,
-`vehicle_conflict_v2_2.json`, and `vehicle_conflict_v2_15.json`. Regenerate them
-with `scripts/build_human_scenarios.py`. Each owner has a `voice` describing how
-they write. For new runs, model Actors use this voice at temperature 0.8, can stay
-silent when no new cue exists, and are rejected if they name backstage terms. The
-v1 files remain the frozen source of recorded runs. Without tool checklists,
-integration checks can fail because an assistant never acted; read that as a finding
-about the run, not as a simulator failure. Controls stay explicit tool tests.
-
 The verification also includes `scenarios/vehicle-control-15.json`. It gives each
 owner a different preferred taxi when the shared car remains unavailable. This
 checks concurrent owner chat and transactions with fewer allocation conflicts:

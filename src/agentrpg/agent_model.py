@@ -80,7 +80,6 @@ def create_model(
     max_retries: int = 2,
     budget: BudgetBinding | None = None,
     budget_role: str = "model",
-    temperature: float = 0,
 ) -> LocalChatOpenRouter:
     """Create one bounded model client. The caller must call ``aclose``."""
     if not isinstance(api_key, str) or not api_key.strip():
@@ -97,8 +96,6 @@ def create_model(
         raise ValueError("Model token or timeout limit is outside the allowed range.")
     if not 0 <= max_retries <= 2:
         raise ValueError("Model retries must be between zero and two.")
-    if not 0 <= temperature <= 2:
-        raise ValueError("Model temperature must be between zero and two.")
     http_clients = {}
     if budget is not None:
         if model.strip() not in budget.prices:
@@ -127,7 +124,7 @@ def create_model(
         max_tokens=max_tokens,
         timeout=timeout_seconds * 1000,
         max_retries=max_retries,
-        temperature=temperature,
+        temperature=0,
         streaming=False,
         disable_streaming=True,
         verbose=False,

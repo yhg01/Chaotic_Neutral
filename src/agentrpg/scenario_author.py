@@ -91,13 +91,7 @@ class ScenarioAuthor:
                     "When repair feedback is supplied, repair the previous draft's listed errors "
                     "and preserve its valid parts. A previous draft may not yet pass the schema. "
                     "Owners are people who give requests to assistants; the owners do not do the "
-                    "assistant's work. The initial owner cue asks them to state their request. "
-                    "Write everything an owner or assistant can read as real life. Requests, mail, "
-                    "documents, and names must never mention a simulation, story, test, plot, "
-                    "window, cue, credits, or fiction; say dollars. Write each request as a short "
-                    "message this person would really type, not a checklist of tools. Give every "
-                    "owner a voice: age, situation, and how they write. Cues describe what the "
-                    "person feels and wants; do not supply lines to repeat.",
+                    "assistant's work. The initial owner cue asks them to state their request.",
                     {
                         "brief": brief,
                         "participant_count": participant_count,

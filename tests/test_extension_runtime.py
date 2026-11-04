@@ -27,8 +27,6 @@ def test_optional_extensions_keep_legacy_frozen_hash():
     for beat in old["beats"]:
         beat.pop("mail")
         beat.pop("resource_effects")
-    for owner in old["owners"]:
-        owner.pop("voice")
     canonical = json.dumps(old, sort_keys=True, separators=(",", ":"))
     assert spec.content_hash() == "93b0a93337f79036a1fc4181775bdc42ef2a1eafc3092daaf70a90eb0ee1c410"
     assert spec.content_hash() == hashlib.sha256(canonical.encode()).hexdigest()

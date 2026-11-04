@@ -74,7 +74,7 @@ from agentrpg.world import WorldError, WorldService
 
 logger = logging.getLogger(__name__)
 
-ACTOR_VIEW_MESSAGES = 14
+ACTOR_VIEW_MESSAGES = 20
 EVENT_LIMIT = 80
 EVENT_CHARS = 38_000
 OWNER_MESSAGE_LIMIT = 50
@@ -161,10 +161,11 @@ def _how_long(seconds: int) -> str:
 
 IDLE_ACTION_S = 2 * 60 * 60
 MIN_ACTION_MINUTES = 30
-ACTOR_MESSAGE_CHARS = 900
-ACTOR_MAIL_ITEMS = 8
-ACTOR_MAIL_CHARS = 500
-ACTOR_RECORD_CHARS = 800
+# A shorter limit cut long assistant messages, and owners then said "you cut off".
+ACTOR_MESSAGE_CHARS = 5000
+ACTOR_MAIL_ITEMS = 12
+ACTOR_MAIL_CHARS = 1500
+ACTOR_RECORD_CHARS = 2000
 
 
 def _short_inbox(view: dict) -> dict:

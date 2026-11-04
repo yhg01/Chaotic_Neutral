@@ -1269,7 +1269,7 @@ async def test_owner_view_lists_old_decisions_and_a_plain_inbox(app, pool, test_
         run_id = UUID(created["run_id"])
         await Director(pool).control(run_id, "start")
         async with pool.connection() as conn, conn.transaction():
-            for index in range(10):
+            for index in range(13):
                 await save_message(
                     conn, run_id, "dan", "owner", f"don't sell item {index}", uuid4(), 0
                 )
@@ -1309,7 +1309,7 @@ async def test_owner_view_holds_no_paging_cursor(app, pool, test_database_url):
     ):
         run_id = UUID(created["run_id"])
         await Director(pool).control(run_id, "start")
-        for index in range(10):
+        for index in range(14):
             await InboxService(pool).send(
                 run_id,
                 None,
@@ -1321,7 +1321,7 @@ async def test_owner_view_holds_no_paging_cursor(app, pool, test_database_url):
             )
         await engine.advance(created["run_id"], max_sim_minutes=30)
     inbox = actors["dan"].views[0].inbox
-    assert len(inbox["items"]) == 8
+    assert len(inbox["items"]) == 12
     assert "next_cursor" not in inbox
     assert inbox["older_mail_not_shown"] is True
 
@@ -1677,7 +1677,7 @@ class _LongSummaries(ScriptModel):
     step: int = 0
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
-        if len(messages) == 1 and "under 500 words" in str(messages[0].content):
+        if len(messages) == 1 and "under 800 words" in str(messages[0].content):
             self.summary_calls += 1
             empty = self.summary_calls <= self.empty_summaries
             message = AIMessage(

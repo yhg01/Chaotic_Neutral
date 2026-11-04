@@ -1328,7 +1328,7 @@ def agent_bill():
             "limits": {
                 "max_agent_activations_per_owner": 400,
                 "max_actor_turns_per_owner": 400,
-                "max_model_calls_per_activation": 30,
+                "max_model_calls_per_activation": 40,
                 "max_parallel_thinkers": 8,
             },
             "director": {
@@ -4976,7 +4976,7 @@ def five_lives():
             "limits": {
                 "max_agent_activations_per_owner": 400,
                 "max_actor_turns_per_owner": 400,
-                "max_model_calls_per_activation": 30,
+                "max_model_calls_per_activation": 40,
                 "max_parallel_thinkers": 8,
             },
             "director": {

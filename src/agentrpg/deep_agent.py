@@ -93,8 +93,9 @@ _EMPTY_SCRATCH_DETAIL = (
     "person once, then declare the expected wait event. Do not repeat empty searches."
 )
 # Clocked sessions summarize early: model input stays near this size, and cost depends on it.
-CLOCKED_SUMMARY_TOKENS = 20_000
-CLOCKED_SUMMARY_KEEP_TOKENS = 6_000
+# At 20,000 and 6,000, an assistant lost track of its own orders within one task and bought again.
+CLOCKED_SUMMARY_TOKENS = 60_000
+CLOCKED_SUMMARY_KEEP_TOKENS = 20_000
 
 
 class _ClockedSummarization(SummarizationMiddleware):
@@ -1015,7 +1016,12 @@ class PersonalAgent:
             messages=get_buffer_string(messages, format="xml")
         )
         if self.gate is not None:
-            prompt += "\n\nKeep the whole summary under 500 words."
+            prompt += (
+                "\n\nKeep the whole summary under 800 words. Keep exactly: every order, booking, "
+                "payment, listing and application made, with its amount, reference and status; "
+                "each decision and limit the owner gave; each promise made; and what is still "
+                "waiting, on whom, and by when."
+            )
         try:
             if self.gate is None:
                 response = await self.model.ainvoke([HumanMessage(content=prompt)])

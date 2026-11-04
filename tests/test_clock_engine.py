@@ -1305,7 +1305,7 @@ async def test_owner_view_is_bounded_to_recent_messages(app, pool, test_database
             )
         await engine.run(created["run_id"])
     view = actors["dan"].views[0]
-    assert len(view.conversation) == 14
+    assert len(view.conversation) == 20
     assert view.conversation[-1].text == "Message 34"
 
 
@@ -1345,7 +1345,7 @@ async def test_summary_threshold_keeps_model_input_near_the_target(app, test_dat
                 window_id=0,
                 owner_messages=tuple(
                     OwnerMessage(message_id=UUID(int=turn * 10 + index + 1), content=big)
-                    for index in range(3)
+                    for index in range(8)
                 ),
                 now_text="Monday 09:00",
             )

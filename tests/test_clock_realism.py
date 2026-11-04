@@ -28,11 +28,13 @@ from agentrpg.actor import (
     _clocked_prompt_view,
     _has_assistant_role_reversal,
     _repeats_owner,
+    _wrong_balance,
     build_actor_view,
     earlier_decisions,
     validate_actor_output,
 )
 from agentrpg.agent_surface import (
+    CLOCKED_TOOL_DESCRIPTIONS,
     _notice,
     internal_tool_name,
     present_result,
@@ -1737,3 +1739,105 @@ async def test_a_summary_cut_off_at_its_limit_does_not_lose_the_task(
     assert models["dan"].summary_calls >= 1
     assert [row["kind"] for row in rows] == ["job_failure"] * failures, rows
     assert "All done here." in [row["content"] for row in said]
+
+
+def _view_with_balance(held=76):
+    view = build_actor_view(
+        scenario(("dan",), duration_minutes=100),
+        "dan",
+        "Your assistant wrote to you.",
+        source_event_id="e1",
+        window=0,
+        clock={
+            "now": "Saturday 09:00",
+            "today": "Saturday 14 November",
+            "current_action": None,
+            "money_in_account": held,
+        },
+    )
+    return view
+
+
+@pytest.mark.parametrize(
+    "text,wrong",
+    [
+        ("36 in the account. aldous got his 40", True),
+        ("balance is 36 now", True),
+        ("account says 58", True),
+        ("$76 in my account, ok", False),
+        ("balance is 76", False),
+        ("i owe him 40 by friday", False),
+    ],
+)
+def test_a_stated_balance_is_checked_against_the_account(text, wrong):
+    view = _view_with_balance()
+    output = ActorOutput(kind="reply", text=text, source_event_id="e1")
+    assert _wrong_balance(view, output) == (76 if wrong else None)
+
+
+async def test_a_wrong_balance_is_asked_again_and_a_last_answer_still_stands():
+    wrong = {"kind": "reply", "text": "36 in the account", "next_action": _NEXT}
+    right = {"kind": "reply", "text": "76 in the account", "next_action": _NEXT}
+    actor = ModelActor(actor_model(wrong, right), max_repairs=1, natural=True)
+    assert (await actor.respond(_view_with_balance())).text == right["text"]
+    assert "holds $76" in actor.last_attempts[0]["reason"]
+    actor = ModelActor(actor_model(wrong), max_repairs=0, natural=True)
+    assert (await actor.respond(_view_with_balance())).text == wrong["text"]
+
+
+async def test_owner_view_holds_money_and_recent_actions_and_a_gone_assistant_ends_chat(
+    app, pool, test_database_url
+):
+    spec = scenario(("dan",), duration_minutes=240)
+    plan = {"description": "Tea", "minutes": 30, "reachable": True, "category": "meal"}
+    actors = {
+        "dan": ScriptedOwner(
+            [
+                {"kind": "reply", "text": "Morning.", "next_action": plan},
+                {"kind": "reply", "text": "Are you there?", "next_action": plan},
+            ]
+        )
+    }
+    models = {"dan": ScriptModel()}
+    async with clocked_run(app, test_database_url, spec, models, actors) as (
+        engine,
+        created,
+        _runtime,
+        _agents,
+    ):
+        run_id = UUID(created["run_id"])
+        await Director(pool).control(run_id, "start")
+        await engine.advance(created["run_id"], max_sim_minutes=20)
+        async with pool.connection() as conn:
+            await conn.execute(
+                "UPDATE clock_processes SET state='dead',until_s=NULL "
+                "WHERE run_id=%s AND owner_id='dan' AND kind='agent'",
+                (run_id,),
+            )
+        await engine.advance(created["run_id"], max_sim_minutes=120)
+    first, later = actors["dan"].views[0], actors["dan"].views[-1]
+    assert isinstance(first.clock["money_in_account"], int)
+    assert "assistant_gone" not in first.clock
+    assert later.clock["assistant_gone"] is True
+    assert later.clock["done_recently"][0]["what"] == "Tea"
+    async with pool.connection() as conn:
+        spoken = await (
+            await conn.execute(
+                "SELECT content FROM owner_messages WHERE run_id=%s AND source='owner'", (run_id,)
+            )
+        ).fetchall()
+    assert "Morning." in [item["content"] for item in spoken]
+    assert "Are you there?" not in [item["content"] for item in spoken]
+
+
+def test_listing_questions_point_to_the_website_on_clocked_runs():
+    shown = present_result(
+        "fetch_resource",
+        {
+            "ok": False,
+            "error": {"code": "not_found", "detail": "The environment record was not found."},
+        },
+        time_text=str,
+    )
+    assert "website's pages" in shown["error"]["detail"]
+    assert "Listings on websites" in CLOCKED_TOOL_DESCRIPTIONS["inspect_market"]

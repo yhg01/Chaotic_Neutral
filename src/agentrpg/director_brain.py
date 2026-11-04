@@ -179,6 +179,14 @@ class PlanBalance(BaseModel):
         return value
 
 
+class PlanOwnBill(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="OwnBillPayment")
+
+    owner_id: Reference
+    site_id: Reference
+    bill_id: Reference
+
+
 def _bounded(value, name):
     # allow_nan is off because PostgreSQL JSON has no NaN or Infinity, and a model can send them.
     if len(json.dumps(value, ensure_ascii=False, default=str, allow_nan=False)) > MAX_PAYLOAD_CHARS:
@@ -302,6 +310,7 @@ class DirectorPlan(BaseModel):
     records: list[PlanRecord] = Field(default_factory=list, max_length=6)
     record_updates: list[PlanRecordUpdate] = Field(default_factory=list, max_length=6)
     balance: list[PlanBalance] = Field(default_factory=list, max_length=8)
+    pay_bills: list[PlanOwnBill] = Field(default_factory=list, max_length=3)
     sites: list[SiteSpec] = Field(default_factory=list, max_length=2)
     site_updates: list[PlanSiteUpdate] = Field(default_factory=list, max_length=6)
     events: list[PlanEvent] = Field(default_factory=list, max_length=8)
@@ -330,7 +339,13 @@ def later_plan(event: PlanEvent) -> DirectorPlan:
     if event.kind == "cue":
         return DirectorPlan(cues=[PlanCue.model_validate(event.payload)])
     plan = DirectorPlan.model_validate(event.payload)
-    if plan.replace_action or plan.events or plan.cancel_events or plan.retime_events:
+    if (
+        plan.replace_action
+        or plan.events
+        or plan.cancel_events
+        or plan.retime_events
+        or plan.pay_bills
+    ):
         raise ValueError("A later happening cannot change plans or hold more later happenings.")
     if plan.need_more:
         raise ValueError("A later happening cannot ask to look anything up.")
@@ -562,10 +577,14 @@ the world says back and tell them through news. Not everything works: people are
 less than hoped, answers can come later through events.
 Dates and times in the notes hold. A job due on Wednesday cannot be finished or paid on Monday: \
 say it is not time yet.
-No money comes in with this answer. balance here may only take out what they pay on the spot. \
-Money for work or a sale arrives when the work is really done or the buyer has really paid, \
-through a later event with balance in its payload. Do not arrange a payment that upcoming or \
-recent_money already shows.
+No money comes in with this answer. balance here may only take out what they pay on the spot, \
+such as cash handed over or a purchase in a shop. Money for work or a sale arrives when the work \
+is really done or the buyer has really paid, through a later event with balance in its payload. \
+Do not arrange a payment that upcoming or recent_money already shows.
+- pay_bills: a bill listed under open_bills that the person in tried_by is paying themselves right \
+now, with their owner_id, the site_id and the bill_id. A person's own bill gets paid only this \
+way. Their money falls by the amount of the bill, so leave it out of balance. If money shows that \
+they cannot cover it, leave it out and tell them the payment was declined.
 """
 )
 
@@ -578,6 +597,10 @@ offer less than hoped.
 If money really changes hands now, add it to balance, once. If recent_money or upcoming shows it \
 was already paid or arranged, do not pay it again. Dates and times in the notes hold. A job due \
 on Wednesday cannot be finished or paid on Monday: if its day has not come, say so and pay nothing.
+- pay_bills: a bill listed under open_bills that the person in tried_by is paying themselves right \
+now, with their owner_id, the site_id and the bill_id. A person's own bill gets paid only this \
+way. Their money falls by the amount of the bill, so leave it out of balance. If money shows that \
+they cannot cover it, leave it out and tell them the payment was declined.
 """
 )
 
@@ -910,6 +933,8 @@ def _review_rules(items: list[_Waiting]):
     """A review charges nobody, and pays only someone whose waiting item it settles."""
 
     def settle(plan: DirectorPlan, moment: _Moment) -> list[str]:
+        if plan.pay_bills:
+            raise PlanRejected("Nobody is paying a bill here. Leave pay_bills out.")
         done = _answered(plan, items, moment)
         answered_people = {item.owner_id for item in items if item.event_id in done}
         for part in _parts(plan):
@@ -929,10 +954,36 @@ def _review_rules(items: list[_Waiting]):
     return settle
 
 
+def _check_own_bills(plan: DirectorPlan, moment: _Moment, owner_id: str) -> None:
+    """A bill a person pays must be theirs, still open, and within what they hold."""
+    left = moment.data["money"].get(moment.names.get(owner_id, owner_id), 0)
+    for item in plan.pay_bills:
+        if item.owner_id != owner_id:
+            raise PlanRejected("pay_bills may only be for the person in tried_by.")
+        bill = next(
+            (
+                b
+                for b in moment.data["open_bills"]
+                if (b["site_id"], b["bill_id"], b["owner_id"])
+                == (item.site_id, item.bill_id, owner_id)
+            ),
+            None,
+        )
+        if bill is None:
+            raise PlanRejected("pay_bills may only name an unpaid bill of theirs in open_bills.")
+        if bill["amount"] > left:
+            raise PlanRejected(
+                "They cannot cover this bill. Leave it out of pay_bills and tell them "
+                "the payment was declined."
+            )
+        left -= bill["amount"]
+
+
 def _attempt_rules(owner_id: str, *, paid_now: bool):
     """An attempt moves only its own person's money. Income waits until the work is done."""
 
-    def settle(plan: DirectorPlan, _moment: _Moment) -> list[str]:
+    def settle(plan: DirectorPlan, moment: _Moment) -> list[str]:
+        _check_own_bills(plan, moment, owner_id)
         for part in _parts(plan):
             for line in part.balance:
                 if line.owner_id != owner_id:
@@ -1004,6 +1055,12 @@ class DirectorBrain:
                 conn,
                 """SELECT site_id,name,kind,spec FROM web_sites
                    WHERE run_id=%s ORDER BY site_id""",
+                (run_id,),
+            )
+            open_bills = await _rows(
+                conn,
+                """SELECT site_id,bill_id,owner_id,title,amount,due_text FROM web_bills
+                   WHERE run_id=%s AND status='unpaid' ORDER BY site_id,bill_id""",
                 (run_id,),
             )
             listings = await _rows(
@@ -1098,6 +1155,7 @@ class DirectorBrain:
                 }
                 for item in ledger
             ],
+            "open_bills": open_bills,
             "open_sites": [
                 {
                     "site_id": item["site_id"],
@@ -1686,6 +1744,7 @@ class _Effects:
             "records": [],
             "record_updates": [],
             "balance": [],
+            "pay_bills": [],
             "sites": [],
             "site_updates": [],
             "events": [],
@@ -1752,6 +1811,8 @@ class _Effects:
             await self._step("record_updates", item.resource_id, self._record_update(index, item))
         for index, item in enumerate(plan.balance):
             await self._step("balance", item.owner_id, self._balance(index, item))
+        for index, item in enumerate(plan.pay_bills):
+            await self._step("pay_bills", item.bill_id, self._own_bill(index, item))
         for index, item in enumerate(plan.sites):
             await self._step("sites", item.site_id, self._site(index, item))
         for index, item in enumerate(plan.site_updates):
@@ -1877,6 +1938,61 @@ class _Effects:
                 "director",
             )
             return {"owner_id": item.owner_id, "delta": item.delta, "balance": receipt["balance"]}
+
+        return write
+
+    def _own_bill(self, index, item):
+        async def write():
+            if item.owner_id != self.plan.about_owner or self.plan.scale != "request":
+                raise WorldError("Only the person paying can settle their own bill.")
+            bill = await _one(
+                self.conn,
+                """SELECT * FROM web_bills WHERE run_id=%s AND site_id=%s AND bill_id=%s
+                   AND owner_id=%s FOR UPDATE""",
+                (self.run_id, item.site_id, item.bill_id, item.owner_id),
+            )
+            if bill is None or bill["status"] == "paid":
+                raise WorldError("That bill is not open.")
+            receipt = await wallet.adjust(
+                self.conn,
+                self.run_id,
+                item.owner_id,
+                -bill["amount"],
+                f"{item.site_id} bill: {bill['title']}",
+                f"{self.key}:pay_bill:{index}",
+                "director",
+            )
+            await self.conn.execute(
+                """UPDATE web_bills SET status='paid',paid_request=%s,paid_sim_s=%s
+                   WHERE run_id=%s AND site_id=%s AND bill_id=%s""",
+                (
+                    str(self._request_id("pay_bill", index)),
+                    self.now_s,
+                    self.run_id,
+                    item.site_id,
+                    item.bill_id,
+                ),
+            )
+            await wallet.record_event(
+                self.conn,
+                self.run_id,
+                "web_bill_paid",
+                self.window,
+                {
+                    "site_id": item.site_id,
+                    "bill_id": item.bill_id,
+                    "amount": bill["amount"],
+                    "paid_by": "owner",
+                },
+                f"{self.key}:bill_paid:{index}",
+                item.owner_id,
+            )
+            return {
+                "owner_id": item.owner_id,
+                "bill_id": item.bill_id,
+                "amount": bill["amount"],
+                "balance": receipt["balance"],
+            }
 
         return write
 

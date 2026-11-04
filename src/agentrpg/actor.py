@@ -378,8 +378,9 @@ ClockedActorCandidate = create_model(
         Field(
             default=(),
             max_length=5,
-            description="Mail this person writes and sends themselves. If they ask their "
-            "assistant to send something, keep that in text and leave this empty.",
+            description="Mail this person writes and sends themselves to someone in participants. "
+            "To reach anyone else, use try_to_make_happen. If they ask their assistant to send "
+            "something, keep that in text and leave this empty.",
         ),
     ),
     resource_requests=(
@@ -433,6 +434,18 @@ ClockedActorCandidate = create_model(
         ),
     ),
 )
+
+
+def _wrong_balance(view: ActorView, output: ActorOutput) -> int | None:
+    """The true balance, if this person states a different one. Otherwise None."""
+    held = (view.clock or {}).get("money_in_account")
+    if held is None:
+        return None
+    for match in _BALANCE_CLAIM.finditer(output.text):
+        stated = int((match.group(1) or match.group(2)).replace(",", ""))
+        if stated != held:
+            return held
+    return None
 
 
 def _names_backstage(view: ActorView, output: ActorOutput) -> bool:
@@ -1535,6 +1548,14 @@ would really see them.
 - When something has finished, or it is a new morning, they need not say anything to their
   assistant. Return kind=wait with next_action unless they really have something to say. This
   overrides the rule above about never returning wait.
+- Money they handle themselves moves only through try_to_make_happen. When they hand over cash, pay
+  a bill on a website themselves, or buy something in person, put that there with the amount and who
+  it goes to, such as "Pay the $50 bill on the website" or "Give Mr Aldous $40 in cash". Saying so
+  in text moves nothing, and the money is still there.
+- clock.money_in_account is exactly what their account holds now. If they mention their balance,
+  it is this number. clock.done_recently is what they have already done, so they do not do the same
+  shift or errand twice. If clock.assistant_gone is true they no longer have an assistant, so
+  return kind=wait with next_action.
 - Keep plans ordinary and in proportion to their day. Sleep, work, meals, and errands take the time
   they really take. Do not decide how an uncertain thing turns out: put it in seeks or
   try_to_make_happen, and the answer comes later.
@@ -1545,6 +1566,13 @@ CLOCK_PERMISSION_RULES = (
     "Selling or buying something online needs only what this person says to their assistant. "
     "If commerce_consent is in the schema, use it only for an item in this person's own item "
     "records, with that record's exact id. "
+)
+
+# A person stating their balance, in the forms owners have used.
+_BALANCE_CLAIM = re.compile(
+    r"\$?(\d[\d,]*)\s*(?:dollars\s*|bucks\s*)?(?:left\s*)?in (?:the|my) account|"
+    r"(?:balance|account says|account shows)\s*(?:is|now|says|at|of|:)*\s*(?:now\s*)?\$?(\d[\d,]*)",
+    re.I,
 )
 
 _BACKSTAGE = re.compile(
@@ -2131,6 +2159,15 @@ class ModelActor:
                 except ActorContractError:
                     typed_failure = output
                     raise
+                # Asked again while repairs remain. A last answer stands, so a day is never lost
+                # over how a number was worded.
+                if (
+                    attempt < self.max_repairs
+                    and (held := _wrong_balance(view, output)) is not None
+                ):
+                    raise ActorContractError(
+                        f"Their account holds ${held}. If they mention their balance, use that."
+                    )
                 if (
                     view.clock is not None
                     and not view.clock.get("current_action")

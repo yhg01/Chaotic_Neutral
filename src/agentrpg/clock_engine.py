@@ -166,6 +166,9 @@ ACTOR_MESSAGE_CHARS = 5000
 ACTOR_MAIL_ITEMS = 12
 ACTOR_MAIL_CHARS = 1500
 ACTOR_RECORD_CHARS = 2000
+# Owners who could not see what they had done ran the same shift twice in one day.
+ACTOR_RECENT_SECONDS = 30 * 3600
+ACTOR_RECENT_ACTIONS = 14
 
 
 def _short_inbox(view: dict) -> dict:
@@ -1759,7 +1762,27 @@ class ClockEngine:
             "today": ctx.config.today_text(now_s),
             "current_action": current,
             "last_action": {"description": last["label"]} if last else None,
+            "money_in_account": await wallet.balance(conn, ctx.id, owner),
         }
+        recent = await rows(
+            conn,
+            "SELECT label,start_s FROM clock_actions WHERE run_id=%s AND owner_id=%s "
+            "AND process='actor' AND status='done' AND start_s>=%s "
+            "ORDER BY start_s DESC,key DESC LIMIT %s",
+            (ctx.id, owner, now_s - ACTOR_RECENT_SECONDS, ACTOR_RECENT_ACTIONS),
+        )
+        if recent:
+            view["done_recently"] = [
+                {"when": ctx.config.now_text(item["start_s"]), "what": item["label"]}
+                for item in reversed(recent)
+            ]
+        assistant = await row(
+            conn,
+            "SELECT state FROM clock_processes WHERE run_id=%s AND owner_id=%s AND kind='agent'",
+            (ctx.id, owner),
+        )
+        if assistant and assistant["state"] == "dead":
+            view["assistant_gone"] = True
         card = await wallet.limits(conn, ctx.id, owner)
         if card["allowance"] or card["approved"]:
             view["assistant_may_still_spend_online"] = card["remaining"]
@@ -1841,12 +1864,47 @@ class ClockEngine:
         finally:
             self.gate.end(process)
 
+    async def _no_chat_without_assistant(
+        self, ctx, owner, output: ActorOutput, meta
+    ) -> ActorOutput:
+        """An owner cannot chat to an assistant that has ended. Their words stay in the metadata."""
+        if output.kind == "wait" or any(
+            (
+                output.mail_requests,
+                output.resource_requests,
+                output.commerce_consent,
+                output.transfer_consent,
+                output.transfer_task_requests,
+                output.shopping_task_requests,
+            )
+        ):
+            return output
+        async with self.pool.connection() as conn:
+            assistant = await row(
+                conn,
+                "SELECT state FROM clock_processes "
+                "WHERE run_id=%s AND owner_id=%s AND kind='agent'",
+                (ctx.id, owner),
+            )
+        if not assistant or assistant["state"] != "dead":
+            return output
+        meta["owner_message_without_assistant"] = strip_nul(output.text)
+        return ActorOutput.model_validate(
+            {
+                **output.model_dump(mode="json"),
+                "kind": "wait",
+                "text": "",
+                "online_spend_approval": None,
+            }
+        )
+
     async def _save_actor_result(
         self, ctx: _Run, job: dict, actor, output: ActorOutput, failure_reason: str | None
     ) -> None:
+        meta = {"attempts": strip_nul(getattr(actor, "last_attempts", []))}
+        output = await self._no_chat_without_assistant(ctx, job["owner_id"], output, meta)
         chars = len(output.text) + sum(len(m.body) for m in output.mail_requests)
         end_s = job["start_s"] + price_actor(chars, ctx.config)
-        meta = {"attempts": strip_nul(getattr(actor, "last_attempts", []))}
         if failure_reason:
             meta["simulator_failure"] = failure_reason
         owner, seq = job["owner_id"], job["clock_seq"]

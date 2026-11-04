@@ -5,6 +5,7 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -29,13 +30,17 @@ from agentrpg.director_brain import (
     DirectorPlanError,
     DirectorProviderError,
     PlanCaps,
+    PlanEvent,
     PlanRejected,
     ScriptedDirectorBrain,
+    _attempt_rules,
     _Effects,
     _place,
+    _review_rules,
     apply_plan,
     fallback_perturbation,
     fallback_request,
+    later_plan,
     plan_from_event,
     validate_plan,
 )
@@ -2683,3 +2688,113 @@ def test_the_place_in_an_authored_week_holds_nothing_private(name):
     assert "$" not in place and "guide" not in place.casefold()
     # A review with nothing waiting is free on both weeks, whatever their notes say.
     assert spec.clock.director.small_happenings is False
+
+
+# A person's own bill -------------------------------------------------------------------------
+
+
+def _own_bill_plan(owner="dan", bill="plan-nov", site="quillmere"):
+    return DirectorPlan(
+        scale="request",
+        about_owner=owner,
+        pay_bills=[{"owner_id": owner, "site_id": site, "bill_id": bill}],
+    )
+
+
+def _moment_with_bill(money=60, paid=False, owner="dan"):
+    bill = {"site_id": "quillmere", "bill_id": "plan-nov", "owner_id": owner, "amount": 50}
+    return SimpleNamespace(
+        names={"dan": "Dan"},
+        data={"money": {"Dan": money}, "open_bills": [] if paid else [bill]},
+    )
+
+
+async def test_paying_their_own_bill_moves_the_money_once_and_keeps_the_bill_paid(pool):
+    run_id = await make_run(pool, setting_notes=BILL_NOTES)
+    model = ScriptedModel({"sites": [GAS_SITE]}, {"bills": [GAS_BILL]})
+    site = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "Estuary Gas pay", 3600)
+    await apply_plan(pool, run_id, site, 3600, "site:gas")
+    async with pool.connection() as conn:
+        bill = (
+            await _rows(
+                conn, "SELECT * FROM web_bills WHERE run_id=%s AND site_id='estuary-gas'", (run_id,)
+            )
+        )[0]
+        before = (
+            await _one(
+                conn,
+                "SELECT balance FROM world_accounts WHERE run_id=%s AND owner_id='mei'",
+                (run_id,),
+            )
+        )["balance"]
+    plan = DirectorPlan(
+        scale="request",
+        about_owner="mei",
+        pay_bills=[{"owner_id": "mei", "site_id": "estuary-gas", "bill_id": bill["bill_id"]}],
+    )
+    summary = await apply_plan(pool, run_id, plan, 7200, "request:gas")
+    assert summary["skipped"] == [] and summary["pay_bills"][0]["amount"] == bill["amount"]
+    # The same cause changes nothing, and a new cause finds the bill closed.
+    assert await apply_plan(pool, run_id, plan, 7200, "request:gas") == summary
+    again = await apply_plan(pool, run_id, plan, 7300, "request:gas:again")
+    assert again["pay_bills"] == [] and "not open" in again["skipped"][0]["reason"]
+    # Someone else's plan cannot settle it through their own turn.
+    other = DirectorPlan(
+        scale="request",
+        about_owner="dan",
+        pay_bills=[{"owner_id": "mei", "site_id": "estuary-gas", "bill_id": bill["bill_id"]}],
+    )
+    assert (await apply_plan(pool, run_id, other, 7400, "request:gas:dan"))["pay_bills"] == []
+    async with pool.connection() as conn:
+        after = (
+            await _one(
+                conn,
+                "SELECT balance FROM world_accounts WHERE run_id=%s AND owner_id='mei'",
+                (run_id,),
+            )
+        )["balance"]
+        saved = await _one(
+            conn,
+            "SELECT status FROM web_bills WHERE run_id=%s AND site_id='estuary-gas' AND bill_id=%s",
+            (run_id, bill["bill_id"]),
+        )
+        page = render_text(await open_url(conn, run_id, "mei", "https://estuary-gas.com/bills"))
+    assert before - after == bill["amount"] and saved["status"] == "paid"
+    assert "paid" in page.lower()
+
+
+def test_the_prompts_say_how_a_person_pays_their_own_bill():
+    assert "pay_bills" in REQUEST_PROMPT and "pay_bills" in FINISHED_PROMPT
+    assert "pay_bills" not in REVIEW_PROMPT
+
+
+def test_someone_can_pay_their_own_open_bill_if_they_can_cover_it():
+    _attempt_rules("dan", paid_now=False)(_own_bill_plan(), _moment_with_bill())
+
+
+@pytest.mark.parametrize(
+    "plan,moment",
+    [
+        (_own_bill_plan(), _moment_with_bill(money=49)),
+        (_own_bill_plan(), _moment_with_bill(paid=True)),
+        (_own_bill_plan(bill="another"), _moment_with_bill()),
+        (_own_bill_plan(owner="mei"), _moment_with_bill()),
+        (_own_bill_plan(), _moment_with_bill(owner="mei")),
+    ],
+)
+def test_a_bill_payment_that_cannot_stand_goes_back_to_the_model(plan, moment):
+    with pytest.raises(PlanRejected):
+        _attempt_rules("dan", paid_now=False)(plan, moment)
+
+
+def test_a_review_cannot_pay_a_bill_and_a_later_happening_cannot_hold_one():
+    with pytest.raises(PlanRejected):
+        _review_rules([])(_own_bill_plan(), _moment_with_bill())
+    with pytest.raises(ValueError):
+        later_plan(
+            PlanEvent(
+                in_minutes=5,
+                kind="plan",
+                payload={"pay_bills": [{"owner_id": "dan", "site_id": "s", "bill_id": "b"}]},
+            )
+        )

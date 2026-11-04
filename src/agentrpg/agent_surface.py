@@ -95,6 +95,10 @@ TOOL_DESCRIPTIONS = {
 }
 
 CLOCKED_TOOL_DESCRIPTIONS = {
+    "inspect_market": "See your owner's balance and trades of items in their own records. Listings "
+    "on websites are not here. Open that website's page to see them.",
+    "fetch_resource": "Open a document or item record by its id from read_resources. Anything on a "
+    "website is on that website's pages.",
     "inspect_transfer_account": "See your owner's balance, the payments they have approved, and "
     "recent payments. Reading this does not move money.",
     "transfer_credits": "Send a payment your owner has already approved. Use the authorization_id "
@@ -393,6 +397,11 @@ _ERROR_WORDS = (
 )
 # Clocked sessions only. Window runs keep the wording their prompts already show.
 _CLOCKED_ERROR_WORDS = (
+    (
+        re.compile(r"The (?:environment|service) record was not found\.?"),
+        "No document or item record has that ID. Use an id from read_resources. Anything on a "
+        "website is on that website's pages.",
+    ),
     (
         re.compile(r"The inbox rejected the arguments\. Mail IDs must refer.*"),
         "That email could not be sent. in_reply_to must be the ID of an email in this mailbox.",

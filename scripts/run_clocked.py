@@ -545,7 +545,8 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 model = create_model(
                     env["OPENROUTER_API_KEY"],
                     config["model"],
-                    max_tokens=2000,
+                    # At 2000, a long document or message stopped at the limit on every retry.
+                    max_tokens=4000,
                     max_retries=0,
                     **({"budget": binding, "budget_role": "assistant"} if binding else {}),
                 )

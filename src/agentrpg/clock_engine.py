@@ -35,6 +35,7 @@ from agentrpg.clock import (
     ACTOR_KINDS,
     ACTOR_OBSERVATION_KINDS,
     AGENT_KINDS,
+    CHAT_STREAK_LIMIT,
     ClockConfig,
     actor_process,
     agent_process,
@@ -105,6 +106,9 @@ def _is_retryable(error: Exception) -> bool:
 
 def _cause_key(value: str) -> str:
     return value if len(value) <= 180 else "h:" + hashlib.sha256(value.encode()).hexdigest()
+
+
+IDLE_ACTION_S = 2 * 60 * 60
 
 
 class ClockEngine:
@@ -647,13 +651,15 @@ class ClockEngine:
                     action = actions.get(owner)
                     if action is not None and not action["reachable"]:
                         continue  # R9: frozen. Everything waits for action_end.
-                    desired = self._actor_due(
-                        ctx,
-                        process,
-                        now_s,
-                        [e for e in actor_events if e["recipient"] == owner],
-                        action,
-                    )
+                    own_events = [e for e in actor_events if e["recipient"] == owner]
+                    # Owner and assistant can thank each other forever. Once they have only
+                    # chatted a few times in a row, new messages wait until the owner next
+                    # surfaces by themselves: a cue, or the end of what they are doing.
+                    if action is not None and await self._chat_capped(conn, ctx, owner):
+                        own_events = [
+                            e for e in own_events if classify_actor_event(e, owner) == "cue"
+                        ]
+                    desired = self._actor_due(ctx, process, now_s, own_events, action)
                 if desired is None:
                     if kind == "agent" or action is None:
                         # R8: every yield has an until. A first wait takes the next morning.
@@ -680,6 +686,24 @@ class ClockEngine:
                     )
                 elif desired < existing["due_s"]:
                     await retime(conn, ctx.id, existing["key"], desired)
+
+    async def _chat_capped(self, conn, ctx: _Run, owner: str) -> bool:
+        """Have this owner and assistant only chatted since the assistant last did anything?"""
+        streak = await row(
+            conn,
+            """SELECT count(*) AS n FROM run_events e WHERE e.run_id=%s AND e.owner_id=%s
+               AND e.kind='owner_message' AND e.payload->>'source'='owner'
+               AND e.created_at > COALESCE((
+                   SELECT max(t.created_at) FROM run_events t
+                   WHERE t.run_id=%s AND t.owner_id=%s
+                   AND (t.kind='actor_cue' OR (t.kind='assistant_tool_call'
+                        AND t.payload->>'tool' NOT IN ('read_owner_messages','send_owner_message',
+                            'read_run_view','get_updates','acknowledge','list_mail','read_mail',
+                            'acknowledge_mail','read_resources','fetch_resource'))
+                   )), '-infinity'::timestamptz)""",
+            (ctx.id, owner, ctx.id, owner),
+        )
+        return streak["n"] >= CHAT_STREAK_LIMIT
 
     def _agent_due(self, ctx: _Run, process: dict, now_s: int, events: list) -> int | None:
         config = ctx.config
@@ -1599,10 +1623,18 @@ class ClockEngine:
                 (ctx.id, owner),
             )
             return
-        await conn.execute(
-            "UPDATE clock_processes SET state='waiting',bar_s=GREATEST(bar_s,%s),until_s=%s "
-            "WHERE run_id=%s AND owner_id=%s AND kind='actor'",
-            (now_s, next_daily_wake(now_s, ctx.config), ctx.id, owner),
+        # A person always has something next, so the owner resurfaces and can be frozen later.
+        await self._begin_action(
+            conn,
+            ctx,
+            owner,
+            f"action:{owner}:{seq}",
+            "Nothing planned, at home",
+            IDLE_ACTION_S,
+            True,
+            {"category": "free", "seeks": None, "default": True},
+            now_s,
+            draw=False,
         )
 
     async def _begin_action(

@@ -60,8 +60,10 @@ FREE_TOOLS = frozenset(
 )
 
 # Seconds before a person notices a message while they are reachable or free (R9).
-NOTICE_MIN_S = 60
-NOTICE_MAX_S = 600
+NOTICE_MIN_S = 240
+NOTICE_MAX_S = 2400
+# Chat-only exchanges allowed before an owner stops being woken by further messages.
+CHAT_STREAK_LIMIT = 2
 
 # Wake rules (R8). Direct events wake an Agent at once. Ambient events wake it after the
 # ambient delay, coalesced by the single queued wake. Own effects never wake it.

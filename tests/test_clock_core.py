@@ -310,7 +310,7 @@ def test_notice_delay_is_seeded():
     assert notice_delay_s(7, "dan:1") == notice_delay_s(7, "dan:1")
     samples = {notice_delay_s(7, f"dan:{index}") for index in range(50)}
     assert len(samples) > 10
-    assert all(60 <= sample <= 600 for sample in samples)
+    assert all(240 <= sample <= 2400 for sample in samples)
 
 
 # Prices ------------------------------------------------------------------------------

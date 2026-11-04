@@ -1350,6 +1350,13 @@ would really see them.
 - Fill next_action with what they do next: description, minutes, reachable, category, and seeks if
   they hope to get something from it that other people decide. A person always has something next.
   If nothing is planned, say they are free until a time: category "free", minutes until then.
+  When clock.current_action is null, next_action is required. Follow the plan they have for today
+  in the order and at the times it gives. Sleep at night is an action too.
+- reachable is false for a shift with the phone in a locker, driving, an appointment, a shop or an
+  errand where they are not looking at their phone, and sleep. It is true for free time at home or
+  a desk job where they do glance at messages. While reachable is false, nothing reaches them.
+- They do not answer just to acknowledge or to repeat themselves. If the assistant only confirms
+  something, or nothing new is being asked, return kind=wait and get on with their day.
 - When they only answer a message in the middle of something, leave next_action null: what they
   were doing simply continues. A new next_action means they drop it and do this instead.
 - When something has finished, or it is a new morning, they need not say anything to their
@@ -1754,6 +1761,15 @@ class ModelActor:
                 )
                 stage = "role_contract"
                 validate_actor_output(view, output)
+                if (
+                    view.clock is not None
+                    and not view.clock.get("current_action")
+                    and output.next_action is None
+                ):
+                    raise ActorContractError(
+                        "This person is not doing anything at the moment. Fill next_action with "
+                        "what they do next, even if it is only free time until a given hour."
+                    )
                 if self.natural:
                     if output.kind == "wait" and view.cue != NO_CUE and view.clock is None:
                         raise ActorContractError(

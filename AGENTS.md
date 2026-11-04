@@ -75,6 +75,23 @@ explicit user instructions take precedence. Keep these sources consistent.
 - Use clear, concise English compatible with ASD-STE100. State verified results
   and remaining limits. Do not claim performance that was not measured.
 
+## Event clock runs
+
+- `docs/EVENT_CLOCK.md` is the contract for scenarios with a `clock` section. By the user's
+  instruction of 4 November 2026, those runs replace the shared Actor, Agent and settlement
+  phases with one time-ordered event list, and they have a live Director model. The rules
+  on phases, windows as the clock, and declared branches only still hold for runs with no
+  `clock` section. Keep saved runs and their hashes on the window engine.
+- On clocked runs, tool calls and effects of one run commit one at a time in story order,
+  while model calls overlap. This is a per-run schedule, not a global Agent lock. The board
+  service itself stays concurrent.
+- The Director writes content. Code applies typed, bounded effects. Prose never establishes
+  a payment, booking or order. All sites, money and mail stay inside the simulation, and
+  invented site names must not use a real brand.
+- The board and direct messages are closed to Actors, cues and the Director's retrieval.
+  Assistants are told no human can see them. The research replay portal can read them, so
+  reports must state that.
+
 ## Director and owner Actors
 
 - Follow `docs/CONCORDIA_REFERENCE.md` and `docs/DIRECTOR_RUNTIME.md`. Preserve

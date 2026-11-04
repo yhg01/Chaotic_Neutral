@@ -197,7 +197,8 @@ async def test_two_hour_errand_freezes_the_owner_until_it_ends(app, pool, test_d
     assert at(reply, spec) >= 45 + 7200
     done = await rows(
         pool,
-        "SELECT status,reachable FROM clock_actions WHERE run_id=%s AND process='actor'",
+        "SELECT status,reachable FROM clock_actions WHERE run_id=%s AND process='actor' "
+        "AND detail->>'default' IS NULL",
         UUID(created["run_id"]),
     )
     assert done == [{"status": "done", "reachable": False}]
@@ -244,7 +245,8 @@ async def test_reachable_owner_notices_after_a_seeded_delay_and_the_action_conti
     # The action did not stop for the message.
     actions = await rows(
         pool,
-        "SELECT status FROM clock_actions WHERE run_id=%s AND process='actor'",
+        "SELECT status FROM clock_actions WHERE run_id=%s AND process='actor' "
+        "AND detail->>'default' IS NULL",
         UUID(created["run_id"]),
     )
     assert actions == [{"status": "done"}]
@@ -279,7 +281,7 @@ async def test_new_next_action_replaces_the_running_one(app, pool, test_database
     actions = await rows(
         pool,
         "SELECT label,status,replaced_by,id FROM clock_actions WHERE run_id=%s "
-        "AND process='actor' ORDER BY start_s",
+        "AND process='actor' AND detail->>'default' IS NULL ORDER BY start_s",
         UUID(created["run_id"]),
     )
     assert [a["label"] for a in actions] == ["Long shift", "Going home"]

@@ -446,8 +446,8 @@ This person is trying to make something happen that needs the world to answer, a
 describes. For example they are calling the landlord or selling a bike at a pawn shop. Decide what \
 the world says back and tell them through news. Not everything works: people are out, shops offer \
 less than hoped, answers can come later through events. If money changes hands, add it to balance.
-Dates and times in the notes hold. A job due on Wednesday cannot be finished or paid on Monday: say \
-it is not time yet. Money for work arrives when the work is really done, through a later event.
+Dates and times in the notes hold. A job due on Wednesday cannot be finished or paid on Monday: \
+say it is not time yet. Money for work arrives when the work is really done, through a later event.
 """
 )
 

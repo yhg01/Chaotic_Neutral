@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>邻里集 · 模拟商城</title><link rel="stylesheet" href="/assets/shop.css"><script src="/assets/shop.js" defer></script></head>
+<body>
+<div class="simulation-strip">本地模拟商城 <span>所有订单仅使用模拟积分</span></div>
+<header class="shop-header">
+  <a class="brand" href="#catalog" aria-label="邻里集首页"><span class="brand-mark">n.</span><span>邻里集<small>NEIGHBOR MARKET</small></span></a>
+  <form id="search-form" class="search"><label class="sr-only" for="search">搜索商品</label><input id="search" data-shop-target="search" type="search" placeholder="寻找一件日常好物…" maxlength="200"><button data-shop-target="search-submit" type="submit">搜索</button></form>
+  <nav aria-label="商城导航"><button data-shop-target="catalog" id="catalog-nav">逛逛商城</button><button data-shop-target="orders" id="orders-nav">我的订单</button></nav>
+</header>
+<main id="shop-main" data-ready="false" aria-busy="true">
+  <div id="status" class="status" role="alert" hidden></div>
+  <section id="observer-banner" class="observer-banner" hidden><div><strong>购物过程观察模式</strong><span>查看 Agent 的商品、购物车和真实订单记录。</span></div><label>查看人物 <select id="observer-owner" data-shop-target="observer-owner"></select></label><a id="trajectory-link">查看 trajectory ↗</a></section>
+  <div class="shop-layout">
+    <div class="shop-content">
+      <section id="catalog-view">
+        <div class="hero"><div><p class="eyebrow">THOUGHTFUL THINGS, CLOSE TO HOME</p><h1>给日常，<br>添一点好东西。</h1><p>从朋友的小店里，找到桌边、手边和生活里的小确幸。</p><span class="hero-note"><i></i> 真实库存 · 明码标价 · 模拟积分结算</span></div><div class="hero-art" aria-hidden="true"><div class="art-orbit"></div><img src="/assets/shop-mug.svg" alt=""><span class="art-label">MADE FOR EVERYDAY</span></div></div>
+        <div class="section-heading"><div><p class="eyebrow">THE EVERYDAY EDIT</p><h2 id="products-heading">日常精选</h2></div><span id="product-count"></span></div>
+        <div id="products" class="product-grid" aria-labelledby="products-heading"></div>
+      </section>
+      <section id="detail-view" hidden><button class="back-button" data-shop-target="back-catalog">← 返回商品</button><div id="product-detail"></div></section>
+      <section id="review-view" hidden><button class="back-button" data-shop-target="back-catalog">← 继续挑选</button><p class="eyebrow">ONE LAST LOOK</p><h1 class="page-title">确认这次购买</h1><p class="section-description">请核对商品、数量和总价。提交后，等待环境返回实际结算结果。</p><div id="review-lines" class="review-card"></div><div class="review-total"><span>订单总计</span><strong id="review-total"></strong></div><button class="primary large" id="place-order" data-shop-target="place-order" disabled>确认并提交订单</button></section>
+      <section id="orders-view" hidden><div class="section-heading"><div><p class="eyebrow">YOUR PURCHASES</p><h1 class="page-title">我的订单</h1></div><button id="refresh-orders" data-shop-target="refresh-orders">刷新订单</button></div><p class="section-description">订单状态来自实际结算回执。处理中表示尚未完成扣款与入库。</p><div id="orders" class="order-list"></div></section>
+    </div>
+    <aside class="shopping-panel">
+      <section class="wallet-card"><div><span class="eyebrow">YOUR WALLET</span><span id="owner-name" class="owner-name">—</span></div><p><strong id="balance">—</strong><span>可用模拟积分</span></p><div class="wallet-foot">本次可用购物授权 <b id="permission">—</b></div></section>
+      <section class="task-card"><h2>这次想买什么</h2><label for="shopping-task">选择主人交代的采购</label><select id="shopping-task" data-shop-target="shopping-task"></select><p id="task-summary" class="muted"></p></section>
+      <section class="cart-card"><div class="section-heading"><h2>购物车</h2><span id="cart-count">0 件</span></div><div id="cart-lines"></div><div class="cart-total"><span>小计</span><strong id="cart-total">0 积分</strong></div><button class="primary" id="review-cart" data-shop-target="review-cart" disabled>核对并结算 →</button><p class="cart-note">每笔购买关联一项主人任务，已完成的任务不会重复下单。</p></section>
+      <p class="sidebar-note">把事情办妥，也把每一步留好记录。</p>
+    </aside>
+  </div>
+  <footer><span class="brand-word">邻里集</span><span>一个属于模拟世界的小小商城。</span><span id="run-status"></span></footer>
+</main>
+</body></html>

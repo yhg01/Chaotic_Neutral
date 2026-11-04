@@ -6,6 +6,90 @@ langchain-openrouter 0.2.9. These dependencies are pinned in the lock file.
 The application runs the libraries directly. It does not require a managed
 Agent Server or hosted LangSmith account.
 
+## Optional empty-scratch guard
+
+`AgentRuntime.agent(..., guard_empty_scratch=True)` hides `ls`, `glob`, `grep`
+and `read_file` while the restored private file mapping is empty. Write and
+environment tools remain available. Reads become available after a scratch write,
+including after runtime recreation. A provider call to a hidden scratch-read tool
+receives a saved `empty_scratch` correction rather than a fabricated result.
+This option is session-bound and defaults to false for legacy callers. Filtering
+is per request and does not change another Agent's tool set.
+
+New transfer runs enable this option. [Retest evidence](EMPTY_SCRATCH_REPAIRS.md)
+separates the fixed empty-file search loop from unresolved conversation-loop
+issues. Later v3/v4 policy comparisons remain separate evidence. It does not claim that all
+repeated searches or waiting decisions are now correct.
+
+## Optional persistent transfer tasks
+
+`EnvironmentTools(..., track_transfer_tasks=True)` offers `list_transfer_tasks`,
+`defer_transfer_task` and `complete_transfer_task`. The runtime preserves this
+option when copying the adapter and binds it to the session instruction hash.
+The Director run must have enabled tracking before it starts; there is no Agent
+endpoint to enable it, open tasks, grant authority or cancel tasks.
+
+In this profile, `ActivationResult` and `agent_tasks` describe one graph execution.
+The separate business record survives a `finished` activation. The scheduler
+reads open tasks without changing the saved model output. Actual peer mail wakes
+an inbox-blocked task for review; owner permission remains a separate requirement.
+Completion requires the matching committed payment and notice/report evidence.
+The Actor owns typed task opening and cancellation. Read the
+[contract and local evidence](TRANSFER_TASK_LIFECYCLE.md) for the exact checks
+and recovery guarantees. The later [model results](TRANSFER_TASK_MODEL_RESULTS.md)
+retain actual successes, corrections and failures separately.
+
+`guard_transfer_task_yield=True` adds an opt-in v8 check before a completion or
+wait tool ends an activation. If the owner's task is still active, the exact tool
+response becomes `active_transfer_task_requires_update`. The model must save a
+business wait or complete the paid task with real evidence, then retry yielding.
+The guard does not select a task, change its state, or fabricate an owner reply.
+It preserves the model's final activation result after the task update. Pending
+settlement keeps its existing behavior. Call and time limits still apply.
+
+The flag defaults to false, requires task-enabled environment tools, and binds to
+the session instruction hash and restored branch policy. Completed writes,
+corrections and call counters survive checkpoint resume. A new comparison can
+use `--track-transfer-tasks --guard-transfer-task-yield` in the Actor runner.
+
+## Optional previous activation context
+
+`AgentRuntime.agent(..., include_previous_activation_context=True)` adds the
+Agent's own preceding activation ID, status, expected events and pending IDs to
+its model context when the preceding task was an activation. The fields come from
+that session's saved checkpoint, before
+the new activation resets its current result. The middleware labels them as the
+Agent's prior declaration. It includes no hidden scenario facts or peer state.
+
+This is context for a model decision. New evidence, cancellation or changed
+instructions can justify leaving the previous wait. The runtime does not replace
+the model's result or infer intent from acknowledgement text. The option defaults
+to false, is bound to the session instruction hash, and preserves the existing
+canonical activation input. A retry reuses the frozen context from its checkpoint.
+New transfer manifests save the flag; old manifests resume with it disabled.
+The [v5 diagnostics](OWNER_ACK_V5_RESULTS.md) retain two premature finishes in
+three probes. The [v6 context probes](OWNER_ACK_V6_RESULTS.md) retain one in three,
+despite correct saved context in every trial. These small component tests do not
+establish an improvement or a stable complete model-Actor scenario.
+
+## Actor mail delegation review
+
+`ModelActor(..., reviewer=reviewer, require_mail_intent_review=True)` requires a
+reviewer at construction. For nonempty Actor `mail_requests`, the reviewer must
+classify all mail as explicit owner-direct correspondence or identify any
+assistant-delegated mail. The latter is rejected for repair before Director
+effects can be applied, even if the reviewer also says `accepted=true`. The
+delegated owner instruction remains dialogue; its duplicate typed effect must be
+removed. Ordinary no-mail reviews and the default false mode retain their prior
+shape. Valid direct personal mail and reflection remain permitted.
+
+The gate enforces the structured classification, not the truth of an LLM's
+semantic judgment. Its contract tests cover both valid direct correspondence and
+delegated-effect rejection. New transfer manifests snapshot the flag and full
+generation/review prompts. See the [v3 failures](QUIET_ACTOR_V3_RESULTS.md) and
+[v4 repair evidence](DELEGATION_V4_RESULTS.md) for the distinction between enabled
+review, actual live-path exercise, and remaining waiting/wording problems.
+
 ## Run a task
 
 Start PostgreSQL and the API, then run `scripts/seed_demo.py` as described in the
@@ -167,6 +251,16 @@ A pending transport or market action stops further model calls in that activatio
 The next Director event starts another task in the same conversation. A completed
 retry returns the saved result. Stable tool-call IDs prevent duplicate effects.
 
+`require_explicit_finish=True` is an optional, session-bound runtime mode. It
+requires a completion tool instead of a plain final response and offers
+`wait_for_mail` and `wait_for_owner`. `ActivationResult.wait_for` records expected
+external events. The Director suppresses empty-clock polling for explicit waits
+and pauses quiescent work with `waiting_for_events`. The legacy default is
+unchanged. Notification body evidence survives both checkpoint recovery and later
+activations; an explicit `finished` cannot use an empty inbox query or a mail
+acknowledgement as proof of reading. [Verification and limits](INBOX_WAIT_REPAIRS.md)
+distinguish the real-assistant probe from the pending real-Actor comparison.
+
 The Director delivers a natural final response to the owner when the activation
 has not already sent an explicit owner message. It suppresses repeated identical
 final text and pending-action status receipts. See `DIRECTOR_RUNTIME.md` for run
@@ -231,3 +325,51 @@ unfinished graph work, or older request records without their input prevent that
 restoration. An initial-scenario restart starts new Agent history at window 0.
 See [run branches](../src/agentrpg/run_branches.py) and the
 [control API](API.md#live-console-control-api) for the implemented contract.
+
+## Browser shop profile
+
+See [Browser shop runtime](BROWSER_SHOP_RUNTIME.md) for the optional Chrome tools,
+owner purchase tasks, existing-market settlement, checkpoint recovery, repeat
+purchase evidence and remaining long-duration limits. Its read-only storefront
+is `/shop?run=<id>&observer=1&owner=alice`; the existing console displays its
+trajectory. Use `scripts/try_browser_shop.py --resume <credentials.json>` for
+execution recovery. The general console model worker does not run this profile.
+
+## Opt-in runtime supervision
+
+[Runtime supervision](RUNTIME_SUPERVISION.md) records classified model/tool
+failures, durable retry deadlines and shopping task progress. It reuses graph
+checkpoints, stable operations and original counters. Migration 016 is required.
+Enable it before the first job with a frozen supervision policy. The browser
+runner exposes `--supervise`; the generic console worker does not apply this
+policy automatically. Existing runs stay disabled. No paid validation was added.
+
+## Acceptance audit
+
+The [autonomy acceptance tools](AUTONOMY_ACCEPTANCE.md) record hash-only trial
+boundaries in the repayment and shopping drivers. Director controls are durable
+events. The collector separates world checks, observed operator actions, provider
+role coverage and real invocation duration. These measurements do not change
+Agent instructions, task IDs, retry limits or authorization. A missing historical
+audit remains unknown; a resumed invocation is not another independent trial.
+
+## Per-owner model assignments
+
+The scenario CLI accepts repeated `--owner-model OWNER=MODEL` overrides. It
+validates common owner identities, saves the mapping in the run configuration,
+and rejects changed mappings on resume. Overrides require an explicit existing
+campaign and exact cumulative ceiling. Each assistant keeps its own tools,
+credentials and history. The Actor/reviewer model is configured separately.
+
+The bounded model allowlist now includes DeepSeek V3 0324 and Qwen3 30B A3B
+Instruct 2507. Their reservations use the full declared input context plus
+capped output. Public metadata must satisfy the expected text and tool contract;
+price ceilings, disabled provider fallbacks and uncertain-cost holds remain.
+No model API or budget is selected by an assistant message.
+
+The [funding comparison](MODEL_COMPARISON.md) preserves a six-slot role-swap plan
+and the original campaign. One mixed-model pilot made real tool calls and then
+paused at a budget-classified Actor failure. Report recovery is read-only and
+cannot launch a worker. A changed source still blocks generation under the old
+plan. This generic scenario driver records invocation boundaries but does not
+automatically enable the opt-in shopping supervisor.

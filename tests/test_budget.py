@@ -10,6 +10,7 @@ import pytest
 
 from agentrpg.agent_model import UsageTracker, create_model
 from agentrpg.budget import (
+    CONTEXT_BOUND_MODELS,
     BudgetBinding,
     BudgetError,
     BudgetExceeded,
@@ -93,6 +94,46 @@ def test_price_ceiling_and_serialized_tool_bound():
         "max_price": {"prompt": 2.0, "completion": 8.0, "request": 0.0, "image": 0},
     }
     assert request["usage"] == {"include": True}
+
+
+@pytest.mark.parametrize("model", list(CONTEXT_BOUND_MODELS))
+def test_foreign_tokenizers_reserve_full_context_not_gpt_byte_estimate(model):
+    unit = price(model=model, context_length=262144)
+    request = body(model=model, messages=[{"role": "user", "content": "你好"}])
+    _, bound, output = prepare_request(request, {model: unit})
+    assert bound == 262144 and output == 100
+    assert unit.snapshot()["input_bound_strategy"] == "full_declared_context"
+    assert request["provider"]["allow_fallbacks"] is False
+    assert unit.maximum(bound, output) >= unit.maximum(100000, output)
+    with pytest.raises(BudgetError):
+        prepare_request(body(model=model, reasoning={"enabled": True}), {model: unit})
+
+
+@pytest.mark.parametrize("model,tokenizer", list(CONTEXT_BOUND_MODELS.items()))
+async def test_comparison_metadata_requires_exact_tokenizer_and_tool_contract(model, tokenizer):
+    entry = {
+        "id": model,
+        "context_length": 163840,
+        "architecture": {
+            "tokenizer": tokenizer,
+            "input_modalities": ["text"],
+            "output_modalities": ["text"],
+        },
+        "supported_parameters": ["max_tokens", "tools", "tool_choice", "response_format"],
+        "pricing": {"prompt": "0.0000003", "completion": "0.000001"},
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"data": [entry]}))
+    ) as client:
+        fetched = await fetch_model_prices([model], client=client)
+        assert fetched[model].context_length == 163840
+        entry["architecture"]["tokenizer"] = "unknown"
+        with pytest.raises(BudgetError):
+            await fetch_model_prices([model], client=client)
+        entry["architecture"]["tokenizer"] = tokenizer
+        entry["supported_parameters"].remove("tools")
+        with pytest.raises(BudgetError):
+            await fetch_model_prices([model], client=client)
 
 
 async def test_price_fetch_uses_current_metadata_and_rejects_unknown():
@@ -312,3 +353,25 @@ async def test_factory_success_keeps_existing_usage_callbacks_and_exact_cost(poo
     assert usage.summary()["completed_requests"] == 1
     assert usage.summary()["reported_cost_usd"] == 0.000028
     assert (await ledger.summary(campaign))["reported_usd"] == Decimal("0.000028")
+
+
+@pytest.mark.parametrize("model", list(CONTEXT_BOUND_MODELS))
+async def test_foreign_full_context_reservation_blocks_unfunded_request(pool, model):
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "0.01")
+    unit = price(model=model)
+    binding = BudgetBinding(ledger, campaign, {model: unit})
+    transport = BudgetTransport(
+        binding,
+        "assistant",
+        transport=httpx.MockTransport(
+            lambda request: pytest.fail("Unfunded comparison request reached provider")
+        ),
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(BudgetExceeded):
+            await client.post(
+                "https://openrouter.ai/api/v1/chat/completions", json=body(model=model)
+            )
+    report = await ledger.summary(campaign)
+    assert report["attempts"] == 0 and report["remaining_usd"] == Decimal("0.01")

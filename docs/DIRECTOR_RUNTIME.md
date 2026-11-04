@@ -212,6 +212,21 @@ completed activation. The next event starts a new activation in the same session
 A pending action causes the graph to yield before another model call. The graph
 does not poll for settlement until its call budget is exhausted.
 
+For explicit external waits, declare `wait_for`, or use `wait_for_mail` and
+`wait_for_owner` in the opt-in completion mode. These distinguish another
+person's Inbox email from the paired owner's chat. Waiting may include one useful
+reply; repeated waiting activations normally use empty text. Actors receive their
+own assistant's expected event as `assistant_wait_for`.
+
+An explicit wait does not wake on empty clock ticks. Material events can still
+interrupt it, and reachable future plot beats still advance without model
+polling. When all participants are finished or explicitly waiting and no event,
+pending action, queued cue or future beat remains, the Director pauses with
+`result.reason=waiting_for_events`. This is a valid unresolved wait, not successful
+task completion or an infrastructure failure. Resume before injecting new mail,
+or queue a cue and resume through the existing control interface. The separate
+wall-clock scheduler is not implemented by this change.
+
 ## World effects and recovery
 
 The assistant tools are `read_run_view`, `read_owner_messages`,
@@ -382,3 +397,29 @@ visual directions. Adaptive intervention search and complete simulation-state
 forks remain outside this version. Automated contract checks cannot prove that
 arbitrary Actor prose contains no invented claim or indirect disclosure. Keep
 semantic review and human review separate from exact database checks.
+
+## Persistent transfer work
+
+The opt-in [transfer task contract](TRANSFER_TASK_LIFECYCLE.md) stores business
+work outside individual Agent activation receipts. `TransferTaskService.enable`
+selects the profile before a new run starts. Actors can then submit typed
+`transfer_task_requests` to open or cancel their own unpaid work; exact payment
+consent references its stable task key. The Director applies these requests with
+the owner message in the same transaction. This creates no new diagram edge.
+
+Blocked task events remain scheduler waits even when the last activation ends.
+An active unresolved task prevents early successful exit. The scheduler preserves
+raw activation outputs and adds only the owner's actual task context to saved
+inputs. Payment, consent, mailbox and operator-pause rules retain their existing
+scope. New tracking/task/operation tables are included in historical boundaries;
+legacy snapshots without them still restore. The new local evidence establishes
+these contracts, not real-model naturalness or long-duration reliability.
+
+## Browser shop profile
+
+See [Browser shop runtime](BROWSER_SHOP_RUNTIME.md) for the optional Chrome tools,
+owner purchase tasks, existing-market settlement, checkpoint recovery, repeat
+purchase evidence and remaining long-duration limits. Its read-only storefront
+is `/shop?run=<id>&observer=1&owner=alice`; the existing console displays its
+trajectory. Use `scripts/try_browser_shop.py --resume <credentials.json>` for
+execution recovery. The general console model worker does not run this profile.

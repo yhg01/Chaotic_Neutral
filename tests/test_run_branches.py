@@ -34,6 +34,61 @@ def path(manifest, suffix="branches"):
     return f"/api/v1/console/runs/{manifest['run_id']}/{suffix}"
 
 
+async def test_shop_boundary_copies_tasks_cart_orders_and_receipts_without_source_writes(
+    client,
+    pool,
+    root,
+):
+    from test_shop import add, ready_shop
+
+    from agentrpg.console_execution import save_private
+    from agentrpg.market import MarketService
+    from agentrpg.shop import ShopService
+    from agentrpg.supervision import SupervisionPolicy
+
+    policy = SupervisionPolicy()
+    manifest, run, task, listing = await ready_shop(pool, supervision=policy)
+    template = await create_run(pool, root)
+    manifest["configuration"] = {**template["configuration"], "browser_shop_owners": ["alice"]}
+    save_private(root / ".local/scenario-runs" / str(run) / "credentials.json", manifest)
+    cart = await add(pool, run, task, listing)
+    shop = ShopService(pool)
+    await shop.checkout(run, "alice", uuid4(), cart["cart"]["version"])
+    await MarketService(pool).settle(run, 1, 42)
+    await shop.sync(run)
+    # Seed a saved terminal health record to verify the complete boundary copy.
+    async with pool.connection() as conn:
+        await conn.execute(
+            "INSERT INTO run_task_health VALUES (%s,'alice',%s,'saved-progress',"
+            "ARRAY['saved-progress'],1,1,0,'closed')",
+            (run, task["id"]),
+        )
+    assert await capture_boundary(pool, run) == 1
+    response = await client.post(path(manifest), json={"request_id": str(uuid4()), "window": 1})
+    assert response.status_code == 200, response.text
+    child = UUID(response.json()["run_id"])
+    before = await shop.state(run, "alice")
+    copied = await shop.state(child, "alice")
+    assert copied["balance"] == before["balance"] == 988
+    assert copied["tasks"][0]["status"] == "completed"
+    assert copied["tasks"][0]["id"] != before["tasks"][0]["id"]
+    assert copied["orders"][0]["status"] == "accepted"
+    assert copied["orders"][0]["id"] != before["orders"][0]["id"]
+    async with pool.connection() as conn:
+        saved_policy = await row(
+            conn, "SELECT policy FROM run_supervision WHERE run_id=%s", (child,)
+        )
+        health = await row(
+            conn, "SELECT task_id,progress_hash FROM run_task_health WHERE run_id=%s", (child,)
+        )
+    assert saved_policy["policy"] == policy.model_dump()
+    assert str(health["task_id"]) == copied["tasks"][0]["id"]
+    assert health["progress_hash"] == "saved-progress"
+    replay = await shop.checkout(child, "alice", uuid4(), cart["cart"]["version"])
+    assert replay["order_id"] == copied["orders"][0]["id"]
+    assert await shop.state(run, "alice") == before
+
+
 async def test_initial_restart_mail_cues_budget_and_idempotency(client, pool, root):
     manifest = await create_run(pool, root)
     run_id = UUID(manifest["run_id"])

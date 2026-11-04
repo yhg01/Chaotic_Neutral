@@ -8,6 +8,7 @@ from psycopg import sql
 
 from agentrpg.budget import BudgetError, CampaignLedger
 from agentrpg.director import row, rows
+from agentrpg.english_display import english_view
 from agentrpg.main import OPERATOR_AUTH, require_admin
 
 router = APIRouter(prefix="/api/v1/observer", tags=["run observer"])
@@ -45,11 +46,11 @@ async def list_runs(
             FROM environment_runs r ORDER BY r.created_at DESC,r.id DESC LIMIT %s OFFSET %s""",
             (limit + 1, offset),
         )
-    return page(records, limit, offset)
+    return await english_view(request, page(records, limit, offset))
 
 
 @router.get("/runs/{run_id}")
-async def overview(run_id: UUID, request: Request, principal: OPERATOR_AUTH):
+async def overview(run_id: UUID, request: Request, principal: OPERATOR_AUTH, compact: bool = False):
     require_admin(principal)
     async with request.app.state.pool.connection() as conn:
         run = await get_run(conn, run_id)
@@ -86,20 +87,27 @@ async def overview(run_id: UUID, request: Request, principal: OPERATOR_AUTH):
             WHERE run_id=%s ORDER BY campaign_id""",
             (run_id,),
         )
-        report = await row(conn, "SELECT report FROM run_reports WHERE run_id=%s", (run_id,))
+        report = (
+            None
+            if compact
+            else await row(conn, "SELECT report FROM run_reports WHERE run_id=%s", (run_id,))
+        )
     costs = [
         await CampaignLedger(request.app.state.pool).summary(item["campaign_id"], recent_limit=0)
         for item in campaign_ids
     ]
-    return {
-        "run": run,
-        "participants": participants,
-        "jobs": jobs,
-        "counts": counts,
-        "event_kinds": [item["kind"] for item in kinds],
-        "campaigns": costs,
-        "report": report["report"] if report else None,
-    }
+    return await english_view(
+        request,
+        {
+            "run": run,
+            "participants": participants,
+            "jobs": jobs,
+            "counts": counts,
+            "event_kinds": [item["kind"] for item in kinds],
+            "campaigns": costs,
+            "report": report["report"] if report else None,
+        },
+    )
 
 
 @router.get("/runs/{run_id}/events")

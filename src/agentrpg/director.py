@@ -133,6 +133,9 @@ class Director:
                 )
                 await ResourceService(self.pool).initialize(run_id, spec.resources, connection=conn)
                 await InboxService(self.pool).initialize(run_id, spec.initial_mail, connection=conn)
+                await emit(
+                    conn, run_id, "control_audit_enabled", 0, {"revision": 1}, "control_audit:1"
+                )
         return {"run_id": str(run_id), "cluster_id": str(cluster_id), "participants": participants}
 
     async def get_run(self, run_id) -> dict:
@@ -201,6 +204,14 @@ class Director:
                 await conn.execute(
                     "UPDATE environment_runs SET status=%s,result=%s WHERE id=%s",
                     (status, Jsonb(result) if result is not None else None, run_id),
+                )
+                await emit(
+                    conn,
+                    run_id,
+                    "operator_control",
+                    run["current_window"],
+                    {"action": action, "previous_status": run["status"]},
+                    f"operator_control:{uuid4()}",
                 )
         return await self.get_run(run_id)
 

@@ -20,6 +20,26 @@ def path(run, suffix=""):
     return f"/api/v1/observer/runs/{run['run_id']}/turns{suffix}"
 
 
+async def test_operational_audit_stays_out_of_story_counts_but_remains_in_raw_trace(client, pool):
+    run = await create_run(client)
+    run_id = UUID(run["run_id"])
+    await Director(pool).control(run_id, "start")
+    async with pool.connection() as conn:
+        await emit(conn, run_id, "trial_started", 0, {}, "trial_started:test")
+        await emit(conn, run_id, "trial_finished", 0, {}, "trial_finished:test")
+    detail = (await client.get(path(run, "/0"))).json()
+    assert [e["kind"] for e in detail["events"]] == ["run_started"]
+    assert detail["counts"]["events"] == 1
+    raw = await Director(pool).trace(run_id)
+    assert {e["kind"] for e in raw} == {
+        "control_audit_enabled",
+        "operator_control",
+        "trial_started",
+        "trial_finished",
+        "run_started",
+    }
+
+
 async def job(conn, run_id, window=0, owner="owner-1", kind="actor", view=None):
     job_id = uuid4()
     await conn.execute(
@@ -40,6 +60,27 @@ async def job(conn, run_id, window=0, owner="owner-1", kind="actor", view=None):
         ),
     )
     return job_id
+
+
+async def test_saved_budget_failure_reason_is_visible_without_changing_the_job(client, pool):
+    run = await create_run(client)
+    async with pool.connection() as conn:
+        job_id = await job(conn, UUID(run["run_id"]))
+        await conn.execute(
+            "UPDATE run_jobs SET status='failed',error=%s,failure_kind='budget' WHERE id=%s",
+            ("ModelGenerationError: saved inputs retained.", job_id),
+        )
+    replay = (await client.get(path(run, "/0"))).json()
+    saved = replay["jobs"][0]
+    assert saved["failure_kind"] == "budget"
+    assert saved["status"] == "failed"
+    async with pool.connection() as conn:
+        unchanged = await (
+            await conn.execute(
+                "SELECT status,attempts,failure_kind FROM run_jobs WHERE id=%s", (job_id,)
+            )
+        ).fetchone()
+    assert unchanged == {"status": "failed", "attempts": 0, "failure_kind": "budget"}
 
 
 @pytest.mark.parametrize("suffix", ["", "/0"])
@@ -331,3 +372,30 @@ async def test_turn_replay_includes_all_fifteen_owner_pairs(client, pool):
     assert {p["owner_id"] for p in detail["perspectives"]} == {
         member["owner_id"] for member in run["participants"]
     }
+
+
+async def test_english_replay_sidecar_retains_raw_messages_and_access_rules(
+    client, app, pool, tmp_path
+):
+    from agentrpg.english_display import EnglishDisplay
+
+    run = await create_run(client)
+    source = "转账失败，余额不足。"
+    async with pool.connection() as conn:
+        await save_message(conn, UUID(run["run_id"]), "owner-1", "agent", source, uuid4(), 0)
+    app.state.english_display = EnglishDisplay(
+        tmp_path, infer=lambda texts: ["Transfer unsuccessful. Insufficient balance."] * len(texts)
+    )
+    response = await client.get(path(run, "/0?display=en"))
+    assert response.status_code == 200
+    assert response.json()["chat"][0]["content"] == source
+    assert (
+        response.json()["english"]["texts"][source]
+        == "Transfer unsuccessful. Insufficient balance."
+    )
+    assert "english" not in (await client.get(path(run, "/0"))).json()
+    denied = await client.get(
+        path(run, "/0?display=en"),
+        headers={"Authorization": "Bearer " + run["participants"][0]["token"]},
+    )
+    assert denied.status_code == 403 and source not in denied.text

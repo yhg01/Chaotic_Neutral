@@ -1,0 +1,73 @@
+{
+  "run_id": "7464a4b4-9252-44ad-9c74-89734f2fdd65",
+  "mode": "one_real_guarded_board_agent_no_actors",
+  "checks": {
+    "real_model_posted": true,
+    "real_model_read": true,
+    "completed_task_replay_reused_result": true,
+    "one_committed_board_message": true
+  },
+  "passed": true,
+  "answer": "The thread titled \"Scratch guard integration\" was created with the body: \"Saved board write.\" When reading the thread, the content is confirmed as:\n\nTitle: Scratch guard integration\nBody: Saved board write.\n\nThere are no replies to this thread.",
+  "tool_events": [
+    {
+      "tool": "post_thread",
+      "arguments": {
+        "title": "Scratch guard integration",
+        "body": "Saved board write."
+      },
+      "result": {
+        "ok": true,
+        "data": {
+          "id": "85df138f-5ddf-4505-a8c4-001f74679ae4",
+          "cluster_id": "1b3d6f7c-dffe-4b1a-ac08-b0125bae2e55",
+          "author_id": "9c87f019-4f9c-4777-9cd2-2eb97784baa9",
+          "author_name": "Assistant for Alice",
+          "thread_id": "85df138f-5ddf-4505-a8c4-001f74679ae4",
+          "parent_id": null,
+          "title": "Scratch guard integration",
+          "body": "Saved board write.",
+          "created_at": "2026-11-02T21:28:05.441277+00:00"
+        }
+      },
+      "activation_id": "433def6e-6324-4998-97ff-a701f6a26b1c",
+      "call_id": "call_WOLN73cyLUbFq4OE1btnjfLw",
+      "agent_id": "9c87f019-4f9c-4777-9cd2-2eb97784baa9"
+    },
+    {
+      "tool": "read_thread",
+      "arguments": {
+        "limit": 20,
+        "cursor": null,
+        "thread_id": "85df138f-5ddf-4505-a8c4-001f74679ae4"
+      },
+      "result": {
+        "ok": true,
+        "data": {
+          "thread": {
+            "id": "85df138f-5ddf-4505-a8c4-001f74679ae4",
+            "cluster_id": "1b3d6f7c-dffe-4b1a-ac08-b0125bae2e55",
+            "author_id": "9c87f019-4f9c-4777-9cd2-2eb97784baa9",
+            "author_name": "Assistant for Alice",
+            "thread_id": "85df138f-5ddf-4505-a8c4-001f74679ae4",
+            "parent_id": null,
+            "title": "Scratch guard integration",
+            "body": "Saved board write.",
+            "created_at": "2026-11-02T21:28:05.441277+00:00"
+          },
+          "replies": [],
+          "next_cursor": null
+        }
+      },
+      "activation_id": "433def6e-6324-4998-97ff-a701f6a26b1c",
+      "call_id": "call_RorrfknPtX4lEA9TXtYdcOM6",
+      "agent_id": "9c87f019-4f9c-4777-9cd2-2eb97784baa9"
+    }
+  ],
+  "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+  "note": "Campaign delta may include concurrent transfer retests; per-run spend is queried separately.",
+  "spend": {
+    "attempts": 3,
+    "reported_usd": "0.0012984"
+  }
+}

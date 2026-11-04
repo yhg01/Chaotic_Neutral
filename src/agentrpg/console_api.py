@@ -6,12 +6,14 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 
 from agentrpg.director import row, rows
+from agentrpg.english_display import english_view
 from agentrpg.main import OPERATOR_AUTH, require_admin
 
 router = APIRouter(prefix="/api/v1/observer", tags=["run console"])
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0, le=1000000)]
 Window = Annotated[int, Path(ge=0, le=99)]
+AUDIT_EVENTS = ["control_audit_enabled", "operator_control", "trial_started", "trial_finished"]
 
 ACTOR_FIELDS = {
     "owner_id",
@@ -33,6 +35,8 @@ ACTOR_FIELDS = {
     "inbox",
     "resources",
     "market",
+    "transfers",
+    "assistant_wait_for",
 }
 AGENT_FIELDS = {
     "run_id",
@@ -88,7 +92,7 @@ async def summaries(conn, run):
     records = await rows(
         conn,
         '''WITH windows AS (
-            SELECT "window" FROM run_events WHERE run_id=%s
+            SELECT "window" FROM run_events WHERE run_id=%s AND kind<>ALL(%s)
             UNION SELECT "window" FROM owner_messages WHERE run_id=%s
             UNION SELECT "window" FROM inbox_messages WHERE run_id=%s
             UNION SELECT "window" FROM run_jobs WHERE run_id=%s
@@ -99,7 +103,7 @@ async def summaries(conn, run):
           (SELECT count(*) FROM owner_messages m WHERE m.run_id=%s
             AND m."window"=w."window" AND m.source='agent') AS agent_chat,
           (SELECT count(*) FROM run_events e WHERE e.run_id=%s
-            AND e."window"=w."window") AS events,
+            AND e."window"=w."window" AND e.kind<>ALL(%s)) AS events,
           (SELECT count(*) FROM inbox_messages m WHERE m.run_id=%s
             AND m."window"=w."window") AS mail,
           (SELECT count(*) FROM messages m WHERE m.cluster_id=%s AND EXISTS
@@ -122,6 +126,7 @@ async def summaries(conn, run):
           AND w."window"<%s ORDER BY w."window"''',
         (
             run["id"],
+            AUDIT_EVENTS,
             run["id"],
             run["id"],
             run["id"],
@@ -129,6 +134,7 @@ async def summaries(conn, run):
             run["id"],
             run["id"],
             run["id"],
+            AUDIT_EVENTS,
             run["id"],
             run["cluster_id"],
             run["id"],
@@ -238,15 +244,17 @@ async def turn(
         events = await rows(
             conn,
             """SELECT id,kind,"window",owner_id,payload,created_at FROM run_events
-               WHERE run_id=%s AND "window"=%s ORDER BY created_at,id LIMIT %s OFFSET %s""",
-            (run_id, window, limit, offset),
+               WHERE run_id=%s AND "window"=%s AND kind<>ALL(%s)
+               ORDER BY created_at,id LIMIT %s OFFSET %s""",
+            (run_id, window, AUDIT_EVENTS, limit, offset),
         )
         jobs = []
         if offset == 0:
             jobs = await rows(
                 conn,
                 """SELECT id,owner_id,"window",kind,input,output,output_meta,status,
-                   attempts,error,created_at FROM run_jobs WHERE run_id=%s AND "window"=%s
+                   attempts,error,failure_kind,created_at FROM run_jobs
+                   WHERE run_id=%s AND "window"=%s
                    ORDER BY created_at,id LIMIT 30""",
                 (run_id, window),
             )
@@ -284,22 +292,25 @@ async def turn(
         for key, value in collections.items()
     }
     has_more = any(item["has_more"] for item in metadata.values())
-    return safe_value(
-        {
-            "run_id": run_id,
-            **summary,
-            **collections,
-            "jobs": jobs,
-            "perspectives": perspectives,
-            "pagination": {
-                "limit": limit,
-                "offset": offset,
-                "next_offset": offset + limit if has_more else None,
-                "complete": not has_more,
-                "collections": metadata,
-                "jobs_included": offset == 0,
-                "jobs_total": summary["jobs"]["total"],
-                "jobs_truncated": offset == 0 and summary["jobs"]["total"] > len(jobs),
-            },
-        }
+    return await english_view(
+        request,
+        safe_value(
+            {
+                "run_id": run_id,
+                **summary,
+                **collections,
+                "jobs": jobs,
+                "perspectives": perspectives,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset,
+                    "next_offset": offset + limit if has_more else None,
+                    "complete": not has_more,
+                    "collections": metadata,
+                    "jobs_included": offset == 0,
+                    "jobs_total": summary["jobs"]["total"],
+                    "jobs_truncated": offset == 0 and summary["jobs"]["total"] > len(jobs),
+                },
+            }
+        ),
     )

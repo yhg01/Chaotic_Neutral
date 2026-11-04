@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-03",
+  "final_control_batch": "2ca5080d-6d93-450e-9ccd-8c82d36d7ed6",
+  "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+  "validation_attempts": [
+    {
+      "scope": "initial focused runtime suite",
+      "passed": 112,
+      "failed": 0,
+      "seconds": 26.26
+    },
+    {
+      "scope": "full suite before story filtering",
+      "passed": 1160,
+      "failed": 2,
+      "seconds": 98.22,
+      "reason": "Operational audit records changed empty-run and pagination story counts."
+    },
+    {
+      "scope": "first filter edit",
+      "passed": 36,
+      "failed": 10,
+      "seconds": 4.23,
+      "reason": "The filter was incorrectly applied to the chat query; corrected before final acceptance."
+    },
+    {
+      "scope": "corrected audit and console suite",
+      "passed": 46,
+      "failed": 0,
+      "seconds": 4.29
+    },
+    {
+      "scope": "final full isolated PostgreSQL suite",
+      "passed": 1164,
+      "failed": 0,
+      "seconds": 101.92
+    }
+  ],
+  "control_batches": [
+    {
+      "id": "a956ee04-9a9e-4690-ac89-7be957b95971",
+      "functional_passes": 15,
+      "runs": 15,
+      "repeat_gate": true,
+      "scope": "earlier source snapshot, not pooled with final"
+    },
+    {
+      "id": "31ba1b1a-21a1-4574-9998-32def4d3ff7b",
+      "functional_passes": 15,
+      "runs": 15,
+      "repeat_gate": false,
+      "scope": "source changed during execution, retained and excluded"
+    },
+    {
+      "id": "2ca5080d-6d93-450e-9ccd-8c82d36d7ed6",
+      "functional_passes": 15,
+      "runs": 15,
+      "repeat_gate": true,
+      "scope": "final fixed source"
+    }
+  ],
+  "provider_calls_added": 0,
+  "checks": {
+    "ruff": true,
+    "format": true,
+    "whitespace": true,
+    "source_unchanged_since_final_controls": true
+  },
+  "limits": [
+    "Test counts overlap; do not add them.",
+    "No new model repeat or long-duration model test.",
+    "The local API refresh is maintenance, not evidence of autonomous process recovery."
+  ]
+}

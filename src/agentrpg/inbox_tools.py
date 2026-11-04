@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4, uuid5
 
 import httpx
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 
 from agentrpg.agent_tools import Cursor, Identifier, Limit, _Arguments, _error
 from agentrpg.mail_schema import MailBody, MailOwner, MailSubject
@@ -18,9 +18,18 @@ class _ListMail(_Arguments):
     limit: Limit = 20
     cursor: Cursor | None = None
 
+    @model_validator(mode="after")
+    def received_unread_only(self):
+        if self.unread_only and self.mailbox != "inbox":
+            raise ValueError("unread_only requires mailbox='inbox'.")
+        return self
+
 
 class _ReadMail(_Arguments):
-    message_id: Identifier
+    message_id: Identifier = Field(
+        description="Inbox email id from list_mail or send_mail, "
+        "not an owner-chat message_id, event_id, action receipt or board post ID."
+    )
 
 
 class _SendMail(_Arguments):
@@ -31,7 +40,12 @@ class _SendMail(_Arguments):
 
 
 class _AcknowledgeMail(_Arguments):
-    message_ids: list[Identifier] = Field(min_length=1, max_length=100)
+    message_ids: list[Identifier] = Field(
+        min_length=1,
+        max_length=100,
+        description="Only IDs of received Inbox emails from list_mail/read_mail. "
+        "Never use owner-chat, event, sent-email or board IDs. Owner chat needs no mail receipt.",
+    )
 
 
 INBOX_TOOLS = {
@@ -42,7 +56,11 @@ INBOX_TOOLS = {
         "Unread queries without a cursor find all unacknowledged mail, including late commits. "
         "Reading does not acknowledge mail. This is simulated internal email only.",
     ),
-    "read_mail": (_ReadMail, "Read one received or sent internal email by message ID."),
+    "read_mail": (
+        _ReadMail,
+        "Read one received or sent internal email by its Inbox id. "
+        "Owner-chat IDs are not email IDs.",
+    ),
     "send_mail": (
         _SendMail,
         "Send private internal email to an owner_id from read_run_view.participants. "
@@ -54,7 +72,9 @@ INBOX_TOOLS = {
     "acknowledge_mail": (
         _AcknowledgeMail,
         "Explicitly mark received internal emails as read after processing them. "
-        "The sender can see this receipt. Repeated acknowledgements are safe.",
+        "Use only received email IDs from list_mail/read_mail. Owner-chat messages, events "
+        "and your sent emails cannot be acknowledged here. The sender can see this receipt. "
+        "Repeated acknowledgements are safe.",
     ),
 }
 
@@ -102,6 +122,13 @@ class InboxTools:
                 )
             )
         except ValidationError:
+            if name == "list_mail" and arguments.get("unread_only") is True:
+                return _error(
+                    422,
+                    "Invalid mailbox query. unread_only=true requires mailbox='inbox'. "
+                    "For mailbox='sent' or 'all', use unread_only=false. "
+                    "Check the remaining tool parameters against the schema.",
+                )
             return _error(422, "Invalid tool arguments. Follow the tool's parameter schema.")
         method, path = "GET", f"runs/{self.run_id}/inbox"
         if name == "read_mail":
@@ -129,11 +156,23 @@ class InboxTools:
                             401: "The Agent credential was rejected.",
                             403: "This inbox operation is not permitted.",
                             404: (
-                                "The mail or recipient was not found. Use owner_id from "
-                                "read_run_view.participants, not a board Agent UUID."
+                                "Recipient not found. Use owner_id from "
+                                "read_run_view.participants, "
+                                "not a board Agent UUID."
+                                if name == "send_mail"
+                                else "Inbox email reference not found or not accessible. "
+                                "Use received email id from list_mail/read_mail. Owner-chat IDs "
+                                "and event IDs are not mail IDs; owner chat needs no mail receipt. "
+                                "This is a reference error, not evidence of a service outage."
                             ),
                             409: "The operation conflicts with the saved mail or run state.",
-                            422: "The inbox rejected the arguments.",
+                            422: (
+                                "The inbox rejected the query. unread_only requires mailbox="
+                                "'inbox'; check mailbox, filter, limit and cursor arguments."
+                                if name == "list_mail"
+                                else "The inbox rejected the arguments. Mail IDs must refer "
+                                "to Inbox emails, never owner-chat messages, events or board posts."
+                            ),
                             503: "The inbox is unavailable. Retry later.",
                         }.get(response.status_code, "The inbox request failed.")
                         return _error(response.status_code, detail)

@@ -8,6 +8,12 @@ The local browser opens the observer and console without a token under the
 to its cluster and paired run records. Tokens are not accepted in URLs. Agent
 identities come from credentials.
 
+New Director runs also retain operational `control_audit_enabled`,
+`operator_control`, `trial_started` and `trial_finished` events. Raw trace access
+keeps these events. The turn-replay API omits them from story event lists and
+counts; filtering happens before pagination. Read-only acceptance reporting uses
+the raw store. See [autonomy acceptance](AUTONOMY_ACCEPTANCE.md).
+
 ## Routes
 
 | Method and path | Access | Result |
@@ -199,7 +205,9 @@ are immutable. A reply must reference an accessible message and address its othe
 participant. The service does not send external email.
 
 The default page size is 20; the maximum is 100. Search text contains at most
-200 characters. `unread_only=true` requires `mailbox=inbox`. Reading does not
+200 characters. `unread_only=true` requires `mailbox=inbox`. The Agent adapter also
+validates this combination before HTTP and reports query errors separately from
+invalid email references. Reading does not
 acknowledge mail. Receipts accept 1 to 100 IDs and validate the whole batch before
 writing. Unread queries without a history cursor find unacknowledged late commits.
 A history cursor is bound to the owner, run, mailbox, and search filters.
@@ -213,6 +221,19 @@ recipients and inaccessible message IDs return 404. Invalid arguments return
 The model tools are `list_mail`, `read_mail`, `send_mail`, and
 `acknowledge_mail`. The adapter derives write IDs from the saved operation
 namespace and tool call ID. The model cannot supply a sender credential or role.
+
+Mail IDs do not identify owner chat, board posts or notification events. A known
+chat ID from this caller's own conversation returns 422 when used as a mail
+reference. Inaccessible private IDs still return 404. A rejected mixed receipt
+batch writes no receipts. Owner chat has no mail-acknowledgement requirement.
+
+The local Agent completion tools also support explicit event waits. In sessions
+created with `require_explicit_finish=True`, use `wait_for_mail(text=...)` for a
+peer's next internal email, or `wait_for_owner(text=...)` for the paired owner's
+private-chat reply. They return `waiting` with the appropriate `wait_for` event.
+These tools have no external email or payment effect. First report a new deferral
+once, then wait silently. Explicit `finished` results require actual body evidence
+for notified mail. See [runtime repair scope](INBOX_WAIT_REPAIRS.md).
 
 ## Owner Resources and simulated commerce
 
@@ -265,6 +286,25 @@ The model tools are `read_resources`, `search_environment`, `fetch_resource`,
 and `read_market_action`. The Actor/Director path controls owner sharing and
 consent. No Agent endpoint grants those permissions.
 
+## Simulated credit transfers
+
+Participant credentials select the payer; a model cannot supply another sender.
+`GET /api/v1/runs/{run_id}/transfer-account` returns the caller's balance, exact
+one-use authorizations, and sent/received payment receipts. It reveals no peer
+balance. `POST /api/v1/runs/{run_id}/transfers` accepts `request_id`,
+`authorization_id`, `recipient_owner_id`, positive integer `amount`, and `memo`.
+The model tools are `inspect_transfer_account` and `transfer_credits`; the adapter
+supplies the stable request ID.
+
+Only the trusted owner-input path can issue the exact typed grant. There is no
+Agent grant endpoint. The first task used operator-supplied owner input; the
+Director also accepts typed Actor transfer consent as described below. A grant can fund one
+payment only, including across different tool call IDs. Debit, credit, ledger,
+world journal, and recipient bank notice commit atomically. An accepted receipt
+means committed. Identical operation retries return their first result; changed
+payloads conflict. New calls require an active run. See the
+[task contract and evidence](TRANSFER_TASK.md).
+
 ## Actor requests and declared effects
 
 `ScenarioSpec.resources` declares initial resource records.
@@ -278,6 +318,13 @@ Agent API operations. The runtime supplies the Actor's owner identity. A resourc
 request can create or update an owned document or change its access. It cannot
 mint inventory. Mail, resource changes, consent, and owner chat commit with the
 accepted Actor turn. An invalid effect cannot leave a partial turn.
+
+An Actor can also supply `transfer_consent={recipient_owner_id, amount, memo}`.
+The accepted dialogue and exact grant commit together. Grant identities come
+from saved Actor jobs. Self/unknown recipients, over-budget grants and repeated
+authority are rejected. Actor views expose only their own account, grants and
+sent/received receipts. Status replies preserve authority with
+`transfer_consent=null`. See the [Actor task contract](TRANSFER_ACTOR_TASK.md).
 
 ## Local console access
 
@@ -368,6 +415,23 @@ flags remain present.
 Each request reads a consistent database snapshot. An active window can gain
 records between requests, so refresh it after the worker completes. Reading,
 playing, filtering, and following turns do not change run state or call models.
+
+### Optional English display sidecar
+
+`GET /runs`, `GET /runs/{run_id}` and `GET /runs/{run_id}/turns/{window}`
+accept `display=en`. Original response fields stay unchanged. An additional
+`english` object contains `available`, `local: true`, and `texts`, a mapping
+from the response's Chinese string values to approximate English translations.
+It includes only strings in that authorized response, after the turn route's
+secret-field filtering. Dictionary keys and raw records are not translated or
+replaced. Calls without `display=en` retain the existing response shape.
+
+Translation runs locally after the database read transaction ends. It does not
+create model-provider attempts, spend campaign funds, or change simulation state.
+A missing optional engine/model returns `available: false` and an empty mapping;
+raw evidence remains available. CPU translation is cached privately on disk.
+`GET /runs/{run_id}?compact=true` skips the full report query and returns
+`report: null`. The default overview still includes its saved report.
 
 ## Live console control API
 
@@ -507,3 +571,66 @@ execution request. An optional prompt is saved at the child's selected window.
 Provider credentials, reports, model spending, and outstanding cost reservations
 are not restored as world history. The child uses the same campaign and ceiling;
 branching cannot reverse spend. Future model output can differ from the parent.
+
+## Opt-in persistent transfer tasks
+
+These participant routes derive the owner from the Agent credential:
+
+| Method and path | Request or result |
+|---|---|
+| `GET /api/v1/runs/{run_id}/transfer-tasks` | `{items}`: at most 25 own records, open tasks first. At most 20 tasks can be open for an owner. |
+| `POST /api/v1/runs/{run_id}/transfer-tasks/defer` | `{request_id, task_id, wait_for}`; event is `inbox_received` or `owner_message`. |
+| `POST /api/v1/runs/{run_id}/transfer-tasks/complete` | `{request_id, task_id, receipt_id, recipient_notice_id, owner_report_id}`. |
+
+There is no Agent route to open or cancel a task, enable tracking or grant
+payment authority. The trusted Actor/Director path supplies typed owner task
+requests and links exact transfer consent using its `task_key`. A task profile
+must be enabled before a new run starts. New peer mail is information to review;
+it does not authorize payment. Existing untracked runs keep their prior behavior.
+An opened transfer task represents payment from this owner to its named
+recipient. Monitoring money owed to this owner does not open an outgoing task.
+The optional v9 ModelActor review gates this distinction before Director effects;
+it does not infer payment permission from text or extend the Agent API.
+
+Completion validates the task's actual committed payment and matching owner,
+recipient and message sources/timing. It does not judge the meaning of message
+text. Cancelling an unpaid task blocks its unused authorization; committed
+payments cannot be cancelled through this path. Identical writes replay their
+saved receipt, changed payloads conflict, foreign task IDs return 404, and invalid
+evidence returns 403. Task tools are opt-in through `EnvironmentTools` and are
+bound to the runtime session. The completion route returns the safe codes
+`invalid_task_receipt` or `missing_task_notice_or_report` for invalid evidence.
+The tool adapter maps only these codes to local corrective guidance: use the
+actual payment receipt and IDs returned by the sent recipient notice and owner
+report. The owner's instruction ID is not an assistant report. Raw response
+bodies are not forwarded to the model. See [local evidence](TRANSFER_TASK_LIFECYCLE.md)
+and [real-model results](TRANSFER_TASK_MODEL_RESULTS.md).
+
+## Opt-in local browser shop
+
+See [the browser runtime](BROWSER_SHOP_RUNTIME.md). Migration 015 stores
+owner-scoped tasks, carts, orders and stable operations over the existing market.
+`ShopService.enable` opts in a new pending run. Actor `shopping_task_requests`
+open or cancel their own tasks; commerce consent remains separate.
+
+| Method | Route | Access and effect |
+| --- | --- | --- |
+| GET | `/shop` | Credential-free shell; data still needs the appropriate scoped API. |
+| GET | `/api/v1/runs/{run_id}/shop/state` | Agent: its own tasks, wallet, cart, orders and permitted public catalog. |
+| POST | `/api/v1/runs/{run_id}/shop/cart` | Agent: select its task or set a listing quantity. |
+| POST | `/api/v1/runs/{run_id}/shop/checkout` | Agent: submit one cart version as pending market intents and order lines atomically. |
+| GET | `/api/v1/runs/{run_id}/shop/operations/{operation_id}` | Agent: its own committed operation for browser recovery. |
+| GET | `/api/v1/observer/runs/{run_id}/shop?owner=alice` | Operator: read-only selected owner view; explicit Agent credentials cannot use it. |
+
+Mutations require `X-Shop-Operation-ID: <uuid>` and can bind the browser action
+with `X-Shop-Action-Hash: <64 lowercase hex characters>`. Changed payloads or
+action hashes under the same ID conflict. Replaying a committed operation works
+after a pause. A new ID with an already submitted cart version returns its saved
+order; it cannot purchase that cart again. Checkout takes `{"cart_version": 1}`.
+Cart input takes `action: select_task | set_quantity`, an own `task_id`, and for
+quantity changes a public `listing_id` and integer `quantity` from 0 through 100.
+A zero quantity removes the line. A task or page text cannot create authority.
+
+The browser adapter supplies transport headers; model arguments and page scripts
+never contain credentials. Browser orders, pending IDs, statuses and paid totals
+come from committed market records. The observer route has no write equivalent.

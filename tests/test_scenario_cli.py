@@ -82,6 +82,24 @@ def test_default_and_explicit_options():
     assert args.agents == 15 and args.actors == "model" and args.verify
 
 
+def test_owner_model_comparison_requires_budget_and_is_frozen_in_config():
+    with pytest.raises(SystemExit):
+        cli.parse_args(["--owner-model", "owner-1=qwen/qwen3-30b-a3b-instruct-2507"])
+    args = cli.parse_args(
+        [
+            "--owner-model",
+            "owner-1=qwen/qwen3-30b-a3b-instruct-2507",
+            "--budget-usd",
+            "5.5",
+            "--campaign",
+            str(uuid4()),
+        ]
+    )
+    config = cli.new_run_configuration(args, {})
+    assert config["owner_models"] == {"owner-1": "qwen/qwen3-30b-a3b-instruct-2507"}
+    assert config["actor_model"] == "openai/gpt-4.1-mini"
+
+
 def test_private_atomic_save_and_resume_scope(tmp_path):
     saved = manifest()
     path = tmp_path / ".local/scenario-runs" / saved["run_id"] / "credentials.json"
@@ -595,3 +613,23 @@ async def test_review_can_cite_saved_owner_chat_id_and_rejects_invented_id(pool)
         str(assistant_message["id"])
     ]
     assert report["semantic_review_error"] is None
+
+
+async def test_resume_cannot_switch_one_assistants_model_before_any_runtime(tmp_path):
+    saved = manifest()
+    saved["configuration"]["owner_models"] = {"owner-1": "deepseek/deepseek-chat-v3-0324"}
+    path = tmp_path / ".local/scenario-runs" / saved["run_id"] / "credentials.json"
+    cli.save_private(path, saved)
+    args = cli.parse_args(
+        ["--resume", str(path), "--owner-model", "owner-1=qwen/qwen3-30b-a3b-instruct-2507"]
+    )
+    with pytest.raises(cli.ScenarioRunError, match="saved per-owner"):
+        await cli.execute(
+            args,
+            root=tmp_path,
+            env={
+                "DATABASE_URL": "must-not-connect",
+                "ADMIN_TOKEN": "test-only",
+                "OPENROUTER_API_KEY": "must-not-be-used",
+            },
+        )

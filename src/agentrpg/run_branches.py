@@ -51,6 +51,11 @@ TABLES = (
     "world_assets",
     "world_reservations",
     "world_requests",
+    "transfer_grants",
+    "credit_transfers",
+    "transfer_task_tracking",
+    "transfer_tasks",
+    "transfer_task_operations",
     "world_intents",
     "world_settlements",
     "world_ledger",
@@ -65,6 +70,15 @@ TABLES = (
     "market_listings",
     "market_settlements",
     "market_ledger",
+    "shop_profiles",
+    "shop_tasks",
+    "shop_carts",
+    "shop_cart_lines",
+    "shop_orders",
+    "shop_order_lines",
+    "shop_operations",
+    "run_supervision",
+    "run_task_health",
 )
 GLOBAL_IDS = (
     "console_interventions",
@@ -310,14 +324,26 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
     # Keep derived request and resource identities consistent with child APIs.
     for job in snapshot["tables"]["run_jobs"]:
         old_job, new_job = UUID(job["id"]), UUID(identities[job["id"]])
-        labels = ["consent", "commerce-consent", "finalreply"]
+        labels = ["consent", "commerce-consent", "transfer-consent", "finalreply"]
         labels += [
             f"{prefix}:{index}"
-            for prefix in ("mail", "resource", "finalreply")
+            for prefix in ("mail", "resource", "finalreply", "transfer-task", "shopping-task")
             for index in range(100)
         ]
         for label in labels:
             identities[str(uuid5(old_job, label))] = str(uuid5(new_job, label))
+    for task in snapshot["tables"].get("transfer_tasks", []):
+        identities[task["id"]] = str(
+            uuid5(child_id, f"transfer-task:{task['owner_id']}:{task['task_key']}")
+        )
+    for task in snapshot["tables"].get("shop_tasks", []):
+        identities[task["id"]] = str(
+            uuid5(child_id, f"shop-task:{task['owner_id']}:{task['task_key']}")
+        )
+    for order in snapshot["tables"].get("shop_orders", []):
+        identities[order["id"]] = str(
+            uuid5(child_id, f"shop-order:{order['owner_id']}:{order['cart_version']}")
+        )
     for resource in snapshot["tables"]["owner_resources"]:
         label = f"holding:{resource['owner_id']}:{resource['origin_id']}"
         if resource["resource_id"] == str(uuid5(UUID(source["id"]), label)):
@@ -327,6 +353,13 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
             old_label = f"{prefix}:{record['owner_id']}:{record['request_id']}"
             new_label = f"{prefix}:{record['owner_id']}:{remap(record['request_id'], identities)}"
             identities[str(uuid5(UUID(source["id"]), old_label))] = str(uuid5(child_id, new_label))
+    for line in snapshot["tables"].get("shop_order_lines", []):
+        identities[line["request_id"]] = str(
+            uuid5(
+                UUID(identities[line["order_id"]]),
+                f"line:{remap(line['listing_id'], identities)}",
+            )
+        )
     # These deterministic identities are also returned on committed retries.
     for record in snapshot["tables"]["owner_messages"]:
         identities[record["id"]] = str(
@@ -350,7 +383,8 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
     from agentrpg.world import _hash
 
     for table in TABLES:
-        records = copied[table]
+        # Older boundaries predate credit transfers and have no transfer rows.
+        records = copied.get(table, [])
         if table == "messages":
             records = sorted(records, key=lambda item: (item["parent_id"] is not None, item["seq"]))
         elif table == "inbox_messages":
@@ -383,6 +417,8 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
                 ).hexdigest()
             elif table in {"world_requests", "resource_requests", "market_requests"}:
                 record["payload_hash"] = _hash(record["request_payload"])
+            elif table in {"transfer_task_operations", "shop_operations"}:
+                record["payload_hash"] = fingerprint(record["request_payload"])
             elif table == "console_interventions":
                 record["payload_hash"] = fingerprint(
                     {
@@ -403,12 +439,37 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
             await insert_record(conn, table, record)
     saver = AsyncPostgresSaver(conn)
     instructions = manifest["configuration"]["instructions"]
+    runtime_policy = {
+        "instructions": instructions,
+        "tools_version": 1,
+        **{
+            key: True
+            for key in (
+                "require_explicit_finish",
+                "guard_empty_scratch",
+                "include_previous_activation_context",
+                "track_transfer_tasks",
+                "guard_transfer_task_yield",
+            )
+            if manifest["configuration"].get(key, False)
+        },
+    }
     for original in snapshot["participants"]:
+        owner_policy = dict(runtime_policy)
+        owner_policy["instructions"] = (
+            manifest["configuration"]
+            .get("instructions_by_owner", {})
+            .get(original["owner_id"], instructions)
+        )
+        if original["owner_id"] in manifest["configuration"].get("browser_shop_owners", []):
+            from agentrpg.shop_browser import ShopBrowser
+
+            owner_policy["browser_shop_profile"] = ShopBrowser.profile
         memory = snapshot["memory"][original["owner_id"]]
         member = child_members[original["owner_id"]]
         old_hash = hashlib.sha256(
             json.dumps(
-                {"instructions": instructions, "run_id": source["id"], "tools_version": 1},
+                {**owner_policy, "run_id": source["id"]},
                 sort_keys=True,
             ).encode()
         ).hexdigest()
@@ -419,7 +480,7 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
         key = session_key(manifest["cluster_id"], member)
         new_hash = hashlib.sha256(
             json.dumps(
-                {"instructions": instructions, "run_id": str(child_id), "tools_version": 1},
+                {**owner_policy, "run_id": str(child_id)},
                 sort_keys=True,
             ).encode()
         ).hexdigest()
@@ -523,6 +584,18 @@ async def create_branch(pool, root, run_id, payload):
             snapshot = copy.deepcopy(saved["snapshot"])
             if saved["snapshot_hash"] != fingerprint(snapshot):
                 raise HTTPException(409, "The saved boundary failed its integrity check.")
+            if "run_supervision" not in snapshot["tables"] and await row(
+                conn, "SELECT 1 FROM run_supervision WHERE run_id=%s", (run_id,)
+            ):
+                raise HTTPException(409, "This older boundary has no supervision state.")
+            if "shop_profiles" not in snapshot["tables"] and await row(
+                conn, "SELECT 1 FROM shop_profiles WHERE run_id=%s", (run_id,)
+            ):
+                raise HTTPException(
+                    409,
+                    "This older boundary has no storefront state. "
+                    "Use a complete browser-shop checkpoint or restart the run.",
+                )
             if "console_interventions" not in snapshot["tables"]:
                 # Earlier version-1 snapshots predate the prompt queue copy.
                 # Queue insertion, application and capture hold the same run
@@ -606,6 +679,13 @@ async def create_branch(pool, root, run_id, payload):
             )
             await ResourceService(pool).initialize(child_id, spec.resources, connection=conn)
             await InboxService(pool).initialize(child_id, spec.initial_mail, connection=conn)
+            if manifest["configuration"].get("browser_shop_owners"):
+                await conn.execute("INSERT INTO shop_profiles VALUES (%s)", (child_id,))
+                await conn.execute(
+                    "INSERT INTO shop_carts(run_id,owner_id) "
+                    "SELECT run_id,owner_id FROM world_accounts WHERE run_id=%s",
+                    (child_id,),
+                )
         if not snapshot or payload.window == 0:
             await emit(conn, child_id, "run_started", 0, {}, "run_started")
         await conn.execute("UPDATE environment_runs SET status='paused' WHERE id=%s", (child_id,))

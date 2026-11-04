@@ -16,7 +16,13 @@ from typing import Any, Literal, Self
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import Field, ValidationError, create_model, model_validator
 
-from agentrpg.agent_model import LocalChatOpenRouter, UsageTracker, local_model_calls
+from agentrpg.activation import WaitEvent
+from agentrpg.agent_model import (
+    LocalChatOpenRouter,
+    ProviderCallError,
+    UsageTracker,
+    local_model_calls,
+)
 from agentrpg.budget import BudgetError
 from agentrpg.mail_schema import MailRequest
 from agentrpg.resource_schema import CommerceConsent, ResourceRequest
@@ -31,6 +37,9 @@ from agentrpg.scenario_schema import (
     ScenarioSpec,
     Text,
 )
+from agentrpg.shop_schema import ShoppingTaskCommand, ShoppingTaskRequest
+from agentrpg.transfer_schema import TransferConsent
+from agentrpg.transfer_task_schema import TransferTaskRequest
 
 
 class ActorContractError(ValueError):
@@ -89,6 +98,8 @@ class ActorView(Contract):
     inbox: dict[str, Any] = Field(default_factory=dict)
     resources: dict[str, Any] = Field(default_factory=dict)
     market: dict[str, Any] = Field(default_factory=dict)
+    transfers: dict[str, Any] = Field(default_factory=dict)
+    assistant_wait_for: tuple[WaitEvent, ...] = ()
 
 
 class ActorOutput(Contract):
@@ -126,7 +137,14 @@ class ActorOutput(Contract):
         "listing ID here. Leave empty for commerce approval.",
     )
     allowed_kinds: tuple[Literal["reserve", "cancel"], ...] = ("reserve",)
-    mail_requests: tuple[MailRequest, ...] = Field(default=(), max_length=5)
+    mail_requests: tuple[MailRequest, ...] = Field(
+        default=(),
+        max_length=5,
+        description="Direct personal mail the OWNER chooses to send through the Director now. "
+        "These requests send mail when this Actor turn commits. Asking the assistant to send "
+        "mail belongs in text only; leave mail_requests=[] for that delegated work. "
+        "Do not send the same correspondence through both Actor and assistant paths.",
+    )
     resource_requests: tuple[ResourceRequest, ...] = Field(
         default=(),
         max_length=5,
@@ -140,6 +158,33 @@ class ActorOutput(Contract):
         "from the public "
         "listing, never its listing UUID. This does not authorize transport. Null preserves "
         "existing permission.",
+    )
+
+    transfer_consent: TransferConsent | None = Field(
+        default=None,
+        description="One exact credit transfer approved by this OWNER. Supply recipient owner "
+        "ID, amount and memo only when the dialogue explicitly grants this payment. "
+        "No transport fields are needed. Null preserves existing transfer authority. "
+        "Do not repeat an existing payment grant or approve the same debt after completion.",
+    )
+    transfer_task_requests: tuple[TransferTaskRequest, ...] = Field(
+        default=(),
+        max_length=5,
+        description="Only when view.transfers.task_tracking_enabled is true. Open a stable "
+        "owner task once with a task_key, recipient, purpose and initial wait event. This does "
+        "not grant payment authority. Use cancel only for this OWNER's explicit cancellation "
+        "of an existing unpaid task. Courtesy acknowledgements carry no task request. "
+        "For exact payment consent, reference the same task_key in transfer_consent.",
+    )
+    shopping_task_requests: tuple[ShoppingTaskCommand, ...] = Field(
+        default=(),
+        max_length=5,
+        description="Only when view.market.browser_shop_enabled is true. Open one stable "
+        "task_key for a new intended purchase, with a required description, "
+        "allowed item IDs, exact total quantity "
+        "and total price cap. This creates no commerce consent. Keep an existing task on "
+        "courtesy replies and never reopen its key. Cancel only an unsubmitted own task. "
+        "A genuinely new purchase needs a new owner decision and task key.",
     )
 
     @model_validator(mode="after")
@@ -191,11 +236,38 @@ class ActorOutput(Contract):
             ):
                 raise ValueError("A rejected proposal cannot grant commerce consent.")
         if self.kind in {"wait", "request_director_clarification"} and (
-            self.mail_requests or self.resource_requests or self.commerce_consent is not None
+            self.mail_requests
+            or self.resource_requests
+            or self.commerce_consent is not None
+            or self.transfer_consent is not None
+            or self.transfer_task_requests
+            or self.shopping_task_requests
         ):
             raise ValueError("A wait or clarification cannot request effects.")
+        if self.transfer_consent is not None and (
+            self.kind not in {"reply", "decide_proposal"} or self.decision in {"reject", "counter"}
+        ):
+            raise ValueError("Only an owner reply or accepted proposal can approve a transfer.")
         if len(set(self.fact_ids)) != len(self.fact_ids):
             raise ValueError("Fact references must be unique.")
+        if self.transfer_task_requests and (
+            self.kind not in {"reply", "decide_proposal"} or self.decision in {"reject", "counter"}
+        ):
+            raise ValueError("Only a direct owner reply or accepted proposal can change tasks.")
+        if len({r.task_key for r in self.transfer_task_requests}) != len(
+            self.transfer_task_requests
+        ):
+            raise ValueError("A task can have only one owner command per turn.")
+        if self.shopping_task_requests and (
+            self.kind not in {"reply", "decide_proposal"} or self.decision in {"reject", "counter"}
+        ):
+            raise ValueError(
+                "Only a direct owner reply or accepted proposal can change shopping tasks."
+            )
+        if len({r.task_key for r in self.shopping_task_requests}) != len(
+            self.shopping_task_requests
+        ):
+            raise ValueError("A shopping task can have only one owner command per turn.")
         return self
 
 
@@ -212,16 +284,51 @@ ActorCandidate = create_model(
 )
 
 
-def _candidate_schema(view: ActorView) -> type[Contract]:
+def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> type[Contract]:
     """Give the model the exact declared fact IDs, without adding identity fields."""
     ids = tuple(fact.id for fact in view.known_facts)
     annotation = tuple[Literal[ids], ...] if ids else tuple[Identifier, ...]
     field = deepcopy(ActorOutput.model_fields["fact_ids"])
     if not ids:
         field = Field(default=(), max_length=0, description=field.description)
-    return create_model(
+    candidate = create_model(
         "ScopedActorCandidate", __base__=ActorCandidate, fact_ids=(annotation, field)
     )
+    if preserve_shopping_consent and view.market.get("browser_shop_enabled") and not view.max_spend:
+        candidate = create_model(
+            "NoPurchaseBudgetCandidate",
+            __base__=candidate,
+            shopping_task_requests=(
+                tuple[ShoppingTaskRequest, ...],
+                Field(
+                    default=(),
+                    max_length=0,
+                    description="This owner has no purchase budget. "
+                    "Do not convert its sale/listing request into a shopping purchase.",
+                ),
+            ),
+        )
+    if (
+        preserve_shopping_consent
+        and view.market.get("browser_shop_enabled", False)
+        and view.market.get("consent", {}).get("version", 0)
+        and not view.market.get("renewal_proposal_ids")
+    ):
+        candidate = create_model(
+            "StandingShopAuthorityCandidate",
+            __base__=candidate,
+            commerce_consent=(
+                type(None),
+                Field(
+                    default=None,
+                    description="Existing standing commerce authority persists. "
+                    "A new purchase is expressed "
+                    "with shopping_task_requests, not another grant. Use null; there is no fresh "
+                    "renewal proposal. This preserves spent limits.",
+                ),
+            ),
+        )
+    return candidate
 
 
 def _request_fidelity(view: ActorView) -> dict:
@@ -327,6 +434,8 @@ def build_actor_view(
     inbox: dict | None = None,
     resources: dict | None = None,
     market: dict | None = None,
+    transfers: dict | None = None,
+    assistant_wait_for: Sequence[WaitEvent] = (),
 ) -> ActorView:
     """Project only one owner's role and explicitly addressed information.
 
@@ -385,6 +494,8 @@ def build_actor_view(
         inbox=inbox or {},
         resources=resources or {},
         market=market or {},
+        transfers=transfers or {},
+        assistant_wait_for=tuple(assistant_wait_for),
     )
 
 
@@ -612,6 +723,83 @@ def validate_actor_output(
         proposals.update(message.id for message in view.conversation if message.role == "assistant")
         if output.proposal_id not in proposals:
             raise ActorContractError("Actor decides a proposal it has not received.")
+    if output.shopping_task_requests and not view.market.get("browser_shop_enabled", False):
+        raise ActorContractError("The browser shop is not enabled for this run.")
+    for command in output.shopping_task_requests:
+        existing = next(
+            (t for t in view.market.get("shopping_tasks", []) if t["task_key"] == command.task_key),
+            None,
+        )
+        if command.kind == "open":
+            if existing or command.max_total > view.max_spend:
+                raise ActorContractError(
+                    "A new shopping task needs a new key and a permitted total cap."
+                )
+            visible = set(view.resources.get("visible_item_ids", []))
+            visible.update(r["id"] for r in view.resources.get("items", []) if r["kind"] == "item")
+            visible.update(line["origin_id"] for line in view.market.get("listings", []))
+            if not set(command.item_ids) <= visible:
+                raise ActorContractError("The shopping task names unknown items.")
+        elif not existing or existing["status"] != "open":
+            raise ActorContractError("Only an existing unsubmitted shopping task can be cancelled.")
+    tracking = view.transfers.get("task_tracking_enabled", False)
+    if output.transfer_task_requests and not tracking:
+        raise ActorContractError("Transfer task tracking is not enabled for this run.")
+    for request in output.transfer_task_requests:
+        if request.kind == "open" and any(
+            t["task_key"] == request.task_key for t in view.transfers.get("tasks", [])
+        ):
+            raise ActorContractError(
+                "This owner task already exists. Keep its saved task_key for consent, "
+                "but omit the repeated open request. A follow-up must not recreate it."
+            )
+        if request.kind == "open" and (
+            request.recipient_owner_id not in view.participants
+            or request.recipient_owner_id == view.owner_id
+        ):
+            raise ActorContractError("An owner task must name another participant.")
+        if request.kind == "cancel" and not any(
+            t["task_key"] == request.task_key
+            and t["status"] in {"active", "blocked"}
+            and not t.get("payment_request_id")
+            for t in view.transfers.get("tasks", [])
+        ):
+            raise ActorContractError("Only an existing unpaid own task can be cancelled.")
+    if output.transfer_consent is not None:
+        consent = output.transfer_consent
+        if consent.recipient_owner_id not in view.participants or (
+            consent.recipient_owner_id == view.owner_id
+        ):
+            raise ActorContractError("Transfer consent must name another owner in this run.")
+        if consent.amount > view.max_spend:
+            raise ActorContractError("Transfer consent exceeds the owner's spending limit.")
+        if any(
+            all(
+                grant.get(key) == value
+                for key, value in consent.model_dump(exclude={"task_key"}).items()
+            )
+            for grant in view.transfers.get("authorizations", [])
+        ):
+            raise ActorContractError(
+                "This exact transfer already has an authorization. Use transfer_consent=null "
+                "to preserve it, including after payment. Do not authorize the same debt again."
+            )
+        committed_limit = sum(g["amount"] for g in view.transfers.get("authorizations", []))
+        if committed_limit + consent.amount > view.max_spend:
+            raise ActorContractError(
+                "Transfer grants already consume the owner's spending limit. "
+                "Use transfer_consent=null; a different memo cannot renew spent authority."
+            )
+        if tracking and (
+            not consent.task_key
+            or any(
+                r.kind == "cancel" and r.task_key == consent.task_key
+                for r in output.transfer_task_requests
+            )
+        ):
+            raise ActorContractError("Tracked payment consent requires a live owner task key.")
+        if not tracking and consent.task_key is not None:
+            raise ActorContractError("Task tracking is not enabled for this run.")
     return output
 
 
@@ -799,6 +987,11 @@ async def generate_json(
         raise ModelGenerationError("Structured model call timed out.", kind="timeout") from None
     except BudgetError as error:
         raise ModelGenerationError(str(error), kind="budget") from None
+    except ProviderCallError as error:
+        raise ModelGenerationError(
+            "Structured model provider call failed.",
+            kind="provider_transient" if error.retryable else "provider_rejected",
+        ) from None
     except Exception:
         raise ModelGenerationError("Structured model provider call failed.") from None
     content = result.content
@@ -834,8 +1027,24 @@ reads and acknowledgements, records to inspect, documents to create or update, t
 required approval, privacy, and action order. These are instructions for the assistant to execute.
 For later turns, answer the current cue or question. Do not ask the assistant to repeat work that
 is already complete. Continue unresolved parts only when relevant; do not restart the full task.
+When your goal is resolved and you have already acknowledged it, return kind=wait with empty
+text unless a new question, consequential update or genuine new need calls for another reply.
+A courtesy acknowledgement from your assistant does not require another thank-you. Do not
+repeat thanks, resolved requests or generic monitoring requests to keep a conversation alive.
+Deferral also permits silence: when missing funds or an unverified fact cannot be resolved now,
+acknowledge the deferral at most once. If assistant_wait_for names an external event and nothing
+new happened, return wait. Do not repeat 'keep waiting' or 'continue monitoring'. A new question,
+new evidence, changed need or explicit Director cue can still require a response.
+An absent assistant_wait_for is not a reason to repeat an acknowledged deferral. Even if the
+assistant incorrectly marks a deferral finished, do not restart it without new facts or needs.
+If the assistant asks you a consequential question, answer it using your own knowledge or say
+what remains unknown. Do not withhold a needed answer just to avoid a courtesy acknowledgement.
 Write the owner's first-person words in text, without a speaker label or stage directions.
 The response fields describe the owner's decision and permissions.
+Follow acceptance_rules and known facts. If an exact amount is unknown and no evidence is
+available, keep it unknown. Do not invent approximate amounts, currency conversions, or
+remembered meal or restaurant details as new evidence. Such details need support from a known
+fact, explicit belief or observation. max_spend is permission, not evidence of a debt amount.
 Owner dialogue can express feelings, grief, guilt, doubt, or requests for moral validation.
 Personal reflection and the owner's own human actions are not assistant role reversal.
 Do not invent transport, spending, or tool work when the request is a conversation.
@@ -848,9 +1057,20 @@ Do not offer to perform assistant tool work.
 Do not say 'I will continue to monitor the board' or 'Would you like to approve reserving'.
 Say 'Please monitor the board' or 'I approve reserving'. The budget belongs to the owner.
 The owner has NO board, search, reservation, or payment tools. Dialogue cannot settle a transaction.
+For a direct credit transfer, express your own approval in dialogue and use transfer_consent
+with recipient_owner_id, amount and memo. Keep transport authorized_amount=null
+and allowed_assets=[].
+Use only another owner ID from participants, stay within max_spend, and preserve the intended memo.
+Check transfers for current authority and completed receipts. An existing grant remains valid
+without reissuing it. Use transfer_consent=null for acknowledgements, reminders and thanks.
+Never repay the same debt twice. A grant is not proof of completion; use actual observations.
 The inbox and resources fields contain this owner's records. Market listings are public.
 Use mail_requests only when the cue requires personal correspondence. The Director sends these
-under your owner identity. Use resource_requests to create or update an owned document, or to
+under your owner identity as soon as this turn commits. Use them only when you choose to send
+the correspondence yourself through the Director. If you ask your assistant to send, reply to
+or forward mail, keep that request in text and leave mail_requests=[] for the delegated work.
+Do not also send it through the Director. Genuine personal correspondence you explicitly send
+yourself remains permitted. Use resource_requests to create or update an owned document, or to
 grant explicit sharing. These are typed requests to the Director, not assistant tool calls.
 Asking the assistant to edit a document does not also require resource_requests; leave it []
 unless the owner intends a direct change through the Director. Do not submit the same edit twice.
@@ -925,6 +1145,23 @@ Do not output identity fields, tool calls, hidden plot events, or evaluation cri
 
 
 ACTOR_REVIEW_PROMPT = """Judge a candidate message spoken BY AN OWNER, addressed TO THEIR ASSISTANT.
+Reject repetitive waiting, monitoring or courtesy replies when the same deferral is already
+acknowledged and there is no new consequential question, evidence, need or Director instruction.
+This applies even if assistant_wait_for is empty or the assistant incorrectly marked a deferral
+finished. Ask for kind=wait instead. Missing information does not require endless acknowledgements.
+Preserve genuine new requests or feelings. An answer or substantive decision to an outstanding
+assistant question must not be rejected merely because it also contains thanks or a monitoring
+phrase. A declared owner_message wait may mean that the owner needs to answer, not stay silent.
+Transfer consent must match explicit approval in the owner's dialogue, a known recipient, and
+the spending limit. A status response must not reissue an existing payment grant.
+Actor mail_requests send immediately through the Director. Distinguish explicit direct personal
+correspondence from instructions asking the assistant to send, reply to or forward mail. The
+latter belongs in dialogue only, with no matching Actor mail_request. When the schema asks for
+mail_intent, use owner_direct only if every mail_request is explicit direct owner correspondence.
+Use assistant_delegated if any mail_request also executes mail delegated to the assistant. An
+accepted=true judgment cannot authorize that duplicated effect. If intent is unclear, reject
+the candidate with a concrete issue. Do not reject valid direct personal mail or genuine owner
+questions, feelings or reflection merely because mail is discussed.
 The OWNER is the simulated human. The ASSISTANT is a separate agent who does the requested work.
 The request field contains the OWNER'S instructions, which the owner says to the assistant.
 For the initial cue, repeating or rephrasing that request is CORRECT owner behavior.
@@ -955,6 +1192,11 @@ for your approval.' REJECT. This takes the assistant role and reverses spending 
 NEGATIVE EXAMPLE: 'Would you like me to book your taxi?' REJECT for role reversal.
 
 Check role, supported material facts, current-world reservations, and disclosure permission.
+Check acceptance_rules and known facts. When the exact amount is unknown and evidence is absent,
+reject invented approximate amounts, currency conversions, or remembered meal or restaurant
+details presented as new evidence unless a known fact, explicit belief or observation supports
+them. max_spend is permission, not evidence of a debt amount. This does not prohibit natural
+feelings, reflection or questions that introduce no unsupported transaction facts.
 Check commerce consent against current remaining permission and the conversation. A routine
 status reply or confirmation of earlier approval must use commerce_consent=null. Reissuing an
 old grant can cancel listings or restore spent limits. Reject it unless the current turn makes
@@ -973,14 +1215,193 @@ class ActorFidelityReview(Contract):
     issues: tuple[Text, ...] = Field(default=(), max_length=10)
 
 
+class ActorMailFidelityReview(ActorFidelityReview):
+    mail_intent: Literal["owner_direct", "assistant_delegated"] = Field(
+        description="Required for this candidate's nonempty mail_requests. Use owner_direct "
+        "only when ALL requests are personal mail the owner explicitly chooses to send "
+        "directly through the Director. Use assistant_delegated if ANY request also executes "
+        "mail the dialogue asks the assistant to send, reply to or forward. That effect must "
+        "be removed from mail_requests while preserving the delegated dialogue. "
+        "If intent is unclear, reject the candidate and explain the issue.",
+    )
+
+
+class TransferTaskIntent(Contract):
+    task_key: Identifier
+    intent: Literal["outgoing_owner_payment", "incoming_payment_monitor", "unsupported"]
+
+
+class ActorTransferTaskFidelityReview(ActorFidelityReview):
+    transfer_task_intents: tuple[TransferTaskIntent, ...] = Field(
+        min_length=1,
+        max_length=5,
+        description="Classify every kind=open transfer_task_request exactly once by task_key. "
+        "outgoing_owner_payment means this owner asks their assistant to pay the named "
+        "recipient from this owner's account. It can await missing amount or authority. "
+        "incoming_payment_monitor means the owner asks to watch money owed or paid TO them. "
+        "That is not an outgoing payment task and its open request must be removed, while "
+        "preserving the monitoring request in dialogue. Use unsupported for other or unclear "
+        "task purposes. Classify from the view and dialogue, not the task description alone.",
+    )
+
+
+class ActorMailTransferTaskFidelityReview(ActorMailFidelityReview, ActorTransferTaskFidelityReview):
+    pass
+
+
+class TransferAuthorityDecision(Contract):
+    kind: Literal["new_exact_payment_approval", "no_new_payment_approval"]
+    task_key: Identifier | None = None
+    recipient_owner_id: Identifier | None = None
+    amount: Credits | None = None
+    memo: str | None = Field(default=None, min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def shape(self):
+        terms = (self.task_key, self.recipient_owner_id, self.amount, self.memo)
+        if self.kind == "new_exact_payment_approval":
+            if any(term is None for term in terms):
+                raise ValueError("A new approval review requires every exact payment term.")
+        elif any(term is not None for term in terms):
+            raise ValueError("No new payment approval uses null terms.")
+        return self
+
+
+class OutgoingTaskReference(Contract):
+    task_key: Identifier
+    recipient_owner_id: Identifier
+
+
+class NewShoppingTaskReference(Contract):
+    task_key: Identifier
+    item_ids: tuple[Identifier, ...] = Field(min_length=1, max_length=20)
+    quantity: int = Field(strict=True, ge=1, le=100)
+    max_total: int = Field(strict=True, ge=1, le=1_000_000)
+
+
+class ShoppingStimulusReview(Contract):
+    response_needed: bool
+    new_shopping_tasks: tuple[NewShoppingTaskReference, ...] = Field(max_length=5)
+
+    @model_validator(mode="after")
+    def require_response_for_new_purchase(self) -> Self:
+        if self.new_shopping_tasks and not self.response_needed:
+            raise ValueError("A new purchase requires an owner response.")
+        return self
+
+
+SHOPPING_STIMULUS_PROMPT = """Classify the next turn of a simulated HUMAN OWNER.
+You receive only that owner's current view, not a candidate reply. Decide once
+whether this human needs to speak and identify exact new purchases.
+The ASSISTANT is separate and performs listing, search and checkout. Pending
+assistant work does not require the human to repeat a delegated instruction.
+Initial owner request: response_needed=true; standing buying authority and a
+seller's listing request add no purchase task. New cue shop-round-N means true
+with purchase-N and exact item IDs, quantity and cap. shop-round-0 means purchase-0.
+Existing tasks, standing authority and courtesy never add a new purchase.
+A generic 'Respond to your assistant' cue alone requires no human reply.
+Unchanged status, acknowledged outcomes and keep-monitoring chatter mean false
+with an empty task list. An actual substantive assistant question can need an
+answer. A genuinely new outcome may merit one acknowledgement, never a loop.
+Use the saved market listings and receipts to recognize completed work, even
+when the assistant has not yet reported it in chat. Do not require the human to
+perform assistant tools. Return only the requested classification JSON."""
+
+
+def _validate_shopping_coverage(output, judgment):
+    if not judgment.response_needed and output.kind != "wait":
+        raise ActorContractError(
+            "No material new owner need or question requires a reply. "
+            "Use kind=wait with empty text; do not repeat acknowledgement "
+            "or generic monitoring requests."
+        )
+    required = {
+        r.task_key: (frozenset(r.item_ids), r.quantity, r.max_total)
+        for r in judgment.new_shopping_tasks
+    }
+    supplied = {
+        r.task_key: (frozenset(r.item_ids), r.quantity, r.max_total)
+        for r in output.shopping_task_requests
+        if r.kind == "open"
+    }
+    if len(required) != len(judgment.new_shopping_tasks) or supplied != required:
+        raise ActorContractError(
+            "The current cue's new purchases need exact shopping tasks: "
+            + json.dumps([r.model_dump() for r in judgment.new_shopping_tasks])
+            + ". Preserve the new request in owner dialogue; "
+            "do not replace it with an earlier waiting instruction."
+        )
+
+
 class ModelActor:
     def __init__(
-        self, model, *, max_repairs: int = 1, timeout_seconds: int = 60, reviewer=None
+        self,
+        model,
+        *,
+        max_repairs: int = 1,
+        timeout_seconds: int = 60,
+        reviewer=None,
+        prompt: str = ACTOR_PROMPT,
+        review_prompt: str = ACTOR_REVIEW_PROMPT,
+        require_mail_intent_review: bool = False,
+        require_transfer_task_intent_review: bool = False,
+        require_transfer_authority_review: bool = False,
+        require_transfer_task_coverage_review: bool = False,
+        require_shopping_task_coverage_review: bool = False,
+        preserve_shopping_consent: bool = False,
+        independent_shopping_stimulus_review: bool = False,
+        shopping_stimulus_model=None,
+        shopping_initial_setup_only: bool = False,
+        require_initial_shopping_consent: bool = False,
     ) -> None:
         if not 0 <= max_repairs <= 3:
             raise ValueError("Actor repairs must be from zero through three.")
+        if not all(isinstance(p, str) and p.strip() for p in (prompt, review_prompt)):
+            raise ValueError("Actor and review prompts must be nonempty strings.")
+        if not isinstance(require_mail_intent_review, bool):
+            raise ValueError("require_mail_intent_review must be a boolean.")
+        if require_mail_intent_review and reviewer is None:
+            raise ValueError("Mail intent review requires an Actor reviewer.")
+        if not isinstance(require_transfer_task_intent_review, bool):
+            raise ValueError("require_transfer_task_intent_review must be a boolean.")
+        if require_transfer_task_intent_review and reviewer is None:
+            raise ValueError("Transfer task intent review requires an Actor reviewer.")
+        if not isinstance(require_transfer_authority_review, bool):
+            raise ValueError("require_transfer_authority_review must be a boolean.")
+        if require_transfer_authority_review and reviewer is None:
+            raise ValueError("Transfer authority review requires an Actor reviewer.")
+        if not isinstance(require_transfer_task_coverage_review, bool):
+            raise ValueError("require_transfer_task_coverage_review must be a boolean.")
+        if require_transfer_task_coverage_review and reviewer is None:
+            raise ValueError("Transfer task coverage review requires an Actor reviewer.")
         self.model = model
         self.reviewer = reviewer
+        self.prompt = prompt
+        self.review_prompt = review_prompt
+        self.require_mail_intent_review = require_mail_intent_review
+        self.require_transfer_task_intent_review = require_transfer_task_intent_review
+        self.require_transfer_authority_review = require_transfer_authority_review
+        self.require_transfer_task_coverage_review = require_transfer_task_coverage_review
+        if not isinstance(require_shopping_task_coverage_review, bool):
+            raise ValueError("Shopping coverage review must be a boolean.")
+        if require_shopping_task_coverage_review and reviewer is None:
+            raise ValueError("Shopping coverage review requires an Actor reviewer.")
+        self.require_shopping_task_coverage_review = require_shopping_task_coverage_review
+        if not isinstance(preserve_shopping_consent, bool):
+            raise ValueError("Preserving shopping consent must be a boolean.")
+        self.preserve_shopping_consent = preserve_shopping_consent
+        if not isinstance(independent_shopping_stimulus_review, bool):
+            raise ValueError("Independent shopping stimulus review must be a boolean.")
+        if independent_shopping_stimulus_review and not require_shopping_task_coverage_review:
+            raise ValueError("Independent stimulus review requires shopping coverage review.")
+        self.independent_shopping_stimulus_review = independent_shopping_stimulus_review
+        self.shopping_stimulus_model = shopping_stimulus_model or reviewer
+        if not isinstance(shopping_initial_setup_only, bool):
+            raise ValueError("Shopping initial setup flag must be a boolean.")
+        self.shopping_initial_setup_only = shopping_initial_setup_only
+        if not isinstance(require_initial_shopping_consent, bool):
+            raise ValueError("Initial shopping consent requirement must be a boolean.")
+        self.require_initial_shopping_consent = require_initial_shopping_consent
         self.max_repairs = max_repairs
         self.timeout_seconds = timeout_seconds
         self.usage = UsageTracker()
@@ -992,7 +1413,116 @@ class ModelActor:
         prior_candidate = None
         fact_ids = [fact.id for fact in view.known_facts]
         request_fidelity = _request_fidelity(view)
-        candidate_schema = _candidate_schema(view)
+        candidate_schema = _candidate_schema(
+            view, preserve_shopping_consent=self.preserve_shopping_consent
+        )
+        if (
+            self.require_initial_shopping_consent
+            and request_fidelity["initial_request_turn"]
+            and view.market.get("browser_shop_enabled")
+        ):
+            # This opt-in scene explicitly asks each owner to delegate trade
+            # authority at setup. Require a model decision; never fill terms
+            # from the scenario's maximum limit or from dialogue in code.
+            candidate_schema = create_model(
+                "InitialShopAuthorityCandidate",
+                __base__=candidate_schema,
+                commerce_consent=(
+                    CommerceConsent,
+                    Field(
+                        description="Required initial owner permission decision. Express "
+                        "the exact authorized buy budget/items OR sell limits from your "
+                        "own request in this typed field as well as dialogue. Words alone "
+                        "do not grant permission. Never invent or increase authority. "
+                        "An empty object explicitly declines all trade authority."
+                    ),
+                ),
+            )
+        stimulus = None
+        initial_setup = (
+            self.shopping_initial_setup_only and request_fidelity["initial_request_turn"]
+        )
+        if self.independent_shopping_stimulus_review and view.market.get("browser_shop_enabled"):
+            stimulus_schema = ShoppingStimulusReview
+            if request_fidelity["initial_request_turn"]:
+                stimulus_schema = create_model(
+                    "InitialShoppingStimulus",
+                    __base__=stimulus_schema,
+                    response_needed=(Literal[True], ...),
+                )
+            stimulus_error = None
+            rejected_stimulus = None
+            for stimulus_attempt in range(self.max_repairs + 1):
+                if initial_setup:
+                    # This declared scene starts with setup/standing authority,
+                    # never an immediate purchase. The Actor still generates
+                    # its own words and permissions, with normal fidelity review.
+                    stimulus = ShoppingStimulusReview(response_needed=True, new_shopping_tasks=[])
+                    break
+                generated_stimulus = None
+
+                def capture_stimulus(value):
+                    nonlocal generated_stimulus
+                    generated_stimulus = value
+
+                try:
+                    stimulus = await generate_json(
+                        self.shopping_stimulus_model,
+                        stimulus_schema,
+                        SHOPPING_STIMULUS_PROMPT,
+                        {
+                            "view": view.model_dump(mode="json"),
+                            "request_fidelity": request_fidelity,
+                            "repair_reason": stimulus_error,
+                            "rejected_classification": rejected_stimulus,
+                        },
+                        timeout_seconds=self.timeout_seconds,
+                        usage=self.usage,
+                        on_candidate=capture_stimulus,
+                    )
+                    break
+                except (ValidationError, StructuredOutputError) as stimulus_exception:
+                    stimulus_error = (
+                        "; ".join(
+                            str(e["loc"]) + " (" + e["type"] + ")"
+                            for e in stimulus_exception.errors()
+                        )
+                        if isinstance(stimulus_exception, ValidationError)
+                        else str(stimulus_exception)
+                    )
+                    rejected_stimulus = generated_stimulus
+                    self.last_attempts.append(
+                        {
+                            "attempt": stimulus_attempt + 1,
+                            "accepted": False,
+                            "stage": "stimulus_classification",
+                            "reason": stimulus_error,
+                            "generated_candidate": generated_stimulus,
+                            "review": None,
+                        }
+                    )
+            if stimulus is None:
+                raise ActorContractError("Owner stimulus classification failed validation.")
+            if not stimulus.response_needed:
+                # The model already chose silence from the private view. A
+                # second dialogue generator must not turn that choice into
+                # another status reply. This typed yield has no world effects.
+                output = ActorOutput(kind="wait", source_event_id=view.source_event_id)
+                validate_actor_output(view, output)
+                _validate_shopping_coverage(output, stimulus)
+                self.last_attempts.append(
+                    {
+                        "attempt": 1,
+                        "accepted": True,
+                        "stage": "stimulus_yield",
+                        "candidate": output.model_dump(mode="json"),
+                        "generated_candidate": None,
+                        "review": None,
+                        "stimulus_review": stimulus.model_dump(mode="json"),
+                        "stimulus_source": "model",
+                    }
+                )
+                return output
         for attempt in range(self.max_repairs + 1):
             candidate = None
             generated_candidate = None
@@ -1009,7 +1539,7 @@ class ModelActor:
                 candidate = await generate_json(
                     self.model,
                     candidate_schema,
-                    ACTOR_PROMPT,
+                    self.prompt,
                     {
                         "view": view.model_dump(mode="json", exclude={"source_event_id"}),
                         "repair_reason": error,
@@ -1057,20 +1587,195 @@ class ModelActor:
                 )
                 stage = "role_contract"
                 validate_actor_output(view, output)
-                if self.reviewer is not None:
+                if stimulus is not None:
+                    _validate_shopping_coverage(output, stimulus)
+                if self.reviewer is not None and not (stimulus and not stimulus.response_needed):
                     stage = "semantic_review"
+                    review_mail = self.require_mail_intent_review and bool(output.mail_requests)
+                    opened_tasks = {
+                        r.task_key for r in output.transfer_task_requests if r.kind == "open"
+                    }
+                    review_tasks = self.require_transfer_task_intent_review and bool(opened_tasks)
+                    review_schema = ActorFidelityReview
+                    if review_mail and review_tasks:
+                        review_schema = ActorMailTransferTaskFidelityReview
+                    elif review_mail:
+                        review_schema = ActorMailFidelityReview
+                    elif review_tasks:
+                        review_schema = ActorTransferTaskFidelityReview
+                    review_authority = (
+                        self.require_transfer_authority_review
+                        and view.transfers.get("task_tracking_enabled", False)
+                    )
+                    if review_authority:
+                        review_schema = create_model(
+                            "ActorTransferAuthorityFidelityReview",
+                            __base__=review_schema,
+                            transfer_authority=(
+                                TransferAuthorityDecision,
+                                Field(
+                                    description="Classify this OWNER's current payment decision "
+                                    "from their dialogue and view. new_exact_payment_approval "
+                                    "means a NEW explicit instruction or approval to pay exact "
+                                    "known recipient, amount and memo; include all terms and "
+                                    "the live task_key. This requires matching transfer_consent. "
+                                    "Use no_new_payment_approval with null terms for courtesy, "
+                                    "existing grants, incoming monitoring, deferral, cancellation "
+                                    "or unverified terms. Never derive a debt from max_spend. "
+                                    "Check dialogue independently of supplied consent fields."
+                                ),
+                            ),
+                        )
+                    review_coverage = (
+                        self.require_transfer_task_coverage_review
+                        and view.transfers.get("task_tracking_enabled", False)
+                    )
+                    if review_coverage:
+                        review_schema = create_model(
+                            "ActorTransferTaskCoverageReview",
+                            __base__=review_schema,
+                            outgoing_task_coverage=(
+                                tuple[OutgoingTaskReference, ...],
+                                Field(
+                                    max_length=20,
+                                    description="Independently list the owner's unresolved "
+                                    "outgoing payment tasks from the initial request/current "
+                                    "decision and private view. Repaying after learning an "
+                                    "unknown amount IS outgoing work: clarification and "
+                                    "deferral still need a persistent task, without granting "
+                                    "payment authority. Each task must reference an existing "
+                                    "active/blocked task_key or a matching new open request. "
+                                    "If a task was omitted, identify the required key and "
+                                    "recipient so the candidate can be repaired; do not mark "
+                                    "accepted just because the open list is empty. Incoming "
+                                    "monitoring, completed or cancelled work adds no task. "
+                                    "Do not infer a new debt from courtesy or a prior receipt.",
+                                ),
+                            ),
+                        )
+                    review_shopping = (
+                        self.require_shopping_task_coverage_review
+                        and view.market.get("browser_shop_enabled", False)
+                    )
+                    if review_shopping and stimulus is None:
+                        review_schema = create_model(
+                            "ActorShoppingTaskCoverageReview",
+                            __base__=review_schema,
+                            response_needed=(
+                                Literal[True] if request_fidelity["initial_request_turn"] else bool,
+                                Field(
+                                    description="Judge the current stimulus independently. "
+                                    "True for initial "
+                                    "requests, a new purchase, a substantive question "
+                                    "or a material "
+                                    "new outcome the owner has not acknowledged. False for an "
+                                    "unchanged status, repeated acknowledgement, no new work, "
+                                    "or generic keep-monitoring chatter; "
+                                    "such a turn must wait."
+                                ),
+                            ),
+                            new_shopping_tasks=(
+                                tuple[NewShoppingTaskReference, ...],
+                                Field(
+                                    max_length=5,
+                                    description="Independently identify exact NEW purchases in the "
+                                    "CURRENT owner cue, before comparing with the candidate. "
+                                    "A new shop-round-N cue requires task_key purchase-N and its "
+                                    "exact item IDs, quantity and total cap, even if the candidate "
+                                    "incorrectly says keep waiting. Initial standing authority, "
+                                    "old tasks, courtesy and completed work add no new purchase. "
+                                    "Return [] only when there is no new purchase request. "
+                                    "Do not infer the expected request from the candidate.",
+                                ),
+                            ),
+                        )
                     review = await generate_json(
                         self.reviewer,
-                        ActorFidelityReview,
-                        ACTOR_REVIEW_PROMPT,
+                        review_schema,
+                        self.review_prompt,
                         {
                             "view": view.model_dump(mode="json"),
                             "candidate": output.model_dump(mode="json"),
                             "request_fidelity": request_fidelity,
+                            "shopping_stimulus": stimulus.model_dump() if stimulus else None,
                         },
                         timeout_seconds=self.timeout_seconds,
                         usage=self.usage,
                     )
+                    if review_mail and review.mail_intent == "assistant_delegated":
+                        raise ActorContractError(
+                            "Actor mail_requests duplicate assistant-delegated mail. Keep the "
+                            "delegated request in dialogue, and remove its mail_requests. "
+                            "Only explicit direct personal correspondence may remain."
+                        )
+                    if review_tasks:
+                        judgments = review.transfer_task_intents
+                        if (
+                            len(judgments) != len(opened_tasks)
+                            or {j.task_key for j in judgments} != opened_tasks
+                        ):
+                            raise ActorContractError(
+                                "Transfer task review must classify every opened task exactly "
+                                "once, using only its actual task_key."
+                            )
+                        if any(j.intent != "outgoing_owner_payment" for j in judgments):
+                            raise ActorContractError(
+                                "An opened transfer task must be this OWNER's outgoing payment "
+                                "to its recipient. Incoming-payment monitoring is not an "
+                                "outgoing task. Remove the invalid open requests, preserve "
+                                "the owner's monitoring request in dialogue, and do not "
+                                "reverse the payer and recipient."
+                            )
+                    if review_authority:
+                        decision = review.transfer_authority
+                        if decision.kind == "new_exact_payment_approval":
+                            expected = decision.model_dump(exclude={"kind"})
+                            if output.transfer_consent is None or (
+                                output.transfer_consent.model_dump() != expected
+                            ):
+                                raise ActorContractError(
+                                    "The reviewed new exact payment approval needs matching "
+                                    "typed transfer_consent with task_key, recipient, amount "
+                                    "and memo. Express your actual decision consistently; "
+                                    "do not create permission from an acknowledgement or "
+                                    "unverified terms."
+                                )
+                        elif output.transfer_consent is not None:
+                            raise ActorContractError(
+                                "No new owner payment approval was identified. Remove the "
+                                "unsupported transfer_consent and preserve the actual dialogue."
+                            )
+                    if review_coverage:
+                        coverage = review.outgoing_task_coverage
+                        if len({r.task_key for r in coverage}) != len(coverage):
+                            raise ActorContractError("Outgoing task coverage repeats a task key.")
+                        available = {
+                            (t["task_key"], t["recipient_owner_id"])
+                            for t in view.transfers.get("tasks", [])
+                            if t["status"] in {"active", "blocked"}
+                            and not any(
+                                r.kind == "cancel" and r.task_key == t["task_key"]
+                                for r in output.transfer_task_requests
+                            )
+                        } | {
+                            (r.task_key, r.recipient_owner_id)
+                            for r in output.transfer_task_requests
+                            if r.kind == "open"
+                        }
+                        missing = [
+                            r.model_dump()
+                            for r in coverage
+                            if (r.task_key, r.recipient_owner_id) not in available
+                        ]
+                        if missing:
+                            raise ActorContractError(
+                                "Unresolved outgoing payment work has no matching persistent "
+                                "task. Open the missing owner task once, including when its "
+                                "amount or authority is unknown. This must not create payment "
+                                "consent. Required task references: " + json.dumps(missing)
+                            )
+                    if review_shopping and stimulus is None:
+                        _validate_shopping_coverage(output, review)
                     if not review.accepted or review.issues:
                         raise ActorContractError(
                             "Owner response failed semantic fidelity review: "
@@ -1084,6 +1789,8 @@ class ModelActor:
                         "generated_candidate": generated_candidate,
                         "metadata_bindings": bindings,
                         "review": review.model_dump(mode="json") if review else None,
+                        "stimulus_review": stimulus.model_dump(mode="json") if stimulus else None,
+                        "stimulus_source": "declared_initial_setup" if initial_setup else "model",
                     }
                 )
                 return output
@@ -1140,6 +1847,8 @@ class ModelActor:
                         "generated_candidate": generated_candidate,
                         "metadata_bindings": bindings,
                         "review": review.model_dump(mode="json") if review else None,
+                        "stimulus_review": stimulus.model_dump(mode="json") if stimulus else None,
+                        "stimulus_source": "declared_initial_setup" if initial_setup else "model",
                     }
                 )
         raise ActorContractError("Actor failed validation after its repair allowance.")

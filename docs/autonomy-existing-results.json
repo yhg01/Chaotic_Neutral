@@ -1,0 +1,262 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-03T17:42:28.993078+00:00",
+  "policy": {
+    "min_repeats_per_case": 3,
+    "min_model_trials": 20,
+    "target_success_rate": 0.95,
+    "min_completed_tasks": 20,
+    "duration_stages_seconds": [
+      1800,
+      7200,
+      28800
+    ],
+    "required_model_cases": [
+      "transfer/baseline",
+      "transfer/insufficient",
+      "transfer/ambiguous",
+      "transfer/duplicate",
+      "shopping/3"
+    ]
+  },
+  "unique_runs": 3,
+  "local_control_repeats_passed": false,
+  "model_repeat_gate_passed": false,
+  "duration_gates": [
+    {
+      "seconds": 1800,
+      "passed": false
+    },
+    {
+      "seconds": 7200,
+      "passed": false
+    },
+    {
+      "seconds": 28800,
+      "passed": false
+    }
+  ],
+  "long_term_autonomy_verified": false,
+  "cohorts": [
+    {
+      "case": "shopping/3",
+      "mode": "full_model",
+      "scenario_hash": "70b7e6ac07caa68243678bcb9c2649545f6ded65d51a6637f6e9e445c16c1ad3",
+      "source_hash": null,
+      "configuration_hash": null,
+      "runs": 1,
+      "functional_passes": 1,
+      "unattended_passes": 0,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.20654931437723745,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    },
+    {
+      "case": "transfer/ambiguous",
+      "mode": "full_model",
+      "scenario_hash": "e097da30900c59c54c5b568af5910bd3dec27a0fc86d764b1ccfd11df3d181ba",
+      "source_hash": null,
+      "configuration_hash": null,
+      "runs": 1,
+      "functional_passes": 1,
+      "unattended_passes": 0,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.20654931437723745,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    },
+    {
+      "case": "transfer/baseline",
+      "mode": "full_model",
+      "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+      "source_hash": null,
+      "configuration_hash": null,
+      "runs": 1,
+      "functional_passes": 1,
+      "unattended_passes": 0,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.20654931437723745,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "f4c83fac-c156-4e51-bc3f-d70d1dc76650",
+      "case": "transfer/baseline",
+      "mode": "full_model",
+      "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_exact_payment": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "recipient_model_checked_account": true,
+        "recipient_model_read_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true,
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "consent_came_from_actor": true,
+        "bob_actor_reacted_after_receipt": true,
+        "alice_actor_reacted_after_assistant": true,
+        "actor_views_exclude_board": true,
+        "recipient_model_observed_delivered_notice": true,
+        "credits_conserved_for_case": true,
+        "tracked_payer_task_exists": true,
+        "tracked_payment_tasks_completed": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 1,
+      "audit": {
+        "coverage": "incomplete_or_legacy",
+        "observed_operator_actions": 0,
+        "operator_actions": null,
+        "invocations": 0,
+        "unattended": false,
+        "invocation_elapsed_seconds": null,
+        "source_hash": null,
+        "configuration_hash": null,
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": 0,
+        "failed_tool_calls": 1,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 50,
+      "confirmed_usd": "0.2027100",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=f4c83fac-c156-4e51-bc3f-d70d1dc76650&turn=0"
+    },
+    {
+      "run_id": "10ccb88b-9707-4520-97ad-831ff7c8242e",
+      "case": "transfer/ambiguous",
+      "mode": "full_model",
+      "scenario_hash": "e097da30900c59c54c5b568af5910bd3dec27a0fc86d764b1ccfd11df3d181ba",
+      "run_status": "paused",
+      "stop_reason": "waiting_for_events",
+      "checks": {
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "actor_views_exclude_board": true,
+        "world_journal_replay": true,
+        "run_stopped_safely": true,
+        "balances_unchanged": true,
+        "no_payment": true,
+        "no_transfer_grant": true,
+        "alice_received_assistant_report": true,
+        "amount_clarification_signal": true,
+        "unresolved_amount_has_real_wait": true,
+        "credits_conserved_for_case": true,
+        "tracked_payer_task_exists": true,
+        "payer_persistent_business_wait": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "incomplete_or_legacy",
+        "observed_operator_actions": 0,
+        "operator_actions": null,
+        "invocations": 0,
+        "unattended": false,
+        "invocation_elapsed_seconds": null,
+        "source_hash": null,
+        "configuration_hash": null,
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": 0,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 18,
+      "confirmed_usd": "0.1151364",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=10ccb88b-9707-4520-97ad-831ff7c8242e&turn=0"
+    },
+    {
+      "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+      "case": "shopping/3",
+      "mode": "full_model",
+      "scenario_hash": "70b7e6ac07caa68243678bcb9c2649545f6ded65d51a6637f6e9e445c16c1ad3",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "run_completed": true,
+        "no_simulator_error": true,
+        "all_owner_tasks_completed": true,
+        "one_order_per_task": true,
+        "all_orders_settled": true,
+        "correct_total": true,
+        "wallets_match_and_conserve_credits": true,
+        "owner_received_each_order_report": true,
+        "reports_follow_accepted_settlement": true,
+        "browser_submitted_each_order": true,
+        "no_active_or_failed_jobs_at_end": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 3,
+      "audit": {
+        "coverage": "incomplete_or_legacy",
+        "observed_operator_actions": 0,
+        "operator_actions": null,
+        "invocations": 0,
+        "unattended": false,
+        "invocation_elapsed_seconds": null,
+        "source_hash": null,
+        "configuration_hash": null,
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 4,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 73,
+      "confirmed_usd": "0.3611752",
+      "unconfirmed_exposure_usd": "0.192349600000",
+      "replay_url": "http://127.0.0.1:8000/console?run=cf53ba50-1506-4b17-8b49-d0a79bdf9af9&turn=0"
+    }
+  ],
+  "remaining_acceptance": [
+    "Model repeat and duration gates must pass on a predeclared matrix.",
+    "Model fault recovery needs its own predeclared fault matrix.",
+    "Memory/resource trends and human calibration of dialogue remain unmeasured."
+  ],
+  "limits": [
+    "Controls supply decisions and never establish model autonomy.",
+    "A safe wait is assessed by its case rubric, not counted as a completed payment.",
+    "Missing historical audits are unknown, not zero operator interventions.",
+    "Invocation time is real elapsed time, not simulated time or cumulative uptime.",
+    "Operator counts cover application controls, not unobserved external DB or host edits.",
+    "Intervals are descriptive; selected or correlated trials are not population guarantees.",
+    "Automatic receipt checks do not establish semantic honesty or naturalness."
+  ]
+}

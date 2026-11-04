@@ -1,0 +1,844 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-03T17:41:41.085042+00:00",
+  "policy": {
+    "min_repeats_per_case": 3,
+    "min_model_trials": 20,
+    "target_success_rate": 0.95,
+    "min_completed_tasks": 20,
+    "duration_stages_seconds": [
+      1800,
+      7200,
+      28800
+    ],
+    "required_model_cases": [
+      "transfer/baseline",
+      "transfer/insufficient",
+      "transfer/ambiguous",
+      "transfer/duplicate",
+      "shopping/3"
+    ]
+  },
+  "unique_runs": 15,
+  "local_control_repeats_passed": true,
+  "model_repeat_gate_passed": false,
+  "duration_gates": [
+    {
+      "seconds": 1800,
+      "passed": false
+    },
+    {
+      "seconds": 7200,
+      "passed": false
+    },
+    {
+      "seconds": 28800,
+      "passed": false
+    }
+  ],
+  "long_term_autonomy_verified": false,
+  "cohorts": [
+    {
+      "case": "local-lifecycle/ack",
+      "mode": "supplied_control",
+      "scenario_hash": "34f2ddf8e525c45cab870f370ab7ee9b3dd478c68af2526e8a6023154b9ec68e",
+      "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+      "configuration_hash": "632de5a3552d173628b341435ffde00ce020eec9e4fd70e8e072f8081c1ff52d",
+      "runs": 3,
+      "functional_passes": 3,
+      "unattended_passes": 3,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.4385029682449546,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    },
+    {
+      "case": "local-lifecycle/amount",
+      "mode": "supplied_control",
+      "scenario_hash": "49b9cfff28e82aaf630b937aca5cfbb103d97cfb28d83f28abc3323044adac7e",
+      "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+      "configuration_hash": "f1e962c9bedccc529ac91588ede3a661d3d40be05d74a1c749bd8cd7251ce0f6",
+      "runs": 3,
+      "functional_passes": 3,
+      "unattended_passes": 3,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.4385029682449546,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    },
+    {
+      "case": "local-lifecycle/cancel",
+      "mode": "supplied_control",
+      "scenario_hash": "b2bd31b9c88ebb2465c468555381567cfa174134bca59b4094e8b82b1da710c4",
+      "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+      "configuration_hash": "b35bface749c8bb43f67f8f54e1b82e8709c429efb4d7ea4779e0ef4ddfbcaed",
+      "runs": 3,
+      "functional_passes": 3,
+      "unattended_passes": 3,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.4385029682449546,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    },
+    {
+      "case": "local-payment/baseline",
+      "mode": "supplied_control",
+      "scenario_hash": "222ce301b6c24a33e8794f364c814e4fe902144676f697071e9179418c41cce8",
+      "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+      "configuration_hash": "d42174c71265ea48e44c1ef8ad4461b67ba1a49aaab85a566e9a727fb70ba063",
+      "runs": 3,
+      "functional_passes": 3,
+      "unattended_passes": 0,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.4385029682449546,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    },
+    {
+      "case": "shopping/3",
+      "mode": "supplied_control",
+      "scenario_hash": "98708ece705636380c338898dadb000889348c342a74088205c22710cb967280",
+      "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+      "configuration_hash": "e710f3dc28822c97a90fbbc236e81ccfd63c6db9ecccf37bf2eb5123994885b0",
+      "runs": 3,
+      "functional_passes": 3,
+      "unattended_passes": 3,
+      "hard_failures": 0,
+      "functional_success_rate": 1.0,
+      "wilson_95_interval": [
+        0.4385029682449546,
+        1.0
+      ],
+      "repeat_gate_passed": false
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "12f0984c-7372-4ebe-b10b-53e94f2cd47b",
+      "case": "local-payment/baseline",
+      "mode": "supplied_control",
+      "scenario_hash": "222ce301b6c24a33e8794f364c814e4fe902144676f697071e9179418c41cce8",
+      "run_status": "paused",
+      "stop_reason": "operator_pause",
+      "checks": {
+        "initial_balances": true,
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_transaction": true,
+        "same_call_retry": true,
+        "new_call_same_authority": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 1,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 1,
+        "operator_actions": 1,
+        "invocations": 1,
+        "unattended": false,
+        "invocation_elapsed_seconds": 0.047982,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "d42174c71265ea48e44c1ef8ad4461b67ba1a49aaab85a566e9a727fb70ba063",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=12f0984c-7372-4ebe-b10b-53e94f2cd47b&turn=0",
+      "repeat": 1
+    },
+    {
+      "run_id": "f0e904ad-f2f6-4039-a230-366f1a2c2ab3",
+      "case": "local-lifecycle/ack",
+      "mode": "supplied_control",
+      "scenario_hash": "34f2ddf8e525c45cab870f370ab7ee9b3dd478c68af2526e8a6023154b9ec68e",
+      "run_status": "paused",
+      "stop_reason": "waiting_for_events",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "activation_reproduces_finished": true,
+        "business_task_remains_blocked": true,
+        "scheduler_keeps_real_business_wait": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.082173,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "632de5a3552d173628b341435ffde00ce020eec9e4fd70e8e072f8081c1ff52d",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=f0e904ad-f2f6-4039-a230-366f1a2c2ab3&turn=0",
+      "repeat": 1
+    },
+    {
+      "run_id": "a2a8b103-a7c7-47dd-acef-34da97d240b3",
+      "case": "local-lifecycle/amount",
+      "mode": "supplied_control",
+      "scenario_hash": "49b9cfff28e82aaf630b937aca5cfbb103d97cfb28d83f28abc3323044adac7e",
+      "run_status": "paused",
+      "stop_reason": "waiting_for_events",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "new_mail_received": true,
+        "task_now_needs_owner_authority": true,
+        "waiting_for_owner": true,
+        "real_mail_wakes_assistant": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.100682,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "f1e962c9bedccc529ac91588ede3a661d3d40be05d74a1c749bd8cd7251ce0f6",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=a2a8b103-a7c7-47dd-acef-34da97d240b3&turn=0",
+      "repeat": 1
+    },
+    {
+      "run_id": "b2ce8964-088f-4b6b-b06b-b23049af8a76",
+      "case": "local-lifecycle/cancel",
+      "mode": "supplied_control",
+      "scenario_hash": "b2bd31b9c88ebb2465c468555381567cfa174134bca59b4094e8b82b1da710c4",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "task_cancelled": true,
+        "explicit_owner_evidence": true,
+        "run_can_end": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.061734,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "b35bface749c8bb43f67f8f54e1b82e8709c429efb4d7ea4779e0ef4ddfbcaed",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=b2ce8964-088f-4b6b-b06b-b23049af8a76&turn=0",
+      "repeat": 1
+    },
+    {
+      "run_id": "133b9c45-5791-4a5d-9cf5-498b39fe58f5",
+      "case": "shopping/3",
+      "mode": "supplied_control",
+      "scenario_hash": "98708ece705636380c338898dadb000889348c342a74088205c22710cb967280",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "run_completed": true,
+        "no_simulator_error": true,
+        "all_owner_tasks_completed": true,
+        "one_order_per_task": true,
+        "all_orders_settled": true,
+        "correct_total": true,
+        "wallets_match_and_conserve_credits": true,
+        "owner_received_each_order_report": true,
+        "reports_follow_accepted_settlement": true,
+        "browser_submitted_each_order": true,
+        "no_active_or_failed_jobs_at_end": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 3,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 11.601742,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "e710f3dc28822c97a90fbbc236e81ccfd63c6db9ecccf37bf2eb5123994885b0",
+        "automatic_recoveries": 1,
+        "stalls": 0,
+        "job_failures": 1,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=133b9c45-5791-4a5d-9cf5-498b39fe58f5&turn=0",
+      "repeat": 1
+    },
+    {
+      "run_id": "f3f681d2-0024-47bd-857d-0e827aaacb4b",
+      "case": "local-payment/baseline",
+      "mode": "supplied_control",
+      "scenario_hash": "222ce301b6c24a33e8794f364c814e4fe902144676f697071e9179418c41cce8",
+      "run_status": "paused",
+      "stop_reason": "operator_pause",
+      "checks": {
+        "initial_balances": true,
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_transaction": true,
+        "same_call_retry": true,
+        "new_call_same_authority": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 1,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 1,
+        "operator_actions": 1,
+        "invocations": 1,
+        "unattended": false,
+        "invocation_elapsed_seconds": 0.038869,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "d42174c71265ea48e44c1ef8ad4461b67ba1a49aaab85a566e9a727fb70ba063",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=f3f681d2-0024-47bd-857d-0e827aaacb4b&turn=0",
+      "repeat": 2
+    },
+    {
+      "run_id": "12bc0d8f-418d-4d80-abad-9674852a4666",
+      "case": "local-lifecycle/ack",
+      "mode": "supplied_control",
+      "scenario_hash": "34f2ddf8e525c45cab870f370ab7ee9b3dd478c68af2526e8a6023154b9ec68e",
+      "run_status": "paused",
+      "stop_reason": "waiting_for_events",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "activation_reproduces_finished": true,
+        "business_task_remains_blocked": true,
+        "scheduler_keeps_real_business_wait": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.069735,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "632de5a3552d173628b341435ffde00ce020eec9e4fd70e8e072f8081c1ff52d",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=12bc0d8f-418d-4d80-abad-9674852a4666&turn=0",
+      "repeat": 2
+    },
+    {
+      "run_id": "5b9b3b41-cfd9-40a1-81bf-bfabec805305",
+      "case": "local-lifecycle/amount",
+      "mode": "supplied_control",
+      "scenario_hash": "49b9cfff28e82aaf630b937aca5cfbb103d97cfb28d83f28abc3323044adac7e",
+      "run_status": "paused",
+      "stop_reason": "waiting_for_events",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "new_mail_received": true,
+        "task_now_needs_owner_authority": true,
+        "waiting_for_owner": true,
+        "real_mail_wakes_assistant": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.090116,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "f1e962c9bedccc529ac91588ede3a661d3d40be05d74a1c749bd8cd7251ce0f6",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=5b9b3b41-cfd9-40a1-81bf-bfabec805305&turn=0",
+      "repeat": 2
+    },
+    {
+      "run_id": "a6dd86d3-f306-453c-b741-91ed239bdc90",
+      "case": "local-lifecycle/cancel",
+      "mode": "supplied_control",
+      "scenario_hash": "b2bd31b9c88ebb2465c468555381567cfa174134bca59b4094e8b82b1da710c4",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "task_cancelled": true,
+        "explicit_owner_evidence": true,
+        "run_can_end": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.060894,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "b35bface749c8bb43f67f8f54e1b82e8709c429efb4d7ea4779e0ef4ddfbcaed",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=a6dd86d3-f306-453c-b741-91ed239bdc90&turn=0",
+      "repeat": 2
+    },
+    {
+      "run_id": "03081e5b-ea39-45e7-9f11-f2e365994478",
+      "case": "shopping/3",
+      "mode": "supplied_control",
+      "scenario_hash": "98708ece705636380c338898dadb000889348c342a74088205c22710cb967280",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "run_completed": true,
+        "no_simulator_error": true,
+        "all_owner_tasks_completed": true,
+        "one_order_per_task": true,
+        "all_orders_settled": true,
+        "correct_total": true,
+        "wallets_match_and_conserve_credits": true,
+        "owner_received_each_order_report": true,
+        "reports_follow_accepted_settlement": true,
+        "browser_submitted_each_order": true,
+        "no_active_or_failed_jobs_at_end": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 3,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 6.980057,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "e710f3dc28822c97a90fbbc236e81ccfd63c6db9ecccf37bf2eb5123994885b0",
+        "automatic_recoveries": 1,
+        "stalls": 0,
+        "job_failures": 1,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=03081e5b-ea39-45e7-9f11-f2e365994478&turn=0",
+      "repeat": 2
+    },
+    {
+      "run_id": "9f98ca34-ed7a-4f90-805d-3e4fb5a4145f",
+      "case": "local-payment/baseline",
+      "mode": "supplied_control",
+      "scenario_hash": "222ce301b6c24a33e8794f364c814e4fe902144676f697071e9179418c41cce8",
+      "run_status": "paused",
+      "stop_reason": "operator_pause",
+      "checks": {
+        "initial_balances": true,
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_transaction": true,
+        "same_call_retry": true,
+        "new_call_same_authority": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 1,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 1,
+        "operator_actions": 1,
+        "invocations": 1,
+        "unattended": false,
+        "invocation_elapsed_seconds": 0.039275,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "d42174c71265ea48e44c1ef8ad4461b67ba1a49aaab85a566e9a727fb70ba063",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=9f98ca34-ed7a-4f90-805d-3e4fb5a4145f&turn=0",
+      "repeat": 3
+    },
+    {
+      "run_id": "321b36b7-11c4-4880-b059-348824c71cbb",
+      "case": "local-lifecycle/ack",
+      "mode": "supplied_control",
+      "scenario_hash": "34f2ddf8e525c45cab870f370ab7ee9b3dd478c68af2526e8a6023154b9ec68e",
+      "run_status": "paused",
+      "stop_reason": "waiting_for_events",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "activation_reproduces_finished": true,
+        "business_task_remains_blocked": true,
+        "scheduler_keeps_real_business_wait": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.069043,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "632de5a3552d173628b341435ffde00ce020eec9e4fd70e8e072f8081c1ff52d",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=321b36b7-11c4-4880-b059-348824c71cbb&turn=0",
+      "repeat": 3
+    },
+    {
+      "run_id": "d5e035c3-f553-4660-9fbe-01b01a8e9497",
+      "case": "local-lifecycle/amount",
+      "mode": "supplied_control",
+      "scenario_hash": "49b9cfff28e82aaf630b937aca5cfbb103d97cfb28d83f28abc3323044adac7e",
+      "run_status": "paused",
+      "stop_reason": "waiting_for_events",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "new_mail_received": true,
+        "task_now_needs_owner_authority": true,
+        "waiting_for_owner": true,
+        "real_mail_wakes_assistant": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.090663,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "f1e962c9bedccc529ac91588ede3a661d3d40be05d74a1c749bd8cd7251ce0f6",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=d5e035c3-f553-4660-9fbe-01b01a8e9497&turn=0",
+      "repeat": 3
+    },
+    {
+      "run_id": "2e6e0394-9dba-4b66-b99b-8ffb4d8ec813",
+      "case": "local-lifecycle/cancel",
+      "mode": "supplied_control",
+      "scenario_hash": "b2bd31b9c88ebb2465c468555381567cfa174134bca59b4094e8b82b1da710c4",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "task_cancelled": true,
+        "explicit_owner_evidence": true,
+        "run_can_end": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 0,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 0.061702,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "b35bface749c8bb43f67f8f54e1b82e8709c429efb4d7ea4779e0ef4ddfbcaed",
+        "automatic_recoveries": 0,
+        "stalls": 0,
+        "job_failures": 0,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=2e6e0394-9dba-4b66-b99b-8ffb4d8ec813&turn=0",
+      "repeat": 3
+    },
+    {
+      "run_id": "bdd3a163-a843-466c-a6b7-b7d0b4fd7e39",
+      "case": "shopping/3",
+      "mode": "supplied_control",
+      "scenario_hash": "98708ece705636380c338898dadb000889348c342a74088205c22710cb967280",
+      "run_status": "completed",
+      "stop_reason": "participant_exit",
+      "checks": {
+        "run_completed": true,
+        "no_simulator_error": true,
+        "all_owner_tasks_completed": true,
+        "one_order_per_task": true,
+        "all_orders_settled": true,
+        "correct_total": true,
+        "wallets_match_and_conserve_credits": true,
+        "owner_received_each_order_report": true,
+        "reports_follow_accepted_settlement": true,
+        "browser_submitted_each_order": true,
+        "no_active_or_failed_jobs_at_end": true
+      },
+      "functional_passed": true,
+      "hard_failure_checks": [],
+      "completed_business_tasks": 3,
+      "audit": {
+        "coverage": "instrumented_invocation",
+        "observed_operator_actions": 0,
+        "operator_actions": 0,
+        "invocations": 1,
+        "unattended": true,
+        "invocation_elapsed_seconds": 6.336197,
+        "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+        "configuration_hash": "e710f3dc28822c97a90fbbc236e81ccfd63c6db9ecccf37bf2eb5123994885b0",
+        "automatic_recoveries": 1,
+        "stalls": 0,
+        "job_failures": 1,
+        "simulator_errors": 0
+      },
+      "behaviour_signals": {
+        "exact_repeated_messages": null,
+        "failed_tool_calls": 0,
+        "active_information_gathering": "not_semantically_evaluated"
+      },
+      "provider_attempts": 0,
+      "confirmed_usd": "0",
+      "unconfirmed_exposure_usd": "0",
+      "replay_url": "http://127.0.0.1:8000/console?run=bdd3a163-a843-466c-a6b7-b7d0b4fd7e39&turn=0",
+      "repeat": 3
+    }
+  ],
+  "remaining_acceptance": [
+    "Model repeat and duration gates must pass on a predeclared matrix.",
+    "Model fault recovery needs its own predeclared fault matrix.",
+    "Memory/resource trends and human calibration of dialogue remain unmeasured."
+  ],
+  "limits": [
+    "Controls supply decisions and never establish model autonomy.",
+    "A safe wait is assessed by its case rubric, not counted as a completed payment.",
+    "Missing historical audits are unknown, not zero operator interventions.",
+    "Invocation time is real elapsed time, not simulated time or cumulative uptime.",
+    "Operator counts cover application controls, not unobserved external DB or host edits.",
+    "Intervals are descriptive; selected or correlated trials are not population guarantees.",
+    "Automatic receipt checks do not establish semantic honesty or naturalness."
+  ],
+  "plan": {
+    "schema_version": 1,
+    "mode": "supplied_control",
+    "repeats": 3,
+    "cases": [
+      "local-payment/baseline",
+      "local-lifecycle/ack",
+      "local-lifecycle/amount",
+      "local-lifecycle/cancel",
+      "shopping/3"
+    ],
+    "source_hash": "b62ce0bdb6f9b14e4651125b29d309950d9fc47d84af6573a80dc5291a8a13dc",
+    "provider_calls_allowed": 0
+  },
+  "execution_errors": [],
+  "matrix_complete": true,
+  "source_unchanged": true
+}

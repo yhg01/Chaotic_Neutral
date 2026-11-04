@@ -1,0 +1,693 @@
+{
+  "date": "2026-11-03T17:18:45.869828+00:00",
+  "scope": "Existing repayment evidence re-evaluated plus free closure checks; original all-model shopping checkpoint resumed under the explicitly approved 5.5 USD ceiling.",
+  "existing_model_repayment": {
+    "run_id": "f4c83fac-c156-4e51-bc3f-d70d1dc76650",
+    "validation_case": "baseline",
+    "validation_revision": "persistent-transfer-task-v4",
+    "run_status": "completed",
+    "checks": {
+      "final_balances": true,
+      "total_credits_conserved": true,
+      "one_exact_payment": true,
+      "recipient_received_bank_notice": true,
+      "recipient_received_assistant_notice": true,
+      "recipient_model_checked_account": true,
+      "recipient_model_read_notice": true,
+      "both_owner_reports_saved": true,
+      "world_journal_replay": true,
+      "run_completed": true,
+      "no_simulator_failure": true,
+      "owner_messages_generated_by_actors": true,
+      "consent_came_from_actor": true,
+      "bob_actor_reacted_after_receipt": true,
+      "alice_actor_reacted_after_assistant": true,
+      "actor_views_exclude_board": true,
+      "recipient_model_observed_delivered_notice": true,
+      "credits_conserved_for_case": true,
+      "tracked_payer_task_exists": true,
+      "tracked_payment_tasks_completed": true
+    },
+    "metrics": {
+      "payments": 1,
+      "duplicate_payments": 0,
+      "unexpected_payments": 0,
+      "missing_assistant_notice": false,
+      "executed_windows": 5,
+      "window_limit_reached": false,
+      "exact_repeated_messages": 0,
+      "actor_rejected_candidates": 1,
+      "failed_tool_calls": 1,
+      "infrastructure_failures": 0,
+      "simulator_errors": 0,
+      "waiting_for_events": false
+    },
+    "passed": true
+  },
+  "existing_model_wait": {
+    "run_id": "10ccb88b-9707-4520-97ad-831ff7c8242e",
+    "validation_case": "ambiguous",
+    "validation_revision": "persistent-transfer-task-v4",
+    "run_status": "paused",
+    "checks": {
+      "no_simulator_failure": true,
+      "owner_messages_generated_by_actors": true,
+      "actor_views_exclude_board": true,
+      "world_journal_replay": true,
+      "run_stopped_safely": true,
+      "balances_unchanged": true,
+      "no_payment": true,
+      "no_transfer_grant": true,
+      "alice_received_assistant_report": true,
+      "amount_clarification_signal": true,
+      "unresolved_amount_has_real_wait": true,
+      "credits_conserved_for_case": true,
+      "tracked_payer_task_exists": true,
+      "payer_persistent_business_wait": true
+    },
+    "metrics": {
+      "payments": 0,
+      "duplicate_payments": 0,
+      "unexpected_payments": 0,
+      "missing_assistant_notice": false,
+      "executed_windows": 3,
+      "window_limit_reached": false,
+      "exact_repeated_messages": 0,
+      "actor_rejected_candidates": 1,
+      "failed_tool_calls": 0,
+      "infrastructure_failures": 0,
+      "simulator_errors": 0,
+      "waiting_for_events": true
+    },
+    "passed": true
+  },
+  "new_local_repayment": {
+    "run_id": "f1049090-4b7d-4fdc-b904-edb55e475343",
+    "model_calls": 0,
+    "checks": {
+      "initial_balances": true,
+      "final_balances": true,
+      "total_credits_conserved": true,
+      "one_transaction": true,
+      "same_call_retry": true,
+      "new_call_same_authority": true,
+      "recipient_received_bank_notice": true,
+      "recipient_received_assistant_notice": true,
+      "both_owner_reports_saved": true,
+      "world_journal_replay": true
+    },
+    "passed": true,
+    "final_balances": {
+      "alice": 90,
+      "bob": 30
+    }
+  },
+  "new_local_lifecycle": [
+    {
+      "case": "ack",
+      "run_id": "57d704cb-80f1-440c-805b-6f874ab8b0c0",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "activation_reproduces_finished": true,
+        "business_task_remains_blocked": true,
+        "scheduler_keeps_real_business_wait": true
+      },
+      "passed": true,
+      "replay_url": "http://127.0.0.1:8000/console?run=57d704cb-80f1-440c-805b-6f874ab8b0c0&turn=1"
+    },
+    {
+      "case": "amount",
+      "run_id": "df9e30bb-e23b-44e6-b991-fec777ad2f21",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "new_mail_received": true,
+        "task_now_needs_owner_authority": true,
+        "waiting_for_owner": true,
+        "real_mail_wakes_assistant": true
+      },
+      "passed": true,
+      "replay_url": "http://127.0.0.1:8000/console?run=df9e30bb-e23b-44e6-b991-fec777ad2f21&turn=1"
+    },
+    {
+      "case": "cancel",
+      "run_id": "21d94ff3-89c8-4762-8aac-f25b4f5963ab",
+      "checks": {
+        "no_payment_or_grant": true,
+        "funds_unchanged": true,
+        "one_persistent_task": true,
+        "no_window_cap_or_worker_failure": true,
+        "task_cancelled": true,
+        "explicit_owner_evidence": true,
+        "run_can_end": true
+      },
+      "passed": true,
+      "replay_url": "http://127.0.0.1:8000/console?run=21d94ff3-89c8-4762-8aac-f25b4f5963ab&turn=1"
+    }
+  ],
+  "new_local_browser_control": {
+    "run_id": "90d79361-26bf-4e4d-9a42-dda385fcacff",
+    "mode": "supplied_control",
+    "checks": {
+      "run_completed": true,
+      "no_simulator_error": true,
+      "all_owner_tasks_completed": true,
+      "one_order_per_task": true,
+      "all_orders_settled": true,
+      "correct_total": true,
+      "wallets_match_and_conserve_credits": true,
+      "owner_received_each_order_report": true,
+      "reports_follow_accepted_settlement": true,
+      "browser_submitted_each_order": true,
+      "no_active_or_failed_jobs_at_end": true
+    },
+    "passed": true,
+    "elapsed_seconds": 11.278,
+    "runtime_recreations": 4,
+    "committed_checkout_recoveries": 1,
+    "model_usage": {
+      "requests": 0,
+      "completed_requests": 0,
+      "failed_requests": 0,
+      "peak_concurrent_requests": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "reported_cost_usd": 0.0,
+      "cost_reports": 0,
+      "models": [],
+      "request_unit": "logical model invocation; excludes internal HTTP retries"
+    },
+    "buyer_balance": 956,
+    "seller_balance": 144
+  },
+  "existing_model_shopping": {
+    "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+    "run_status": "completed",
+    "window": 12,
+    "checks": {
+      "run_completed": true,
+      "no_simulator_error": true,
+      "all_owner_tasks_completed": true,
+      "one_order_per_task": true,
+      "all_orders_settled": true,
+      "correct_total": true,
+      "wallets_match_and_conserve_credits": true,
+      "owner_received_each_order_report": true,
+      "reports_follow_accepted_settlement": true,
+      "browser_submitted_each_order": true,
+      "no_active_or_failed_jobs_at_end": true
+    },
+    "passed": true,
+    "buyer_balance": 956,
+    "seller_balance": 144,
+    "tasks": [
+      {
+        "id": "6bbaaa5e-847a-5dba-879f-588e306a11a0",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_key": "purchase-2",
+        "description": "购买 1 件桌面阅读灯",
+        "item_ids": [
+          "reading-lamp"
+        ],
+        "quantity": 1,
+        "max_total": 24,
+        "owner_message_id": "4082691a-4b26-571a-9ee7-9a62b1585f52",
+        "status": "completed",
+        "created_at": "2026-11-03 08:52:29.948042+00:00"
+      },
+      {
+        "id": "6279052a-ee6e-59f1-9886-fad78503015d",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_key": "purchase-1",
+        "description": "购买 1 件亚麻封面笔记本",
+        "item_ids": [
+          "linen-notebook"
+        ],
+        "quantity": 1,
+        "max_total": 8,
+        "owner_message_id": "57d38d15-970f-5db3-ab61-59ff09e88cf1",
+        "status": "completed",
+        "created_at": "2026-11-03 08:52:08.756916+00:00"
+      },
+      {
+        "id": "781c16d2-3728-5b82-8074-91ba513347d7",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_key": "purchase-0",
+        "description": "购买 1 件暖白陶瓷杯",
+        "item_ids": [
+          "ceramic-mug"
+        ],
+        "quantity": 1,
+        "max_total": 12,
+        "owner_message_id": "81eaf190-06ca-5c99-8605-8562bc319e25",
+        "status": "completed",
+        "created_at": "2026-11-03 08:51:51.284440+00:00"
+      }
+    ],
+    "orders": [
+      {
+        "id": "6bf513e3-9803-56e8-9157-b7fa8eef2b3d",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_id": "6bbaaa5e-847a-5dba-879f-588e306a11a0",
+        "cart_version": 5,
+        "window_index": 8,
+        "created_at": "2026-11-03 17:17:49.688779+00:00",
+        "task_key": "purchase-2",
+        "lines": [
+          {
+            "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+            "owner_id": "alice",
+            "order_id": "6bf513e3-9803-56e8-9157-b7fa8eef2b3d",
+            "request_id": "df78840b-faff-534d-9964-27ba2a18fec2",
+            "listing_id": "35deabdd-6a3e-5e7e-bea2-7e8752ec6d03",
+            "origin_id": "reading-lamp",
+            "title": "桌面阅读灯",
+            "quantity": 1,
+            "unit_price": 24,
+            "receipt": {
+              "id": "df78840b-faff-534d-9964-27ba2a18fec2",
+              "kind": "buy",
+              "amount": 24,
+              "reason": null,
+              "status": "accepted",
+              "window": 8,
+              "balance": 956,
+              "buyer_id": "alice",
+              "owner_id": "alice",
+              "quantity": 1,
+              "seller_id": "bob",
+              "target_id": "35deabdd-6a3e-5e7e-bea2-7e8752ec6d03",
+              "listing_id": "35deabdd-6a3e-5e7e-bea2-7e8752ec6d03",
+              "resource_id": "7909c446-7f62-522b-93c2-400c2519c33b"
+            }
+          }
+        ],
+        "status": "accepted",
+        "quoted_total": 24,
+        "paid_total": 24
+      },
+      {
+        "id": "c1a1cd3e-7ed3-53da-8f40-74f66bdd847d",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_id": "6279052a-ee6e-59f1-9886-fad78503015d",
+        "cart_version": 3,
+        "window_index": 6,
+        "created_at": "2026-11-03 08:52:19.721458+00:00",
+        "task_key": "purchase-1",
+        "lines": [
+          {
+            "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+            "owner_id": "alice",
+            "order_id": "c1a1cd3e-7ed3-53da-8f40-74f66bdd847d",
+            "request_id": "262831d7-bdb9-5f09-8d8d-662c24ff86dc",
+            "listing_id": "0be63c01-e2bc-540d-907d-05b57c8c6b75",
+            "origin_id": "linen-notebook",
+            "title": "亚麻封面笔记本",
+            "quantity": 1,
+            "unit_price": 8,
+            "receipt": {
+              "id": "262831d7-bdb9-5f09-8d8d-662c24ff86dc",
+              "kind": "buy",
+              "amount": 8,
+              "reason": null,
+              "status": "accepted",
+              "window": 6,
+              "balance": 980,
+              "buyer_id": "alice",
+              "owner_id": "alice",
+              "quantity": 1,
+              "seller_id": "bob",
+              "target_id": "0be63c01-e2bc-540d-907d-05b57c8c6b75",
+              "listing_id": "0be63c01-e2bc-540d-907d-05b57c8c6b75",
+              "resource_id": "6a199858-4777-54a5-84b2-0bcbd1dc8ae0"
+            }
+          }
+        ],
+        "status": "accepted",
+        "quoted_total": 8,
+        "paid_total": 8
+      },
+      {
+        "id": "d0c9ce12-16d7-5382-bbae-fc46e8a33b8a",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_id": "781c16d2-3728-5b82-8074-91ba513347d7",
+        "cart_version": 1,
+        "window_index": 3,
+        "created_at": "2026-11-03 08:52:01.245402+00:00",
+        "task_key": "purchase-0",
+        "lines": [
+          {
+            "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+            "owner_id": "alice",
+            "order_id": "d0c9ce12-16d7-5382-bbae-fc46e8a33b8a",
+            "request_id": "29a53acf-8157-5dbb-b967-ab505be4617d",
+            "listing_id": "0a39c825-5cd3-52f9-8801-a5727f303ac5",
+            "origin_id": "ceramic-mug",
+            "title": "暖白陶瓷杯",
+            "quantity": 1,
+            "unit_price": 12,
+            "receipt": {
+              "id": "29a53acf-8157-5dbb-b967-ab505be4617d",
+              "kind": "buy",
+              "amount": 12,
+              "reason": null,
+              "status": "accepted",
+              "window": 3,
+              "balance": 988,
+              "buyer_id": "alice",
+              "owner_id": "alice",
+              "quantity": 1,
+              "seller_id": "bob",
+              "target_id": "0a39c825-5cd3-52f9-8801-a5727f303ac5",
+              "listing_id": "0a39c825-5cd3-52f9-8801-a5727f303ac5",
+              "resource_id": "b0cca6d9-6315-5c7f-ae81-4f40595acc87"
+            }
+          }
+        ],
+        "status": "accepted",
+        "quoted_total": 12,
+        "paid_total": 12
+      }
+    ]
+  },
+  "campaign_before": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "5",
+    "attempts": 1392,
+    "reported_usd": "4.5054840",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.407975200000",
+    "remaining_usd": "0.086540800000"
+  },
+  "campaign_after": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "5",
+    "attempts": 1392,
+    "reported_usd": "4.5054840",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.407975200000",
+    "remaining_usd": "0.086540800000"
+  },
+  "remaining_work": [
+    "Model conduct quality is not generally calibrated: the retained repayment baseline has a corrected tool error and duplicate recipient notice.",
+    "Long-duration model stability and the latest v12 normal-payment regression remain separate, unverified acceptance items.",
+    "No unrelated next task was started."
+  ],
+  "pre_resume_model_shopping": {
+    "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+    "run_status": "paused",
+    "window": 8,
+    "checks": {
+      "run_completed": false,
+      "no_simulator_error": true,
+      "all_owner_tasks_completed": false,
+      "one_order_per_task": false,
+      "all_orders_settled": false,
+      "correct_total": false,
+      "wallets_match_and_conserve_credits": false,
+      "owner_received_each_order_report": false,
+      "reports_follow_accepted_settlement": false,
+      "browser_submitted_each_order": false,
+      "no_active_or_failed_jobs_at_end": false
+    },
+    "passed": false,
+    "buyer_balance": 980,
+    "seller_balance": 120,
+    "tasks": [
+      {
+        "id": "6bbaaa5e-847a-5dba-879f-588e306a11a0",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_key": "purchase-2",
+        "description": "购买 1 件桌面阅读灯",
+        "item_ids": [
+          "reading-lamp"
+        ],
+        "quantity": 1,
+        "max_total": 24,
+        "owner_message_id": "4082691a-4b26-571a-9ee7-9a62b1585f52",
+        "status": "open",
+        "created_at": "2026-11-03 08:52:29.948042+00:00"
+      },
+      {
+        "id": "6279052a-ee6e-59f1-9886-fad78503015d",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_key": "purchase-1",
+        "description": "购买 1 件亚麻封面笔记本",
+        "item_ids": [
+          "linen-notebook"
+        ],
+        "quantity": 1,
+        "max_total": 8,
+        "owner_message_id": "57d38d15-970f-5db3-ab61-59ff09e88cf1",
+        "status": "completed",
+        "created_at": "2026-11-03 08:52:08.756916+00:00"
+      },
+      {
+        "id": "781c16d2-3728-5b82-8074-91ba513347d7",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_key": "purchase-0",
+        "description": "购买 1 件暖白陶瓷杯",
+        "item_ids": [
+          "ceramic-mug"
+        ],
+        "quantity": 1,
+        "max_total": 12,
+        "owner_message_id": "81eaf190-06ca-5c99-8605-8562bc319e25",
+        "status": "completed",
+        "created_at": "2026-11-03 08:51:51.284440+00:00"
+      }
+    ],
+    "orders": [
+      {
+        "id": "c1a1cd3e-7ed3-53da-8f40-74f66bdd847d",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_id": "6279052a-ee6e-59f1-9886-fad78503015d",
+        "cart_version": 3,
+        "window_index": 6,
+        "created_at": "2026-11-03 08:52:19.721458+00:00",
+        "task_key": "purchase-1",
+        "lines": [
+          {
+            "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+            "owner_id": "alice",
+            "order_id": "c1a1cd3e-7ed3-53da-8f40-74f66bdd847d",
+            "request_id": "262831d7-bdb9-5f09-8d8d-662c24ff86dc",
+            "listing_id": "0be63c01-e2bc-540d-907d-05b57c8c6b75",
+            "origin_id": "linen-notebook",
+            "title": "亚麻封面笔记本",
+            "quantity": 1,
+            "unit_price": 8,
+            "receipt": {
+              "id": "262831d7-bdb9-5f09-8d8d-662c24ff86dc",
+              "kind": "buy",
+              "amount": 8,
+              "reason": null,
+              "status": "accepted",
+              "window": 6,
+              "balance": 980,
+              "buyer_id": "alice",
+              "owner_id": "alice",
+              "quantity": 1,
+              "seller_id": "bob",
+              "target_id": "0be63c01-e2bc-540d-907d-05b57c8c6b75",
+              "listing_id": "0be63c01-e2bc-540d-907d-05b57c8c6b75",
+              "resource_id": "6a199858-4777-54a5-84b2-0bcbd1dc8ae0"
+            }
+          }
+        ],
+        "status": "accepted",
+        "quoted_total": 8,
+        "paid_total": 8
+      },
+      {
+        "id": "d0c9ce12-16d7-5382-bbae-fc46e8a33b8a",
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "task_id": "781c16d2-3728-5b82-8074-91ba513347d7",
+        "cart_version": 1,
+        "window_index": 3,
+        "created_at": "2026-11-03 08:52:01.245402+00:00",
+        "task_key": "purchase-0",
+        "lines": [
+          {
+            "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+            "owner_id": "alice",
+            "order_id": "d0c9ce12-16d7-5382-bbae-fc46e8a33b8a",
+            "request_id": "29a53acf-8157-5dbb-b967-ab505be4617d",
+            "listing_id": "0a39c825-5cd3-52f9-8801-a5727f303ac5",
+            "origin_id": "ceramic-mug",
+            "title": "暖白陶瓷杯",
+            "quantity": 1,
+            "unit_price": 12,
+            "receipt": {
+              "id": "29a53acf-8157-5dbb-b967-ab505be4617d",
+              "kind": "buy",
+              "amount": 12,
+              "reason": null,
+              "status": "accepted",
+              "window": 3,
+              "balance": 988,
+              "buyer_id": "alice",
+              "owner_id": "alice",
+              "quantity": 1,
+              "seller_id": "bob",
+              "target_id": "0a39c825-5cd3-52f9-8801-a5727f303ac5",
+              "listing_id": "0a39c825-5cd3-52f9-8801-a5727f303ac5",
+              "resource_id": "b0cca6d9-6315-5c7f-ae81-4f40595acc87"
+            }
+          }
+        ],
+        "status": "accepted",
+        "quoted_total": 12,
+        "paid_total": 12
+      }
+    ]
+  },
+  "model_shopping_resume": {
+    "invocation_id": "4ff33211-b776-4aa9-a598-32b7ddb58541",
+    "elapsed_seconds": 22.939,
+    "runtime_recreations": 1,
+    "model_usage": {
+      "requests": 19,
+      "completed_requests": 19,
+      "failed_requests": 0,
+      "peak_concurrent_requests": 2,
+      "input_tokens": 331932,
+      "output_tokens": 525,
+      "total_tokens": 332457,
+      "reported_cost_usd": 0.1164656,
+      "cost_reports": 19,
+      "models": [
+        "openai/gpt-4.1",
+        "openai/gpt-4.1-mini"
+      ],
+      "request_unit": "logical model invocation; excludes internal HTTP retries"
+    },
+    "mode": "model_all_roles",
+    "supplied_roles": [],
+    "invocation_completed_windows": 4
+  },
+  "resume_audit": {
+    "same_manifest": true,
+    "previous_two_orders_unchanged": true,
+    "one_new_accepted_order": true,
+    "three_distinct_completed_tasks": true,
+    "third_owner_report_after_settlement": true,
+    "confirmed_cost_delta_matches": true,
+    "prior_uncertain_cost_unchanged": true,
+    "zero_active_console_executions": true
+  },
+  "third_order": {
+    "id": "6bf513e3-9803-56e8-9157-b7fa8eef2b3d",
+    "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+    "owner_id": "alice",
+    "task_id": "6bbaaa5e-847a-5dba-879f-588e306a11a0",
+    "cart_version": 5,
+    "window_index": 8,
+    "created_at": "2026-11-03 17:17:49.688779+00:00",
+    "task_key": "purchase-2",
+    "lines": [
+      {
+        "run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+        "owner_id": "alice",
+        "order_id": "6bf513e3-9803-56e8-9157-b7fa8eef2b3d",
+        "request_id": "df78840b-faff-534d-9964-27ba2a18fec2",
+        "listing_id": "35deabdd-6a3e-5e7e-bea2-7e8752ec6d03",
+        "origin_id": "reading-lamp",
+        "title": "桌面阅读灯",
+        "quantity": 1,
+        "unit_price": 24,
+        "receipt": {
+          "id": "df78840b-faff-534d-9964-27ba2a18fec2",
+          "kind": "buy",
+          "amount": 24,
+          "reason": null,
+          "status": "accepted",
+          "window": 8,
+          "balance": 956,
+          "buyer_id": "alice",
+          "owner_id": "alice",
+          "quantity": 1,
+          "seller_id": "bob",
+          "target_id": "35deabdd-6a3e-5e7e-bea2-7e8752ec6d03",
+          "listing_id": "35deabdd-6a3e-5e7e-bea2-7e8752ec6d03",
+          "resource_id": "7909c446-7f62-522b-93c2-400c2519c33b"
+        }
+      }
+    ],
+    "status": "accepted",
+    "quoted_total": 24,
+    "paid_total": 24
+  },
+  "third_owner_reports": [
+    {
+      "id": "a25467d5-1b97-5571-bd47-a6e8cb1348c8",
+      "source": "agent",
+      "content": "订单已成功结算：订单 ID 为 6bf513e3-9803-56e8-9157-b7fa8eef2b3d，实际支付 24 积分，购买了 1 件桌面阅读灯。",
+      "window": 9,
+      "created_at": "2026-11-03 17:17:54.367718+00:00"
+    }
+  ],
+  "resumed_window_jobs": [
+    {
+      "id": "33cf6662-9a0b-5ecf-9e0f-9c433f52a893",
+      "owner_id": "alice",
+      "kind": "actor",
+      "window": 8,
+      "status": "completed",
+      "attempts": 1
+    },
+    {
+      "id": "e45f4149-c57e-5b38-bd96-dc1deaae1af6",
+      "owner_id": "alice",
+      "kind": "agent",
+      "window": 8,
+      "status": "completed",
+      "attempts": 2
+    },
+    {
+      "id": "8de7ef40-a4b1-5d8f-98bf-070bc7b8b626",
+      "owner_id": "bob",
+      "kind": "actor",
+      "window": 8,
+      "status": "completed",
+      "attempts": 1
+    },
+    {
+      "id": "7df9fe6b-bf59-5b48-8543-8f4a929f539c",
+      "owner_id": "bob",
+      "kind": "agent",
+      "window": 8,
+      "status": "completed",
+      "attempts": 2
+    }
+  ],
+  "campaign_final": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "5.5",
+    "attempts": 1411,
+    "reported_usd": "4.6219496",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.407975200000",
+    "remaining_usd": "0.470075200000"
+  },
+  "budget_authorization": "docs/task-closure-budget-authorization.json",
+  "functional_closure_passed": true,
+  "campaign_unchanged_during_free_checks": true
+}

@@ -3,31 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#151816">
-  <title>Run console · agentRPG</title>
-  <link rel="stylesheet" href="/assets/run-console.css">
-  <script src="/assets/run-console.js" defer></script>
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#ffffff">
+  <title>Trajectory · agentRPG</title>
+  <link rel="stylesheet" href="/assets/run-console.css?v=20261103-navy-v2">
+  <script src="/assets/run-console.js?v=20261103-failure-reason-v1" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#dialogue">Skip to conversation</a>
 
   <div id="workspace" class="workspace">
     <header class="console-topbar">
-      <a class="wordmark" href="/console" aria-label="agentRPG run console"><span class="brand-mark" aria-hidden="true"></span><span>agentRPG</span><span class="wordmark-suffix">RUN CONSOLE</span></a>
+      <a class="wordmark" href="/console" aria-label="agentRPG run console"><span class="brand-mark" aria-hidden="true"></span><span>agentRPG</span><span class="wordmark-suffix">TRAJECTORY</span></a>
       <div class="run-picker">
         <label class="sr-only" for="run-select">Saved run</label>
         <select id="run-select"><option value="">Select a saved run</option></select>
         <button id="refresh-runs" class="icon-button" type="button" title="Refresh saved runs" aria-label="Refresh saved runs"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 7A7 7 0 1 0 17 11M16.5 3v4h-4"/></svg></button>
         <button id="more-runs" class="quiet-button" type="button" hidden>Load more</button>
       </div>
-      <div class="topbar-actions"><span id="connection-status" class="connection-status" role="status" aria-live="polite">Ready</span><a id="open-observer" class="quiet-link" href="/runs">Data observer <span aria-hidden="true">↗</span></a></div>
+      <div class="topbar-actions"><button id="language-toggle" class="quiet-button language-toggle" type="button" aria-label="Toggle English and original text" aria-pressed="false">English</button><span id="connection-status" class="connection-status" role="status" aria-live="polite">Ready</span><a id="open-observer" class="quiet-link" href="/runs">Data observer <span aria-hidden="true">↗</span></a></div>
     </header>
 
     <section class="run-overview" aria-label="Current run">
       <div class="run-heading"><span id="view-mode-label" class="eyebrow">REPLAY</span><h1 id="run-name">Select a run</h1><span id="run-status" class="badge">No run selected</span></div>
       <p id="run-summary">Choose a saved run to inspect its turns.</p>
       <div class="console-mode" role="group" aria-label="Console mode"><button id="mode-replay" type="button" aria-pressed="true" class="is-active">Replay</button><button id="mode-live" type="button" aria-pressed="false">Live controls</button></div>
+      <p id="language-note" class="language-note">Local English translation · Original records available</p>
       <a id="parent-run-link" class="parent-run-link" hidden></a>
     </section>
 
@@ -64,7 +65,7 @@
         <header class="scene-heading"><div><div class="eyebrow">CONVERSATION</div><h2 id="turn-heading">Choose a turn</h2><p id="turn-caption">Saved owner and agent messages appear here.</p></div><span class="scene-key"><span class="owner-symbol" aria-hidden="true"></span> PERSON <span class="agent-symbol" aria-hidden="true"></span> AGENT</span></header>
         <div id="dialogue" class="dialogue" tabindex="-1" aria-label="Owner and agent conversations"></div>
         <section class="log-dock" aria-labelledby="log-heading">
-          <div class="log-toolbar"><h2 id="log-heading">EVENT LOG <span id="log-count" class="count-label">0</span></h2><div class="log-search-wrap"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><label class="sr-only" for="log-search">Search this turn's logs</label><input id="log-search" type="search" placeholder="Search this turn" autocomplete="off"></div></div>
+          <div class="log-toolbar"><button id="toggle-log" class="quiet-button log-toggle" type="button" aria-expanded="true" aria-controls="channel-tabs log-list">Collapse log</button><h2 id="log-heading">EVENT LOG <span id="log-count" class="count-label">0</span></h2><div class="log-search-wrap"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><label class="sr-only" for="log-search">Search this turn's logs</label><input id="log-search" type="search" placeholder="Search this turn" autocomplete="off"></div></div>
           <div id="channel-tabs" class="channel-tabs" role="group" aria-label="Filter log channel"><button type="button" class="is-active" data-channel="all" aria-pressed="true">All</button><button type="button" data-channel="chat" aria-pressed="false">Chat</button><button type="button" data-channel="mail" aria-pressed="false">Mail</button><button type="button" data-channel="board" aria-pressed="false">Board</button><button type="button" data-channel="tools" aria-pressed="false">Tools</button><button type="button" data-channel="director" aria-pressed="false">Director</button><button type="button" data-channel="errors" aria-pressed="false">Errors</button></div>
           <div id="log-list" class="log-list" aria-label="Saved events for this turn"></div>
         </section>
@@ -74,7 +75,7 @@
         <header class="inspector-heading"><div class="eyebrow">INSPECT</div><h2 id="inspector-title">Select a person</h2><p>Private simulation records</p></header>
         <div id="inspector-tabs" class="inspector-tabs" role="group" aria-label="Inspector view"><button type="button" class="is-active" data-inspect="persona" aria-pressed="true">Persona</button><button type="button" data-inspect="agent" aria-pressed="false">Agent</button><button type="button" data-inspect="resources" aria-pressed="false">Resources</button></div>
         <div id="inspector-body" class="inspector-body"><p class="empty-note">Select a person from the cast to inspect their persona and agent.</p></div>
-        <footer class="inspector-footer"><span class="square-indicator" aria-hidden="true"></span> Records are shown as saved.</footer>
+        <footer class="inspector-footer"><span class="square-indicator" aria-hidden="true"></span> Saved records · English reading view</footer>
       </aside>
     </div>
 
@@ -87,7 +88,7 @@
 
   <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title" aria-describedby="detail-meta">
     <header class="detail-heading"><div><div class="eyebrow">SAVED RECORD</div><h2 id="detail-title">Record details</h2></div><button id="close-detail" class="icon-button" type="button" aria-label="Close record details"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
-    <p id="detail-meta" class="detail-meta"></p><div id="detail-content" class="detail-content"></div>
+    <p id="detail-meta" class="detail-meta"></p><div class="detail-reading"><span id="detail-reading-note"></span><button id="detail-language" type="button" aria-pressed="false">Show original</button></div><div id="detail-content" class="detail-content"></div>
   </dialog>
 </body>
 </html>

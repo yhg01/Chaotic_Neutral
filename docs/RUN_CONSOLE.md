@@ -5,6 +5,46 @@ and change a run through a prompt. Open <http://127.0.0.1:8000/console> after th
 local server starts. **Replay** reads saved PostgreSQL evidence. **Live controls**
 can start model work. The bottom **Play** control always replays saved turns.
 
+The console uses a white background, pale blue-gray panel surfaces and navy accents. The base
+font is 16 px; conversation text is 16 px at desktop and narrow widths. Labels and
+record text are also larger. Owner accents use darker colors for the light theme.
+The 2 November 2026 display check covered desktop and narrow layouts, empty log
+filters and an unavailable-run error. No model work was started for these checks.
+
+## English reading view
+
+The interface, saved run titles, historical dialogue, inspector values and record
+previews default to English. **English / Original** in the top bar switches the
+saved prose for the whole view. Every translated message has an **Original**
+button. Its detail dialog can switch between the English reading aid and the
+unchanged saved record, including its ID, amount, window and timestamp. These
+translations are approximate machine translations; inspect the original when
+wording matters. They are never sent back to Actors or Agents.
+
+Install the optional local engine and pinned public model once:
+
+```bash
+uv sync --extra browser --extra translation
+uv run python scripts/setup_console_english.py
+```
+
+The installer downloads the 74.5 MB [Argos Chinese–English package](https://argos-net.com/v1/translate-zh_en-1_9.argosmodel)
+and checks its pinned SHA-256. The package is listed in the [official Argos index](https://github.com/argosopentech/argospm-index/blob/main/index.json).
+Reading uses CPU inference with CTranslate2 and SentencePiece. No saved dialogue
+is uploaded, no provider key is used, and no campaign charge is created. Derived
+translations are cached in ignored `.local/console-english/cache.json` with
+private file permissions; saved PostgreSQL evidence stays unchanged. The first
+uncached page may take longer. A missing engine or model is shown as an
+unavailable translation with access to the original.
+
+Turn navigation keeps the committed turn visible until the new turn is ready.
+A status label distinguishes the shown and requested turns. Stale responses are
+discarded. Slider scrubbing is debounced, numbered turns scroll horizontally,
+and cast selection preserves the conversation scroll position. **Collapse log**
+gives conversation panels more space. Short fade, disclosure and scroll animations
+respect the system reduced-motion preference. The compact overview omits the
+full report; the Data observer continues to provide it.
+
 ## Start and select a run
 
 1. Follow [Local setup](../README.md#local-setup) to start PostgreSQL and the API.
@@ -229,3 +269,60 @@ The [browser runner](../scripts/test_console_ui.mjs) writes
 [local evidence](../.local/console-tests/results.json) and screenshots under
 `.local/console-tests/`. It blocks real console writes unless a test intercepts
 them. These local artifacts are ignored by Git.
+
+## Browser shop profile
+
+See [Browser shop runtime](BROWSER_SHOP_RUNTIME.md) for the optional Chrome tools,
+owner purchase tasks, existing-market settlement, checkpoint recovery, repeat
+purchase evidence and remaining long-duration limits. Its read-only storefront
+is `/shop?run=<id>&observer=1&owner=alice`; the existing console displays its
+trajectory. Use `scripts/try_browser_shop.py --resume <credentials.json>` for
+execution recovery. The general console model worker does not run this profile.
+
+## English-view verification · 3 November 2026
+
+[Safe evidence](trajectory-english-results.json) records 47 passing focused
+PostgreSQL/unit checks in 11.24 seconds. They cover additive English projections,
+unchanged originals, identifiers and amounts in fallback translation, local-cache
+reuse, optional-model failure, compact report loading and retained access rules.
+Ruff, formatting and JavaScript syntax checks passed.
+
+In-app browser inspection covered whole-view English/original switching,
+English comparison from original mode, source records, dialog closing, rapid
+marker changes, keyboard Home then Right, saved-turn playback/pause, disclosure
+animation, empty log search and unavailable-run errors. A pending slider reset
+found during inspection was fixed and the keyboard sequence passed afterward.
+The 93-turn saved control remains reachable through the slider and a horizontally
+scrolling marker strip. The 1280×720 desktop and 390×844 narrow views had no
+horizontal page overflow. The final historical page showed only English, no
+unavailable-translation placeholders and no browser warning/error logs.
+
+The offline cache pass covered 498 unique historical Chinese messages and
+568 total strings including scenario text. No saved record was changed. The
+campaign still has 1392 attempts and 0.0865408 USD available under its 5 USD
+ceiling; the earlier full-model run remains paused at window 8. No new provider
+attempt or simulation execution was started. This verifies display behavior,
+not translation perfection or long-duration Agent reliability.
+
+![English desktop](images/trajectory-english-desktop.png)
+
+![English narrow view](images/trajectory-english-mobile.png)
+
+## Navy theme · 3 November 2026
+
+The user requested dark blue in place of green. Primary controls, cast accents,
+active tabs, turn markers, focus indicators and dialog surfaces use a navy and
+blue-gray palette. White remains the page background. In-app inspection confirmed
+navy `#243f6b` controls, pale blue selection states, and no page-width overflow at
+1280×720 or 390×844. JavaScript syntax and whitespace checks passed. This color
+change required no new model calls or backend tests.
+
+![Navy trajectory](images/trajectory-navy-desktop.png)
+
+## Saved failure categories
+
+Replay job errors include the saved failure classification. Budget stops display
+"Budget limit reached" in the English error list. The original diagnostic remains
+available in record details. Reading the record does not retry or resume the run.
+The [funding pilot](MODEL_COMPARISON.md) records the observed budget pause and
+desktop/narrow inspection.

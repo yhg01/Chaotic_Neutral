@@ -13,6 +13,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=12000)]
+WaitEvent = Literal["owner_message", "inbox_received", "board_posted", "world_change"]
 
 
 class _Record(BaseModel):
@@ -20,7 +21,10 @@ class _Record(BaseModel):
 
 
 class OwnerMessage(_Record):
-    message_id: UUID
+    message_id: UUID = Field(
+        description="Private owner-chat ID, never an Inbox email ID. "
+        "Do not pass this ID to mail tools."
+    )
     content: Text
 
 
@@ -70,7 +74,12 @@ class ActivationResult(_Record):
     Pending IDs are internal receipt references; they do not create owner dialogue.
     """
 
-    status: Literal["responded", "waiting", "finished"]
+    status: Literal["responded", "waiting", "finished"] = Field(
+        description="Use waiting whenever work is blocked on an external event, including "
+        "when text reports that deferral to the owner. A spoken reply about waiting is still "
+        "waiting, not responded. Set wait_for to the expected event. Use responded for an "
+        "ordinary answer with no outstanding external wait. Use finished when no work remains.",
+    )
     text: str = Field(
         default="",
         max_length=50000,
@@ -80,6 +89,16 @@ class ActivationResult(_Record):
         "or receipt data here; pending IDs belong in pending_ids.",
     )
     pending_ids: tuple[UUID, ...] = Field(default=(), max_length=100)
+    wait_for: tuple[WaitEvent, ...] = Field(
+        default=(),
+        max_length=4,
+        description="Expected external events when waiting: owner_message, inbox_received, "
+        "board_posted or world_change. owner_message means a private-chat reply from YOUR "
+        "OWN paired owner. inbox_received means EMAIL from another person or their assistant. "
+        "Waiting for another person's email must use inbox_received, not owner_message. "
+        "An explicit wait is not polled on empty clock ticks. "
+        "New material events can interrupt the wait. Leave empty for other statuses.",
+    )
 
     @model_validator(mode="after")
     def valid_pending(self):
@@ -87,4 +106,18 @@ class ActivationResult(_Record):
             raise ValueError("Only a waiting result can contain pending IDs.")
         if len(set(self.pending_ids)) != len(self.pending_ids):
             raise ValueError("Pending IDs must be unique.")
+        if self.wait_for and self.status != "waiting":
+            raise ValueError("Only a waiting result can declare expected events.")
+        if len(set(self.wait_for)) != len(self.wait_for):
+            raise ValueError("Expected events must be unique.")
         return self
+
+
+class WaitReply(_Record):
+    text: str = Field(
+        default="",
+        max_length=50000,
+        description="Brief reply to your owner explaining a new deferral. Report once; "
+        "leave empty if the owner already knows you are waiting "
+        "or send_owner_message delivered it.",
+    )

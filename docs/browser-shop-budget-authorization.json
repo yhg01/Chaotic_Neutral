@@ -1,0 +1,52 @@
+{
+  "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+  "authorized_at_utc": "2026-11-03T08:24:30.815627+00:00",
+  "source": "Direct human reply in this chat",
+  "user_reply": "同意，提高到 5 美元",
+  "previous_authorized_ceiling_usd": "4",
+  "new_authorized_ceiling_usd": "5",
+  "purpose": "Resume the saved model Actor/Agent browser-shopping loop and run three-purchase validation.",
+  "before": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "name": "Actor–Agent lunch repayment",
+    "limit_usd": "4",
+    "halted": false,
+    "created_at": "2026-11-02 16:51:29.675341+00:00",
+    "attempts": 1216,
+    "reported_usd": "3.7023784",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.215625600000",
+    "committed_usd": "3.918004000000",
+    "remaining_usd": "0.081996000000",
+    "recent_attempts": [],
+    "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+  },
+  "after": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "name": "Actor–Agent lunch repayment",
+    "limit_usd": "5",
+    "halted": false,
+    "created_at": "2026-11-02 16:51:29.675341+00:00",
+    "attempts": 1216,
+    "reported_usd": "3.7023784",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.215625600000",
+    "committed_usd": "3.918004000000",
+    "remaining_usd": "1.081996000000",
+    "recent_attempts": [],
+    "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+  },
+  "accounting": "Same campaign; previous confirmed and uncertain costs remain counted.",
+  "continuation_decision": {
+    "recorded_at_utc": "2026-11-03T09:07:24.553929+00:00",
+    "source": "Direct human reply in this chat",
+    "user_reply": "保持 5 美元，暂不继续付费测试",
+    "authorized_ceiling_usd": "5",
+    "proposed_ceiling_usd": "5.5",
+    "proposed_increase_approved": false,
+    "paid_testing": "stopped",
+    "resume_run_id": "cf53ba50-1506-4b17-8b49-d0a79bdf9af9",
+    "accounting": "Keep all confirmed, uncertain and prior attempts; no campaign reset or ceiling change."
+  },
+  "subsequent_authorization_record": "docs/task-closure-budget-authorization.json"
+}

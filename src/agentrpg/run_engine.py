@@ -21,8 +21,26 @@ from agentrpg.director import Director, DirectorError, emit, fingerprint, row, r
 from agentrpg.inbox import InboxService
 from agentrpg.market import MarketService
 from agentrpg.resources import ResourceService
+from agentrpg.runtime_failures import classify_failure
 from agentrpg.scenario_schema import ScenarioSpec
+from agentrpg.shop import ShopService
+from agentrpg.transfer_tasks import TransferTaskService, effective_transfer_task_states
+from agentrpg.transfers import TransferArguments, TransferService
 from agentrpg.world import WorldError, WorldService
+
+
+async def _latest_agent_states(conn, run_id):
+    states = {
+        j["owner_id"]: j["output"]
+        for j in await rows(
+            conn,
+            "SELECT DISTINCT ON (owner_id) owner_id,output FROM run_jobs "
+            "WHERE run_id=%s AND kind='agent' AND status='completed' "
+            'ORDER BY owner_id,"window" DESC',
+            (run_id,),
+        )
+    }
+    return await effective_transfer_task_states(conn, run_id, states)
 
 
 def _future_clock_beat(spec, states, current_window):
@@ -72,6 +90,7 @@ class RunEngine:
         self.inbox = InboxService(pool)
         self.resources = ResourceService(pool)
         self.market = MarketService(pool)
+        self.transfers = TransferService(pool)
         self.actors = actors
         self.agents = agents
 
@@ -227,6 +246,7 @@ class RunEngine:
         try:
             await self.world.settle(run_id, window, spec.seed)
             await self.market.settle(run_id, window, spec.seed)
+            await ShopService(self.pool).sync(run_id)
         except WorldError:
             current = await self.director.get_run(run_id)
             if current["status"] != "running":
@@ -314,7 +334,41 @@ class RunEngine:
                     and not queued_prompts["n"]
                     and not undelivered["n"]
                     and not _future_clock_beat(spec, beat_states, window)
+                    and not await row(
+                        conn,
+                        "SELECT 1 FROM transfer_tasks WHERE run_id=%s "
+                        "AND status IN ('active','blocked') LIMIT 1",
+                        (run_id,),
+                    )
+                    and not await row(
+                        conn,
+                        "SELECT 1 FROM shop_tasks WHERE run_id=%s "
+                        "AND status IN ('open','submitted') LIMIT 1",
+                        (run_id,),
+                    )
                 )
+                states = await _latest_agent_states(conn, run_id)
+                explicit_wait = any(s.get("wait_for") for s in states.values())
+                quiescent = (
+                    explicit_wait
+                    and len(states) == len(participants)
+                    and all(
+                        s["status"] == "finished"
+                        or (s["status"] == "waiting" and s.get("wait_for"))
+                        for s in states.values()
+                    )
+                    and not any(
+                        (
+                            waiting_owner["n"],
+                            pending["n"],
+                            market_pending["n"],
+                            queued_prompts["n"],
+                            undelivered["n"],
+                            _future_clock_beat(spec, beat_states, window),
+                        )
+                    )
+                )
+                idle_pause = quiescent and next_window < spec.max_windows
                 terminal = settled_exit or (next_window >= spec.max_windows)
                 reason = "window_limit"
                 if settled_exit:
@@ -333,14 +387,36 @@ class RunEngine:
                        result=%s WHERE id=%s""",
                     (
                         next_window,
-                        "completed" if terminal else "running",
-                        Jsonb({"reason": reason}) if terminal else None,
+                        "completed" if terminal else "paused" if idle_pause else "running",
+                        Jsonb({"reason": reason})
+                        if terminal
+                        else Jsonb(
+                            {
+                                "reason": "waiting_for_events",
+                                "wait_for": {
+                                    owner: state.get("wait_for", [])
+                                    for owner, state in states.items()
+                                    if state.get("wait_for")
+                                },
+                            }
+                        )
+                        if idle_pause
+                        else None,
                         run_id,
                     ),
                 )
                 await emit(
                     conn, run_id, "window_completed", window, {}, f"window_completed:{window}"
                 )
+                if idle_pause:
+                    await emit(
+                        conn,
+                        run_id,
+                        "run_waiting",
+                        window,
+                        {"reason": "waiting_for_events"},
+                        f"waiting:{window}",
+                    )
                 if terminal:
                     await emit(
                         conn,
@@ -366,6 +442,7 @@ class RunEngine:
                     from agentrpg.console_execution import apply_interventions
 
                     await apply_interventions(conn, run, window)
+                agent_states = await _latest_agent_states(conn, run_id)
                 for participant in participants:
                     owner = participant["owner_id"]
                     job_id = uuid5(run_id, f"{kind}:{owner}:{window}")
@@ -446,6 +523,19 @@ class RunEngine:
                                 for r in world["reservations"]
                             ],
                         }
+                        market_view = await self.market.view(run_id, owner, connection=conn)
+                        if await ShopService.enabled(conn, run_id):
+                            market_view.update(
+                                browser_shop_enabled=True,
+                                shopping_tasks=json.loads(
+                                    json.dumps(
+                                        await ShopService(self.pool).tasks(
+                                            run_id, owner, connection=conn
+                                        ),
+                                        default=str,
+                                    )
+                                ),
+                            )
                         view = build_actor_view(
                             spec,
                             owner,
@@ -491,7 +581,9 @@ class RunEngine:
                             resources=await self.resources.actor_view(
                                 run_id, owner, connection=conn
                             ),
-                            market=await self.market.view(run_id, owner, connection=conn),
+                            market=market_view,
+                            transfers=await self.transfers.account(run_id, owner, connection=conn),
+                            assistant_wait_for=agent_states.get(owner, {}).get("wait_for", []),
                         )
                         payload = view.model_dump(mode="json")
                     else:
@@ -516,17 +608,30 @@ class RunEngine:
                                 "market_changed",
                             }
                         ]
+                        # A declared wait does not wake on an empty clock tick. Old
+                        # suppressed ticks must not reappear after a material event.
+                        eligible = [
+                            e
+                            for e in eligible
+                            if e["kind"] != "window_reached"
+                            or (
+                                e.get("window") == window
+                                and not agent_states.get(owner, {}).get("wait_for")
+                            )
+                        ]
                         if not eligible:
                             continue
                         original_board = [e for e in eligible if e["kind"] == "board_posted"]
                         bounded = []
                         size, owner_count = 0, 0
+                        # Reserve envelope slots for per-task shop context.
+                        event_limit = 70 if await ShopService.enabled(conn, run_id) else 80
                         for event in eligible:
                             if event["kind"] == "board_posted":
                                 continue
                             cost = len(json.dumps(event["payload"], default=str)) + 250
                             if (
-                                len(bounded) >= 80
+                                len(bounded) >= event_limit
                                 or size + cost > 38000
                                 or (event["kind"] == "owner_message" and owner_count >= 50)
                             ):
@@ -580,6 +685,62 @@ class RunEngine:
                             for e in eligible
                             if e["kind"] != "owner_message"
                         ]
+                        if await TransferTaskService.enabled(conn, run_id):
+                            tasks = await TransferTaskService(self.pool).list(
+                                run_id, owner, connection=conn
+                            )
+                            tasks = json.loads(json.dumps(tasks, default=str))
+                            context_id = await emit(
+                                conn,
+                                run_id,
+                                "transfer_task_context",
+                                window,
+                                {"tasks": tasks},
+                                f"transfer-task-context:{owner}:{window}",
+                                owner,
+                            )
+                            eligible.append({"id": context_id})
+                            observations.append(
+                                {
+                                    "event_id": str(context_id),
+                                    "kind": "transfer_task_context",
+                                    "content": json.dumps({"tasks": tasks}, default=str),
+                                }
+                            )
+                        if await ShopService.enabled(conn, run_id):
+                            shopping = json.loads(
+                                json.dumps(
+                                    await ShopService(self.pool).tasks(
+                                        run_id, owner, connection=conn
+                                    ),
+                                    default=str,
+                                )
+                            )
+                            # Keep every unresolved task, plus recent closures.
+                            # Each record has its own bounded observation. A growing
+                            # order history must not overflow one 12k input field.
+                            active = [t for t in shopping if t["status"] in {"open", "submitted"}]
+                            closed = [
+                                t for t in shopping if t["status"] not in {"open", "submitted"}
+                            ]
+                            for task in active + closed[:5]:
+                                context_id = await emit(
+                                    conn,
+                                    run_id,
+                                    "shopping_task_context",
+                                    window,
+                                    {"tasks": [task]},
+                                    f"shopping-task-context:{owner}:{window}:{task['id']}",
+                                    owner,
+                                )
+                                eligible.append({"id": context_id})
+                                observations.append(
+                                    {
+                                        "event_id": str(context_id),
+                                        "kind": "shopping_task_context",
+                                        "content": json.dumps({"tasks": [task]}),
+                                    }
+                                )
                         payload = ActivationEnvelope(
                             run_id=run_id,
                             participant_id=participant["agent_id"],
@@ -684,7 +845,8 @@ class RunEngine:
                     )
                     await conn.execute(
                         "UPDATE run_jobs SET status='failed',lease_until=NULL,"
-                        "error='Actor contract violation.' WHERE id=%s",
+                        "error='Actor contract violation.',failure_kind='contract',"
+                        "failure_retryable=false WHERE id=%s",
                         (job["id"],),
                     )
                     await conn.execute(
@@ -693,14 +855,38 @@ class RunEngine:
                     )
             return False
         except Exception as error:
-            async with self.pool.connection() as conn:
-                await conn.execute(
+            failure = classify_failure(error)
+            async with self.pool.connection() as conn, conn.transaction():
+                failed = await row(
+                    conn,
                     """UPDATE run_jobs SET status=
                        CASE WHEN output IS NULL THEN 'failed' ELSE 'saved' END,
-                       lease_until=NULL,error=%s
-                       WHERE id=%s AND lease_token=%s AND status<>'completed'""",
-                    (f"{type(error).__name__}: saved inputs retained.", job["id"], token),
+                       lease_until=NULL,error=%s,failure_kind=%s,failure_retryable=%s
+                       WHERE id=%s AND lease_token=%s AND status<>'completed' RETURNING id""",
+                    (
+                        f"{type(error).__name__}: saved inputs retained.",
+                        failure.kind,
+                        failure.retryable,
+                        job["id"],
+                        token,
+                    ),
                 )
+                if failed:
+                    await emit(
+                        conn,
+                        job["run_id"],
+                        "job_failure",
+                        job["window"],
+                        {
+                            "component": job["kind"],
+                            "job_id": str(job["id"]),
+                            "attempt": job["attempts"],
+                            "failure_kind": failure.kind,
+                            "retryable": failure.retryable,
+                        },
+                        f"job_failure:{job['id']}:{job['attempts']}",
+                        job["owner_id"],
+                    )
             return False
 
     async def _apply(self, job, output, spec, token):
@@ -741,6 +927,50 @@ class RunEngine:
                     )
                 if job["kind"] == "actor":
                     result = ActorOutput.model_validate(output)
+                    if (
+                        result.transfer_consent is not None
+                        or result.transfer_task_requests
+                        or result.shopping_task_requests
+                    ):
+                        message = await save_message(
+                            conn,
+                            job["run_id"],
+                            job["owner_id"],
+                            "owner",
+                            result.text,
+                            job["id"],
+                            job["window"],
+                        )
+                        for index, request in enumerate(result.transfer_task_requests):
+                            await TransferTaskService(self.pool).owner_request(
+                                job["run_id"],
+                                job["owner_id"],
+                                message["id"],
+                                uuid5(job["id"], f"transfer-task:{index}"),
+                                request,
+                                connection=conn,
+                            )
+                        for index, request in enumerate(result.shopping_task_requests):
+                            await ShopService(self.pool).owner_request(
+                                job["run_id"],
+                                job["owner_id"],
+                                message["id"],
+                                uuid5(job["id"], f"shopping-task:{index}"),
+                                request,
+                                connection=conn,
+                            )
+                    if result.transfer_consent is not None:
+                        await self.transfers.authorize(
+                            job["run_id"],
+                            job["owner_id"],
+                            message["id"],
+                            TransferArguments(
+                                authorization_id=uuid5(job["id"], "transfer-consent"),
+                                **result.transfer_consent.model_dump(exclude={"task_key"}),
+                            ),
+                            connection=conn,
+                            task_key=result.transfer_consent.task_key,
+                        )
                     if result.commerce_consent is not None:
                         consent = result.commerce_consent.model_dump(mode="json")
                         await self.market.set_consent(
@@ -924,7 +1154,8 @@ class RunEngine:
                         job["owner_id"],
                     )
                 await conn.execute(
-                    "UPDATE run_jobs SET status='completed',lease_until=NULL,error=NULL "
+                    "UPDATE run_jobs SET status='completed',lease_until=NULL,error=NULL,"
+                    "failure_kind=NULL,failure_retryable=false "
                     "WHERE id=%s",
                     (job["id"],),
                 )

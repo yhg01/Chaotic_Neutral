@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from agentrpg.budget import SUPPORTED_MODELS
 from agentrpg.director import emit, fingerprint, row, rows, save_message
 from agentrpg.main import OPERATOR_AUTH, require_admin
+from agentrpg.model_assignments import validate_owner_models
 
 ROOT = Path(__file__).resolve().parents[2]
 router = APIRouter(prefix="/api/v1/console", tags=["console controls"])
@@ -130,6 +131,9 @@ def load_manifest(root: Path, run_id) -> dict:
         if len(owners) != len(participants) or len(agents) != len(participants):
             raise ValueError
         config = value["configuration"]
+        assigned = validate_owner_models(config.get("owner_models", {}), owners)
+        if not set(assigned.values()) <= SUPPORTED_MODELS:
+            raise ValueError
         if config["actors"] not in {"scripted", "model"}:
             raise ValueError
         if any(config[key] not in SUPPORTED_MODELS for key in ("model", "actor_model")):

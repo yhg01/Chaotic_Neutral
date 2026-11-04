@@ -22,6 +22,10 @@ from agentrpg.budget import BudgetBinding, BudgetError, BudgetTransport, NoSyncB
 class ProviderCallError(RuntimeError):
     """A provider failure with no response body or credential in its message."""
 
+    def __init__(self, message: str, *, retryable: bool = False):
+        super().__init__(message)
+        self.retryable = retryable
+
 
 @contextmanager
 def local_model_calls() -> Iterator[None]:
@@ -50,10 +54,14 @@ class LocalChatOpenRouter(ChatOpenRouter):
                 status = error.status_code
                 retryable = status in {408, 429, 500, 502, 503, 504, 529}
                 if not retryable or attempt == self.max_retries:
-                    raise ProviderCallError(f"Model provider returned HTTP {status}.") from None
+                    raise ProviderCallError(
+                        f"Model provider returned HTTP {status}.", retryable=retryable
+                    ) from None
             except httpx.TransportError:
                 if attempt == self.max_retries:
-                    raise ProviderCallError("Model provider connection failed.") from None
+                    raise ProviderCallError(
+                        "Model provider connection failed.", retryable=True
+                    ) from None
             except Exception:
                 raise ProviderCallError("Model provider returned an invalid response.") from None
             await asyncio.sleep(0.5 * 2**attempt)

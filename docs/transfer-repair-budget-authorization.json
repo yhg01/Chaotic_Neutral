@@ -1,0 +1,11 @@
+{
+  "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+  "authorized_at": "2026-11-02T21:05:44.059416+00:00",
+  "authorization": "User approved the same campaign total ceiling of USD 2 for six real-Actor comparison runs.",
+  "previous_limit_usd": "1",
+  "limit_usd": "2",
+  "reported_before_usd": "0.8463964",
+  "attempts_before": 302,
+  "reserved_usd": "0",
+  "uncertain_usd": "0"
+}

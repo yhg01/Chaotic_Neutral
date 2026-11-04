@@ -358,8 +358,24 @@ ceiling, because a single route returned HTTP 429 in the probe. DeepSeek's ceili
 listed price, because the listed price is the cheapest route. So one run can reach different
 providers and quantizations of the same model.
 
+## What the week runs changed
+
+Real runs on 4 November 2026 found faults that scripted models did not. See
+[BILL_WEEK_RESULTS.md](BILL_WEEK_RESULTS.md). Clocked owners now use `CLOCK_ACTOR_PROMPT` and a small
+candidate schema. Their clock view holds `money_in_account`, `done_recently` and `assistant_gone`. A
+stated balance that differs from the account is asked again once. A person pays their own bill through
+`try_to_make_happen`, and the Director answers with `pay_bills`. Code checks that the bill is theirs,
+open and covered. Clocked summaries keep no history file, because the library wrote it during the model
+step and a failed summary then ended the task with no answer. A cut-off summary stands. Summaries start
+at 60,000 tokens and keep 20,000. Assistant replies may use 4,000 tokens, and a task may use 40 model calls.
+
 ## Limits stated plainly
 
 Determinism holds given the same saved model outputs and seed; fresh paid runs differ because
 models differ. Tool calls of one run execute one at a time. Actual overlap of model calls
 is unmeasured until the runs. Branching from clocked runs is not implemented.
+
+Replies that reach the output limit still abandon tasks after three tries, and the cause is not
+established. Quillmere reminders are timeline items, so they go out after the bill is paid. Some owner
+spending stays in prose, so balances are upper limits. A failed job saves a class and a place, or a
+fixed sentence, and no model text, so a cut-off reply cannot be read afterwards.

@@ -11,6 +11,9 @@ import pytest
 from agentrpg.agent_model import UsageTracker, create_model
 from agentrpg.budget import (
     CONTEXT_BOUND_MODELS,
+    NO_REASONING_MODELS,
+    NO_TEMPERATURE_MODELS,
+    ROUTED_MODELS,
     BudgetBinding,
     BudgetError,
     BudgetExceeded,
@@ -128,6 +131,95 @@ async def test_comparison_metadata_requires_exact_tokenizer_and_tool_contract(mo
         fetched = await fetch_model_prices([model], client=client)
         assert fetched[model].context_length == 163840
         entry["architecture"]["tokenizer"] = "unknown"
+        with pytest.raises(BudgetError):
+            await fetch_model_prices([model], client=client)
+        entry["architecture"]["tokenizer"] = tokenizer
+        entry["supported_parameters"].remove("tools")
+        with pytest.raises(BudgetError):
+            await fetch_model_prices([model], client=client)
+
+
+def _routed_price(model):
+    return price(model=model, context_length=1_000_000)
+
+
+@pytest.mark.parametrize("model", sorted(ROUTED_MODELS))
+def test_routed_models_use_the_byte_bound_and_may_fall_back(model):
+    prepared = body(model=model, temperature=0)
+    _, bound, output = prepare_request(prepared, {model: _routed_price(model)})
+    assert bound < 20_000
+    assert output == 100
+    assert prepared["provider"]["allow_fallbacks"] is True
+    assert prepared["provider"]["require_parameters"] is True
+    assert prepared["provider"]["max_price"]["prompt"] == pytest.approx(2.0)
+
+
+def test_only_the_listed_models_lose_reasoning_or_temperature():
+    assert NO_REASONING_MODELS == {"deepseek/deepseek-v4.1-flash", "qwen/qwen3.8-flash"}
+    for model in sorted(ROUTED_MODELS):
+        prepared = body(model=model, temperature=0.8)
+        prepare_request(prepared, {model: _routed_price(model)})
+        assert ("reasoning" in prepared) == (model in NO_REASONING_MODELS)
+        if model in NO_REASONING_MODELS:
+            assert prepared["reasoning"] == {"enabled": False}
+        assert ("temperature" in prepared) == (model not in NO_TEMPERATURE_MODELS)
+    fixed = body()
+    prepare_request(fixed, {"openai/gpt-4.1": price()})
+    assert "reasoning" not in fixed
+    assert fixed["provider"]["allow_fallbacks"] is False
+
+
+@pytest.mark.parametrize("value", [{"enabled": True}, {"effort": "high"}, {}])
+def test_other_reasoning_options_still_fail_closed(value):
+    model = "deepseek/deepseek-v4.1-flash"
+    with pytest.raises(BudgetError):
+        prepare_request(body(model=model, reasoning=value), {model: _routed_price(model)})
+    with pytest.raises(BudgetError):
+        prepare_request(body(reasoning=value), {"openai/gpt-4.1": price()})
+
+
+def test_earlier_thinking_is_not_sent_back_and_other_extras_still_fail():
+    model = "anthropic/claude-opus-5.5"
+    messages = [
+        {"role": "user", "content": "Hello"},
+        {
+            "role": "assistant",
+            "content": "Hi",
+            "reasoning": "private",
+            "reasoning_details": [{"type": "reasoning.text", "text": "private"}],
+        },
+        {"role": "user", "content": "Again"},
+    ]
+    prepared = body(model=model, messages=messages)
+    prepare_request(prepared, {model: _routed_price(model)})
+    assert set(prepared["messages"][1]) == {"role", "content"}
+    extra = [{"role": "user", "content": "Hello", "cache_control": {"type": "ephemeral"}}]
+    with pytest.raises(BudgetError):
+        prepare_request(body(model=model, messages=extra), {model: _routed_price(model)})
+
+
+@pytest.mark.parametrize("model", sorted(ROUTED_MODELS))
+async def test_routed_price_needs_the_exact_tokenizer_and_applies_its_factor(model):
+    tokenizer, factor = ROUTED_MODELS[model]
+    entry = {
+        "id": model,
+        "context_length": 1_000_000,
+        "architecture": {
+            "tokenizer": tokenizer,
+            "input_modalities": ["text", "image"],
+            "output_modalities": ["text"],
+        },
+        "supported_parameters": ["max_tokens", "tools", "tool_choice", "response_format"],
+        "pricing": {"prompt": "0.0000001", "completion": "0.000001"},
+    }
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={"data": [entry]}))
+    ) as client:
+        fetched = await fetch_model_prices([model], client=client)
+        assert fetched[model].prompt == Decimal("0.0000001") * factor
+        assert fetched[model].completion == Decimal("0.000001") * factor
+        assert fetched[model].snapshot()["route_price_factor"] == str(factor)
+        entry["architecture"]["tokenizer"] = "GPT"
         with pytest.raises(BudgetError):
             await fetch_model_prices([model], client=client)
         entry["architecture"]["tokenizer"] = tokenizer

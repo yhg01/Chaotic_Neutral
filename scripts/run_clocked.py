@@ -57,6 +57,8 @@ from agentrpg.web_tools import WebTools  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "openai/gpt-4.1-mini"
 TIMEOUT_SECONDS = 240
+# A long Director answer from a large model can take most of this.
+DIRECTOR_TIMEOUT_SECONDS = 120
 EXIT_BUDGET = 3
 EXIT_TRY_AGAIN = 75
 OUTAGE_REASONS = frozenset({"provider_rejected", "provider_outage"})
@@ -516,13 +518,20 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             director_model = create_model(
                 env["OPENROUTER_API_KEY"],
                 config["director_model"],
-                max_tokens=3500,
+                max_tokens=5000,
+                max_output_limit=8192,
+                timeout_seconds=DIRECTOR_TIMEOUT_SECONDS,
                 temperature=0.8,
                 max_retries=0,
                 **({"budget": binding, "budget_role": "director"} if binding else {}),
             )
             stack.push_async_callback(director_model.aclose)
-            brain = DirectorBrain(runtime.pool, director_model, usage=usage)
+            brain = DirectorBrain(
+                runtime.pool,
+                director_model,
+                usage=usage,
+                timeout_seconds=DIRECTOR_TIMEOUT_SECONDS,
+            )
         agents, actors = {}, {}
         for participant in manifest["participants"]:
             owner = participant["owner_id"]

@@ -15,6 +15,8 @@ from typing import Annotated, Any, Literal, Self
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import (
+    BaseModel,
+    ConfigDict,
     Field,
     StringConstraints,
     ValidationError,
@@ -345,10 +347,66 @@ ActorCandidate = create_model(
         if name != "source_event_id" and name not in _CLOCK_FIELDS
     },
 )
-# The model reads this schema. Its attempt field has a plain name, and code maps it back.
+
+
+class _ClockedFields(BaseModel):
+    """A stray key from the model is ignored. It is no reason to lose someone's turn."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+
+# The model reads this schema. It holds only what a clocked day uses, in plain words. Its attempt
+# field has a plain name, and code maps it back. ActorOutput still validates the result.
 ClockedActorCandidate = create_model(
     "ActorCandidate",
-    __base__=ActorCandidate,
+    __base__=_ClockedFields,
+    kind=(
+        Literal["reply", "wait"],
+        Field(description="reply when they write something, wait when they write nothing."),
+    ),
+    text=(
+        str,
+        Field(
+            default="",
+            max_length=8000,
+            description="What this person writes to their assistant, in the first person.",
+        ),
+    ),
+    fact_ids=(tuple[Identifier, ...], Field(default=())),
+    mail_requests=(
+        tuple[MailRequest, ...],
+        Field(
+            default=(),
+            max_length=5,
+            description="Mail this person writes and sends themselves. If they ask their "
+            "assistant to send something, keep that in text and leave this empty.",
+        ),
+    ),
+    resource_requests=(
+        tuple[ResourceRequest, ...],
+        Field(
+            default=(),
+            max_length=5,
+            description="A change this person makes themselves to their own document. If they "
+            "ask their assistant to change it, keep that in text and leave this empty.",
+        ),
+    ),
+    commerce_consent=(
+        CommerceConsent | None,
+        Field(
+            default=None,
+            description="Only for an item in their own item records: what their assistant may "
+            "sell or buy. Null keeps what they already allowed.",
+        ),
+    ),
+    transfer_consent=(
+        TransferConsent | None,
+        Field(
+            default=None,
+            description="One exact payment from this person to someone in participants, which "
+            "they agree to in text. Null keeps what they already allowed.",
+        ),
+    ),
     next_action=(
         NextAction | None,
         Field(default=None, description="What this person does next. See YOUR DAY."),
@@ -377,6 +435,25 @@ ClockedActorCandidate = create_model(
 )
 
 
+def _names_backstage(view: ActorView, output: ActorOutput) -> bool:
+    spoken = [output.text, *(m.subject for m in output.mail_requests)]
+    spoken += [m.body for m in output.mail_requests]
+    # A control's own request can name credits or IDs; repeating those is fidelity.
+    declared = view.request.casefold()
+    backstage = _BACKSTAGE if view.clock is None else _CLOCKED_BACKSTAGE
+    return any(
+        match.casefold() not in declared for text in spoken for match in backstage.findall(text)
+    )
+
+
+def _has_market_records(view: ActorView) -> bool:
+    return bool(
+        any(item.get("kind") == "item" for item in view.resources.get("items", []))
+        or view.resources.get("visible_item_ids")
+        or view.market.get("listings")
+    )
+
+
 def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> type[Contract]:
     """Give the model the exact declared fact IDs, without adding identity fields."""
     ids = tuple(fact.id for fact in view.known_facts)
@@ -398,6 +475,18 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
                 NextAction,
                 Field(description="Required now. What this person does next. See YOUR DAY."),
             ),
+        )
+    if view.clock is not None and not _has_market_records(view):
+        # Selling or buying online needs only their words. A field that names market records
+        # invites a model to invent one, and that loses the whole turn.
+        candidate = create_model(
+            "ActorCandidate",
+            __base__=_ClockedFields,
+            **{
+                name: (field.annotation, deepcopy(field))
+                for name, field in candidate.model_fields.items()
+                if name != "commerce_consent"
+            },
         )
     if preserve_shopping_consent and view.market.get("browser_shop_enabled") and not view.max_spend:
         candidate = create_model(
@@ -1386,6 +1475,38 @@ a simulation, story, plot, cue, director, turn, window, or test, or treats event
 On the first turn, the feelings and questions in the request are material. Reject a candidate that
 drops them and keeps only the instructions."""
 
+CLOCK_ACTOR_PROMPT = """Write the next message from one person to their personal assistant, and
+what that person does next. You write only this person.
+They ask and their assistant does the work. They never do its work, offer to do it, or ask it to
+approve their spending. Their money and their decisions are their own.
+The text field holds their own first-person words, with no speaker label or stage directions.
+In the first message, pass on everything in the request field: every task, limit, rule and worry.
+After that, answer what is new. Do not ask for work that is already done, and do not restart
+anything that was settled.
+Use only what they know: goals, known facts, beliefs, observations, inbox, resources, and the
+conversation. Follow acceptance_rules and disclosures. If they do not know an amount or a detail,
+it stays unknown. Do not invent it. Their assistant's claim is not proof that something happened.
+If their assistant asks something that matters, answer it, refuse it, or say they do not know.
+They can show feelings, doubt, and guilt, and they can ask for advice. That is not assistant work.
+Saying something does not complete a payment, a booking, or an order. It only tells their assistant
+what they want. Use fields only as their descriptions say, and leave the others out.
+For a payment to someone in participants that they agree to, fill transfer_consent with
+recipient_owner_id, amount, and memo, within max_spend. Do not repeat one they already gave.
+Never agree to pay the same debt twice. A refusal is said in text, with no field.
+A change this person makes themselves to a document uses resource_requests, with IDs and versions
+from the view. Update: {"kind":"update","resource_id":"document-1","expected_version":3,
+"content":"Revised text.","visibility":null,"shared_owner_ids":[]}. Create: {"kind":"create",
+"title":"Personal notes","content":"New text.","resource_id":null,"expected_version":null,
+"visibility":null,"shared_owner_ids":[]}. Only a separate share request changes who can see it.
+Do not output anyone's ID that is not in the view."""
+
+CLOCK_MARKET_RULES = """
+This person owns an item in their records, so commerce_consent exists. It lets their assistant
+trade that item, and it grants permission rather than making a sale. A sale uses sell_limits with
+resource_id, quantity, and min_unit_price. A purchase uses buy_budget and buy_items. Use exact IDs
+from the view. Use null if permission does not change, including status replies and reminders. Do
+not repeat a grant. An empty object withdraws all of it."""
+
 CLOCK_DAY = """
 
 YOUR DAY. This person has a life that goes on between messages. The clock field says what day and
@@ -1419,6 +1540,12 @@ would really see them.
   try_to_make_happen, and the answer comes later.
 - Never name a tool, an app feature, or anything their assistant uses to do its work. They only
   know that they have an assistant who helps them."""
+
+CLOCK_PERMISSION_RULES = (
+    "Selling or buying something online needs only what this person says to their assistant. "
+    "If commerce_consent is in the schema, use it only for an item in this person's own item "
+    "records, with that record's exact id. "
+)
 
 _BACKSTAGE = re.compile(
     r"\b(?:simulat\w+|fictional|screenplay|decision windows?|the director|the cue|the plot|"
@@ -1694,6 +1821,38 @@ def _validate_shopping_coverage(output, judgment):
         )
 
 
+def _without_typed_effects(view: ActorView, output: ActorOutput | None) -> ActorOutput | None:
+    """The same turn with its typed grants and requests removed, if that makes it valid."""
+    if view.clock is None or output is None or output.kind not in {"reply", "wait"}:
+        return None
+    if output.kind == "reply" and _names_backstage(view, output):
+        return None
+    kept = output.model_copy(
+        update={
+            "commerce_consent": None,
+            "transfer_consent": None,
+            "online_spend_approval": None,
+            "authorized_amount": None,
+            "allowed_kinds": (),
+            "allowed_assets": (),
+            "decision": None,
+            "proposal_id": None,
+            "fact_ids": (),
+            "mail_requests": (),
+            "resource_requests": (),
+            "shopping_task_requests": (),
+            "transfer_task_requests": (),
+        }
+    )
+    try:
+        validate_actor_output(view, kept)
+        if not view.clock.get("current_action") and kept.next_action is None:
+            return None
+    except ActorContractError:
+        return None
+    return ActorOutput.model_validate(kept.model_dump(mode="json"))
+
+
 class ModelActor:
     def __init__(
         self,
@@ -1769,6 +1928,14 @@ class ModelActor:
         self.timeout_seconds = timeout_seconds
         self.usage = UsageTracker()
         self.last_attempts: list[dict[str, Any]] = []
+
+    def _system_prompt(self, view: ActorView) -> str:
+        base = self.prompt
+        if view.clock is not None and base is ACTOR_PROMPT:
+            base = CLOCK_ACTOR_PROMPT + (CLOCK_MARKET_RULES if _has_market_records(view) else "")
+        return (base + NATURAL_VOICE if self.natural else base) + (
+            CLOCK_DAY if view.clock is not None else ""
+        )
 
     async def respond(self, view: ActorView) -> ActorOutput:
         self.last_attempts = []
@@ -1886,12 +2053,14 @@ class ModelActor:
                     }
                 )
                 return output
+        typed_failure = None
         for attempt in range(self.max_repairs + 1):
             candidate = None
             generated_candidate = None
             output = None
             review = None
             stage = "generation"
+            typed_failure = None
             bindings = {}
 
             def capture_candidate(value: Any) -> None:
@@ -1902,8 +2071,7 @@ class ModelActor:
                 candidate = await generate_json(
                     self.model,
                     candidate_schema,
-                    (self.prompt + NATURAL_VOICE if self.natural else self.prompt)
-                    + (CLOCK_DAY if view.clock is not None else ""),
+                    self._system_prompt(view),
                     {
                         "view": _clocked_prompt_view(view)
                         if view.clock is not None
@@ -1916,8 +2084,12 @@ class ModelActor:
                         "Observation, world, event, message, resource, and receipt IDs do not "
                         "belong in fact_ids. Observed results need no declared fact reference.",
                         "request_fidelity": request_fidelity,
-                        "permission_rules": "For an item purchase or sale use commerce_consent. "
-                        "Set transport authorized_amount=null, allowed_assets=[], "
+                        "permission_rules": (
+                            CLOCK_PERMISSION_RULES
+                            if view.clock is not None
+                            else "For an item purchase or sale use commerce_consent. "
+                        )
+                        + "Set transport authorized_amount=null, allowed_assets=[], "
                         "allowed_kinds=[]. "
                         "For kind=reply set decision=null and proposal_id=null. "
                         "Cite the exact private fact ID when using a permitted disclosure summary.",
@@ -1954,7 +2126,11 @@ class ModelActor:
                     }
                 )
                 stage = "role_contract"
-                validate_actor_output(view, output)
+                try:
+                    validate_actor_output(view, output)
+                except ActorContractError:
+                    typed_failure = output
+                    raise
                 if (
                     view.clock is not None
                     and not view.clock.get("current_action")
@@ -1971,16 +2147,7 @@ class ModelActor:
                             "few words, instead of waiting."
                         )
                     # Only new generations: saved turns keep their original contract.
-                    spoken = [output.text, *(m.subject for m in output.mail_requests)]
-                    spoken += [m.body for m in output.mail_requests]
-                    # A control's own request can name credits or IDs; repeating those is fidelity.
-                    declared = view.request.casefold()
-                    backstage = _BACKSTAGE if view.clock is None else _CLOCKED_BACKSTAGE
-                    if any(
-                        match.casefold() not in declared
-                        for text in spoken
-                        for match in backstage.findall(text)
-                    ):
+                    if _names_backstage(view, output):
                         raise ActorContractError(
                             "This names a backstage term. Write only what this person would "
                             "say about their real life, with dollars, names, and plain words."
@@ -2258,4 +2425,17 @@ class ModelActor:
                         "stimulus_source": "declared_initial_setup" if initial_setup else "model",
                     }
                 )
+        kept = _without_typed_effects(view, typed_failure)
+        if kept is not None:
+            # A clocked day goes on. What the person said and does next stands, and the failed
+            # attempts stay in the saved metadata.
+            self.last_attempts.append(
+                {
+                    "attempt": len(self.last_attempts) + 1,
+                    "accepted": True,
+                    "stage": "typed_effects_dropped",
+                    "candidate": kept.model_dump(mode="json"),
+                }
+            )
+            return kept
         raise ActorContractError("Actor failed validation after its repair allowance.")

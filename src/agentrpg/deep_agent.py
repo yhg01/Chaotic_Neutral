@@ -11,7 +11,11 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
+import traceback
+import warnings
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Annotated
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -93,6 +97,30 @@ CLOCKED_SUMMARY_TOKENS = 20_000
 CLOCKED_SUMMARY_KEEP_TOKENS = 6_000
 
 
+class _ClockedSummarization(SummarizationMiddleware):
+    """Summarizes with no history file.
+
+    The library writes that file during the model step, while the summary is still being made.
+    If the summary then fails, LangGraph keeps the write and treats the step as done. The retry
+    then ends the task with no answer. The summary and the owner's records carry the past.
+    """
+
+    def _offload_to_backend(self, backend, messages, session_id):
+        return None
+
+    async def _aoffload_to_backend(self, backend, messages, session_id):
+        return None
+
+
+class _NoOffloadNotice(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "Offloading conversation history" not in record.getMessage()
+
+
+logging.getLogger("deepagents.middleware.summarization").addFilter(_NoOffloadNotice())
+warnings.filterwarnings("ignore", message="Offloading conversation history")
+
+
 def _tool_name(tool):
     if isinstance(tool, dict):
         return tool.get("name") or tool.get("function", {}).get("name")
@@ -101,6 +129,13 @@ def _tool_name(tool):
 
 class AgentRuntimeError(RuntimeError):
     """A public runtime error containing no provider or board credentials."""
+
+
+def failure_place(error: BaseException) -> str:
+    """The error's class and where it was raised. Never its message, which can hold model text."""
+    frames = traceback.extract_tb(error.__traceback__)[-2:]
+    places = ", ".join(f"{Path(frame.filename).name}:{frame.lineno}" for frame in frames)
+    return f"{type(error).__name__} at {places}"[:300]
 
 
 class AgentBudgetError(AgentRuntimeError):
@@ -869,7 +904,7 @@ class PersonalAgent:
         self.summarization = (
             create_summarization_middleware(model, backend, summarizer=self._summarize)
             if gate is None
-            else SummarizationMiddleware(
+            else _ClockedSummarization(
                 model=model,
                 backend=backend,
                 trigger=("tokens", CLOCKED_SUMMARY_TOKENS),
@@ -979,12 +1014,18 @@ class PersonalAgent:
         prompt = DEEPAGENTS_DEFAULT_SUMMARY_PROMPT.format(
             messages=get_buffer_string(messages, format="xml")
         )
+        if self.gate is not None:
+            prompt += "\n\nKeep the whole summary under 500 words."
         try:
             if self.gate is None:
                 response = await self.model.ainvoke([HumanMessage(content=prompt)])
             else:
                 async with self.gate.think_slot(), asyncio.timeout(self.timeout_seconds):
                     response = await self.model.ainvoke([HumanMessage(content=prompt)])
+                # A summary cut off at its limit still holds most of what happened. The task
+                # would otherwise fail the same way on every retry, and on every later task.
+                if response.text.strip():
+                    return response.text.strip()
             _validate_model_message(response)
             return response.text.strip()
         except AgentRuntimeError:
@@ -1401,8 +1442,10 @@ class PersonalAgent:
             if self.gate is not None:
                 raise AgentTransientError(tool=True) from None
             raise AgentRuntimeError("The Agent run failed. Retry with the same task ID.") from None
-        except Exception:
-            raise AgentRuntimeError("The Agent run failed. Retry with the same task ID.") from None
+        except Exception as error:
+            failed = AgentRuntimeError("The Agent run failed. Retry with the same task ID.")
+            failed.detail = failure_place(error)
+            raise failed from None
         finally:
             self._active_task_id = None
             self._activation_mode = False

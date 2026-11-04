@@ -67,7 +67,7 @@ from agentrpg.director import Director, DirectorError, emit, fingerprint, row, r
 from agentrpg.inbox import InboxService
 from agentrpg.market import MarketService
 from agentrpg.resources import ResourceService
-from agentrpg.runtime_failures import classify_failure
+from agentrpg.runtime_failures import classify_failure, failure_detail
 from agentrpg.scenario_schema import ScenarioSpec
 from agentrpg.transfers import TransferArguments, TransferService
 from agentrpg.world import WorldError, WorldService
@@ -1184,7 +1184,7 @@ class ClockEngine:
                         self._request_budget_pause(owner, "assistant")
                         return
                     failure = classify_failure(error)
-                    await self._record_failure(ctx, job, attempts, failure)
+                    await self._record_failure(ctx, job, attempts, failure, error)
                     if self._outage_pause(failure, owner, "assistant"):
                         return
                     if not failure.holds:
@@ -1292,7 +1292,9 @@ class ClockEngine:
     def _request_budget_pause(self, owner: str, component: str) -> None:
         self._request_pause("budget", owner, component)
 
-    async def _record_failure(self, ctx: _Run, job: dict, attempts: int, failure) -> None:
+    async def _record_failure(
+        self, ctx: _Run, job: dict, attempts: int, failure, error: Exception | None = None
+    ) -> None:
         async with self.pool.connection() as conn, conn.transaction():
             await conn.execute(
                 "UPDATE run_jobs SET attempts=%s,error=%s,failure_kind=%s,failure_retryable=%s "
@@ -1317,6 +1319,7 @@ class ClockEngine:
                     "failure_kind": failure.kind,
                     "retryable": failure.retryable,
                     "holding": failure.holds or failure.pauses,
+                    **({"detail": failure_detail(error)} if error is not None else {}),
                 },
                 f"job_failure:{job['id']}:{attempts}",
                 job["owner_id"],
@@ -1802,7 +1805,7 @@ class ClockEngine:
                         self._request_budget_pause(owner, "actor")
                         return
                     failure = classify_failure(error)
-                    await self._record_failure(ctx, job, attempts, failure)
+                    await self._record_failure(ctx, job, attempts, failure, error)
                     if self._outage_pause(failure, owner, "actor"):
                         return
                     if not failure.holds:

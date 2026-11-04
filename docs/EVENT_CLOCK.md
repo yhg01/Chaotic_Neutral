@@ -338,6 +338,26 @@ before the refusal stands. The run script sets `max_retries=0` so that only the 
 So a sustained 5xx outage holds one reservation per attempt, and each resume during it holds one more
 for each open job. Leave headroom in each ceiling.
 
+## Models for the week runs
+
+By the user's instruction of 4 November 2026, assistants and owners use cheap open-weight models and
+the Director uses Opus 5.5. OpenRouter lists a Hugging Face ID for both open models.
+
+| Role | Model | Why this role |
+| --- | --- | --- |
+| Assistant | `deepseek/deepseek-v4.1-flash` | Accepts `tool_choice: required`, which an activation can need |
+| Owner | `qwen/qwen3.8-flash` | JSON only. It refused `tool_choice: required` in a probe, so it cannot be an assistant yet |
+| Director | `anthropic/claude-opus-5.5` | JSON only. It takes no `temperature`, so the client omits it |
+
+The flash models think by default, and that counts toward `max_tokens`. A measured 800-token call
+returned no content, so `prepare_request` sends `reasoning: {enabled: false}` for them. Other
+reasoning options still fail closed. These three use the byte bound, not a full-context reservation.
+Their contexts are about 1,000,000 tokens, which would reserve up to $5 for each Opus call. A cost
+above a reservation still halts the campaign. They may fall back between providers under a price
+ceiling, because a single route returned HTTP 429 in the probe. DeepSeek's ceiling is 3 times the
+listed price, because the listed price is the cheapest route. So one run can reach different
+providers and quantizations of the same model.
+
 ## Limits stated plainly
 
 Determinism holds given the same saved model outputs and seed; fresh paid runs differ because

@@ -2,8 +2,10 @@
 
 GPT-4.1 uses a byte-tokenizer content bound with explicit wrapper allowances.
 Two pinned DeepSeek/Qwen text models reserve their full declared input context
-instead of assuming that their tokenizers behave like GPT. Unknown models,
-paid plugins, reasoning options and media fail closed.
+instead of assuming that their tokenizers behave like GPT. The routed models use
+the byte bound too: their contexts are so large that a full-context reservation
+would refuse real work, and a cost above any reservation halts the campaign.
+Unknown models, paid plugins, other reasoning options and media fail closed.
 OpenRouter enforces the stored provider price ceilings on each request.
 """
 
@@ -25,8 +27,27 @@ CONTEXT_BOUND_MODELS = {
     "deepseek/deepseek-chat-v3-0324": "DeepSeek",
     "qwen/qwen3-30b-a3b-instruct-2507": "Qwen3",
 }
+# Model name, then its tokenizer and the multiple of the listed price that a provider may charge.
+# The listed price is the cheapest route. Above it, another provider can answer when one is rate
+# limited. Reservations use the same multiple, so a reported cost stays inside its reservation.
+ROUTED_MODELS = {
+    "deepseek/deepseek-v4.1-flash": ("DeepSeek", Decimal(3)),
+    "qwen/qwen3.8-flash": ("Qwen", Decimal(1)),
+    "anthropic/claude-opus-5.5": ("Claude", Decimal(1)),
+}
+# These think by default, and thinking counts toward max_tokens. A measured 800-token JSON call
+# on a flash model returned no content at all, so campaign requests turn it off.
+NO_REASONING_MODELS = frozenset({"deepseek/deepseek-v4.1-flash", "qwen/qwen3.8-flash"})
+# No provider of this model accepts temperature, and require_parameters then refuses the call.
+NO_TEMPERATURE_MODELS = frozenset({"anthropic/claude-opus-5.5"})
 SUPPORTED_MODELS = frozenset(
-    {"openai/gpt-4.1", "openai/gpt-4.1-mini", "openai/gpt-4.1-nano", *CONTEXT_BOUND_MODELS}
+    {
+        "openai/gpt-4.1",
+        "openai/gpt-4.1-mini",
+        "openai/gpt-4.1-nano",
+        *CONTEXT_BOUND_MODELS,
+        *ROUTED_MODELS,
+    }
 )
 _context: ContextVar[dict | None] = ContextVar("model_budget_context", default=None)
 _QUANTUM = Decimal("0.000000000001")
@@ -106,6 +127,8 @@ class ModelPrice:
         }
         if self.model in CONTEXT_BOUND_MODELS:
             result["input_bound_strategy"] = "full_declared_context"
+        if self.model in ROUTED_MODELS:
+            result["route_price_factor"] = str(ROUTED_MODELS[self.model][1])
         return result
 
     def maximum(self, prompt_tokens, output_tokens):
@@ -138,7 +161,10 @@ async def fetch_model_prices(models, *, client: httpx.AsyncClient | None = None)
             if model.get("id") not in wanted:
                 continue
             architecture = model.get("architecture", {})
-            expected_tokenizer = CONTEXT_BOUND_MODELS.get(model["id"], "GPT")
+            routed = ROUTED_MODELS.get(model["id"])
+            expected_tokenizer = (
+                routed[0] if routed else CONTEXT_BOUND_MODELS.get(model["id"], "GPT")
+            )
             if architecture.get("tokenizer") != expected_tokenizer or architecture.get(
                 "output_modalities"
             ) != ["text"]:
@@ -151,6 +177,10 @@ async def fetch_model_prices(models, *, client: httpx.AsyncClient | None = None)
                 <= set(model.get("supported_parameters", []))
             ):
                 raise BudgetError("The comparison model lacks the required text/tool contract.")
+            if routed and not {"tools", "tool_choice", "response_format"} <= set(
+                model.get("supported_parameters", [])
+            ):
+                raise BudgetError("The routed model lacks the required tool contract.")
             pricing = model["pricing"]
             levels = [pricing, *pricing.get("overrides", [])]
             prompt = max(amount(level.get("prompt", pricing["prompt"])) for level in levels)
@@ -166,10 +196,11 @@ async def fetch_model_prices(models, *, client: httpx.AsyncClient | None = None)
                     for key in ("input_cache_write", "input_cache_read")
                 ),
             )
+            factor = routed[1] if routed else Decimal(1)
             result[model["id"]] = ModelPrice(
                 model["id"],
-                prompt,
-                completion,
+                prompt * factor,
+                completion * factor,
                 max(amount(level.get("request", pricing.get("request", 0))) for level in levels),
                 model["context_length"],
                 datetime.now(UTC).isoformat(),
@@ -385,6 +416,7 @@ def prepare_request(body: dict, prices):
         "stop",
         "seed",
         "response_format",
+        "reasoning",
         "stream",
         "provider",
         "usage",
@@ -394,6 +426,13 @@ def prepare_request(body: dict, prices):
     }
     if set(body) - allowed or body.get("stream") is True:
         raise BudgetError("The request contains an unsupported billing option.")
+    if body.get("reasoning") not in (None, {"enabled": False}):
+        raise BudgetError("The request contains an unsupported billing option.")
+    body.pop("reasoning", None)
+    if model in NO_REASONING_MODELS:
+        body["reasoning"] = {"enabled": False}
+    if model in NO_TEMPERATURE_MODELS:
+        body.pop("temperature", None)
     output = body.get("max_tokens")
     if type(output) is not int or not 1 <= output <= 16384:
         raise BudgetError("The request has no supported output token limit.")
@@ -401,6 +440,10 @@ def prepare_request(body: dict, prices):
     if not isinstance(messages, list) or not messages:
         raise BudgetError("The request has no text messages.")
     for message in messages:
+        # Thinking from an earlier reply is not needed again. It would only add input cost.
+        if model in ROUTED_MODELS:
+            message.pop("reasoning", None)
+            message.pop("reasoning_details", None)
         content = message.get("content")
         if content is not None and not isinstance(content, str):
             if not isinstance(content, list) or any(
@@ -431,7 +474,7 @@ def prepare_request(body: dict, prices):
         raise BudgetError("The conservative request token bound exceeds the model context limit.")
     body["provider"] = {
         "require_parameters": True,
-        "allow_fallbacks": False,
+        "allow_fallbacks": model in ROUTED_MODELS,
         "max_price": price.provider_limit(),
     }
     body["usage"] = {"include": True}

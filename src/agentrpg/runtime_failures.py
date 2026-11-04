@@ -44,6 +44,17 @@ class Failure:
         return self.kind in OUTAGE_KINDS
 
 
+def failure_detail(error: Exception) -> str:
+    """For the saved event: a class and a place, or a runtime error's fixed sentence."""
+    from agentrpg.deep_agent import AgentRuntimeError
+
+    if detail := getattr(error, "detail", None):
+        return str(detail)[:300]
+    if isinstance(error, AgentRuntimeError):
+        return str(error)[:300]
+    return type(error).__name__
+
+
 def classify_failure(error: Exception) -> Failure:
     # Import at use time: Actor and Agent adapters do not depend on the conductor.
     from agentrpg.actor import ActorContractError, ModelGenerationError

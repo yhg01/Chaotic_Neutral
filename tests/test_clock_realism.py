@@ -12,6 +12,7 @@ import httpx
 import pytest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import Field
 
@@ -23,6 +24,7 @@ from agentrpg.actor import (
     ActorOutput,
     ClockedActorCandidate,
     ModelActor,
+    _candidate_schema,
     _clocked_prompt_view,
     _has_assistant_role_reversal,
     _repeats_owner,
@@ -231,6 +233,80 @@ async def test_a_dropped_message_keeps_the_plan_and_leaves_a_marker():
     assert actor.last_attempts[-1]["owner_message_dropped"] == {"text": text, "repeats": text}
     # A saved turn must load again.
     assert ActorOutput.model_validate(output.model_dump(mode="json")).kind == "wait"
+
+
+def _clocked_owner_view(resources=None, *, current=None):
+    view = build_actor_view(
+        scenario(("dan",), duration_minutes=100),
+        "dan",
+        "Your assistant wrote to you.",
+        source_event_id="e1",
+        window=0,
+        clock={"now": "Monday 09:00", "today": "Monday 9 November", "current_action": current},
+    )
+    if resources is None:
+        return view
+    return view.model_copy(update={"resources": resources})
+
+
+_NEXT = {"description": "Shift", "minutes": 60, "reachable": False, "category": "work"}
+_BAD_SALE = {
+    "buy_items": [],
+    "buy_budget": 0,
+    "sell_limits": [{"resource_id": "made-up", "quantity": 1, "min_unit_price": 40}],
+    "expires_window": None,
+}
+
+
+def test_only_someone_with_market_records_sees_the_market_field():
+    assert "commerce_consent" not in _candidate_schema(_clocked_owner_view()).model_fields
+    item = {"items": [{"id": "bike", "kind": "item", "quantity": 1}]}
+    assert "commerce_consent" in _candidate_schema(_clocked_owner_view(item)).model_fields
+    plain = _clocked_owner_view().model_copy(update={"clock": None})
+    assert "commerce_consent" in _candidate_schema(plain).model_fields
+
+
+async def test_the_prompt_stops_sending_a_sale_to_the_market_field():
+    action = {"kind": "wait", "next_action": _NEXT}
+    model = ScriptModel(script=[AIMessage(content=json.dumps(action))])
+    await ModelActor(model, natural=True, max_repairs=0).respond(_clocked_owner_view())
+    system, data = model.seen[0].content, json.loads(model.seen[1].content)
+    assert "commerce_consent" not in system
+    assert "needs only what this person says" in data["permission_rules"]
+
+
+async def test_a_bad_grant_keeps_the_words_and_the_plan_and_leaves_a_record():
+    item = {"items": [{"id": "bike", "kind": "item", "quantity": 1}]}
+    text = "Console and air fryer, go ahead and put those up."
+    answer = {"kind": "reply", "text": text, "next_action": _NEXT, "commerce_consent": _BAD_SALE}
+    actor = ModelActor(actor_model(answer, answer), max_repairs=1, natural=True)
+    output = await actor.respond(_clocked_owner_view(item))
+    assert output.text == text and output.next_action.description == "Shift"
+    assert output.commerce_consent is None
+    assert [a["accepted"] for a in actor.last_attempts] == [False, False, True]
+    assert actor.last_attempts[-1]["stage"] == "typed_effects_dropped"
+    assert ActorOutput.model_validate(output.model_dump(mode="json")).text == text
+
+
+async def test_a_bad_grant_with_backstage_words_or_no_plan_is_still_refused():
+    item = {"items": [{"id": "bike", "kind": "item", "quantity": 1}]}
+    words = {
+        "kind": "reply",
+        "text": "Spend the simulated credits.",
+        "next_action": _NEXT,
+        "commerce_consent": _BAD_SALE,
+    }
+    with pytest.raises(ActorContractError):
+        await ModelActor(actor_model(words), max_repairs=0, natural=True).respond(
+            _clocked_owner_view(item)
+        )
+    plain = _clocked_owner_view(item).model_copy(update={"clock": None})
+    with pytest.raises(ActorContractError):
+        await ModelActor(
+            actor_model({"kind": "reply", "text": "Fine.", "commerce_consent": _BAD_SALE}),
+            max_repairs=0,
+            natural=True,
+        ).respond(plain)
 
 
 async def test_mei_second_no_is_saved_and_a_chatty_repeat_is_marked(app, pool, test_database_url):
@@ -1540,3 +1616,124 @@ def test_mei_still_says_no():
         ("assistant", "He says it's only 20 and he'll pay it back on Friday."),
     )
     assert not _repeats_owner(view, said("No. Same no, I don't lend money. Tell him I'm sorry."))
+
+
+class _CutOffOnce(ScriptModel):
+    """The first model call stops at its output limit, and the same call then succeeds."""
+
+    cut: bool = False
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        if not self.cut:
+            self.cut = True
+            message = AIMessage(
+                content="I was writing", response_metadata={"finish_reason": "length"}
+            )
+            return ChatResult(generations=[ChatGeneration(message=message)])
+        return await super()._agenerate(messages, stop, run_manager, **kwargs)
+
+
+async def test_a_reply_cut_off_at_its_limit_is_retried_and_the_task_finishes(
+    app, pool, test_database_url
+):
+    spec = scenario(("dan",), duration_minutes=180)
+    models = {
+        "dan": _CutOffOnce(
+            script=[calls(("send_owner_message", {"content": "On it."})), end_turn()]
+        )
+    }
+    async with clocked_run(
+        app,
+        test_database_url,
+        spec,
+        models,
+        {"dan": ScriptedOwner([{"kind": "reply", "text": "Morning."}])},
+    ) as (engine, created, _runtime, _agents):
+        await engine.run(created["run_id"])
+    async with pool.connection() as conn:
+        rows = await (
+            await conn.execute(
+                "SELECT kind,payload FROM run_events WHERE run_id=%s AND kind IN "
+                "('job_failure','activation_abandoned')",
+                (UUID(created["run_id"]),),
+            )
+        ).fetchall()
+        said = await (
+            await conn.execute(
+                "SELECT content FROM owner_messages WHERE run_id=%s AND source<>'owner'",
+                (UUID(created["run_id"]),),
+            )
+        ).fetchall()
+    assert [row["kind"] for row in rows] == ["job_failure"], rows
+    assert "incomplete" in rows[0]["payload"]["detail"]
+    assert "On it." in [row["content"] for row in said]
+
+
+class _LongSummaries(ScriptModel):
+    """Summaries stop at the output limit. The first empty_summaries of them hold no text."""
+
+    summary_calls: int = 0
+    empty_summaries: int = 0
+    step: int = 0
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        if len(messages) == 1 and "under 500 words" in str(messages[0].content):
+            self.summary_calls += 1
+            empty = self.summary_calls <= self.empty_summaries
+            message = AIMessage(
+                content="" if empty else "Dan needs $39 more by Saturday.",
+                response_metadata={"finish_reason": "length"},
+            )
+            return ChatResult(generations=[ChatGeneration(message=message)])
+        # A summary shortens the history, so the position in the script is counted here.
+        reply = self.script[self.step] if self.step < len(self.script) else end_turn()
+        self.step += 1
+        return ChatResult(generations=[ChatGeneration(message=reply)])
+
+
+@pytest.mark.parametrize("empty,failures", [(0, 0), (1, 1)])
+async def test_a_summary_cut_off_at_its_limit_does_not_lose_the_task(
+    app, pool, test_database_url, monkeypatch, empty, failures
+):
+    import agentrpg.deep_agent as deep_agent
+
+    monkeypatch.setattr(deep_agent, "CLOCKED_SUMMARY_TOKENS", 400)
+    monkeypatch.setattr(deep_agent, "CLOCKED_SUMMARY_KEEP_TOKENS", 100)
+    spec = scenario(("dan",), duration_minutes=180)
+    words = "A long message that fills the context of this assistant. " * 30
+    models = {
+        "dan": _LongSummaries(
+            empty_summaries=empty,
+            script=[
+                calls(("send_owner_message", {"content": words})),
+                calls(("send_owner_message", {"content": words + "two"})),
+                calls(("send_owner_message", {"content": "All done here."})),
+                end_turn(),
+            ],
+        )
+    }
+    async with clocked_run(
+        app,
+        test_database_url,
+        spec,
+        models,
+        {"dan": ScriptedOwner([{"kind": "reply", "text": "Morning."}])},
+    ) as (engine, created, _runtime, _agents):
+        await engine.run(created["run_id"])
+    async with pool.connection() as conn:
+        rows = await (
+            await conn.execute(
+                "SELECT kind,payload FROM run_events WHERE run_id=%s AND kind IN "
+                "('job_failure','activation_abandoned')",
+                (UUID(created["run_id"]),),
+            )
+        ).fetchall()
+        said = await (
+            await conn.execute(
+                "SELECT content FROM owner_messages WHERE run_id=%s AND source<>'owner'",
+                (UUID(created["run_id"]),),
+            )
+        ).fetchall()
+    assert models["dan"].summary_calls >= 1
+    assert [row["kind"] for row in rows] == ["job_failure"] * failures, rows
+    assert "All done here." in [row["content"] for row in said]

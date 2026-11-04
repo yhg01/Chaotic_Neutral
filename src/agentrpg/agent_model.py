@@ -16,7 +16,13 @@ from openrouter.errors.openroutererror import OpenRouterError
 from openrouter.utils.logger import NoOpLogger
 from pydantic import PrivateAttr
 
-from agentrpg.budget import BudgetBinding, BudgetError, BudgetTransport, NoSyncBudgetTransport
+from agentrpg.budget import (
+    NO_TEMPERATURE_MODELS,
+    BudgetBinding,
+    BudgetError,
+    BudgetTransport,
+    NoSyncBudgetTransport,
+)
 
 # The provider refused this one request, or returned nothing usable (status 0). Any other
 # status that cannot be retried is about the key or the account.
@@ -152,7 +158,7 @@ def create_model(
         max_tokens=max_tokens,
         timeout=timeout_seconds * 1000,
         max_retries=max_retries,
-        temperature=temperature,
+        temperature=None if model.strip() in NO_TEMPERATURE_MODELS else temperature,
         streaming=False,
         disable_streaming=True,
         verbose=False,

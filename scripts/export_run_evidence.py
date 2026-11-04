@@ -48,7 +48,6 @@ async def fetch(conn, query, args=()):
 
 
 async def export(run_id: UUID, out: Path) -> dict:
-    out.mkdir(parents=True, exist_ok=True)
     url = Settings().database_url.get_secret_value()
     async with await AsyncConnection.connect(url, row_factory=dict_row) as conn:
         run = (await fetch(conn, "SELECT * FROM environment_runs WHERE id=%s", (run_id,)))[0]
@@ -263,6 +262,7 @@ def main() -> None:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     out = args.out or ROOT / ".local/run-evidence" / str(args.run_id)
+    out.mkdir(parents=True, exist_ok=True)
     print(json.dumps(asyncio.run(export(args.run_id, out)), indent=1, ensure_ascii=False))
     print(out)
 

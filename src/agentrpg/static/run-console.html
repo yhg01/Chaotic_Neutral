@@ -6,8 +6,8 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#ffffff">
   <title>Trajectory · agentRPG</title>
-  <link rel="stylesheet" href="/assets/run-console.css?v=20261103-navy-v2">
-  <script src="/assets/run-console.js?v=20261103-failure-reason-v1" defer></script>
+  <link rel="stylesheet" href="/assets/run-console.css?v=20261104-clock-v1">
+  <script src="/assets/run-console.js?v=20261104-clock-v1" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#dialogue">Skip to conversation</a>
@@ -53,6 +53,18 @@
     <div id="error-banner" class="error-banner" role="alert" hidden><span class="error-symbol" aria-hidden="true">!</span><p id="error-message"></p><button id="retry-button" type="button">Retry</button></div>
     <section id="empty-runs" class="empty-runs empty-state" hidden><span class="empty-symbol" aria-hidden="true">◇</span><h2>No saved runs</h2><p>Run a scenario, then refresh this list.</p></section>
 
+    <section id="clock-panel" class="clock-panel" aria-labelledby="clock-heading" hidden>
+      <header class="clock-head"><div class="clock-title"><h2 id="clock-heading">CLOCK</h2><strong id="clock-now"></strong><span id="clock-range" class="count-label"></span></div><dl id="clock-stats" class="clock-stats"></dl><div class="clock-actions"><button id="clock-refresh" class="quiet-button" type="button">Refresh</button><button id="clock-collapse" class="quiet-button" type="button" aria-expanded="true" aria-controls="clock-body">Hide clock</button></div></header>
+      <div id="clock-body" class="clock-body">
+        <div id="clock-sites" class="clock-sites"></div>
+        <div id="clock-tabs" class="channel-tabs clock-tabs" role="group" aria-label="Clock view"><button type="button" class="is-active" data-clock-tab="week" aria-pressed="true">Week</button><button type="button" data-clock-tab="board" aria-pressed="false">Board</button><button type="button" data-clock-tab="queue" aria-pressed="false">Upcoming</button><button type="button" data-clock-tab="perturbations" aria-pressed="false">Perturbations</button></div>
+        <div id="clock-week" class="clock-view"></div>
+        <div id="clock-board" class="clock-view" hidden></div>
+        <div id="clock-queue" class="clock-view" hidden></div>
+        <div id="clock-perturbations" class="clock-view" hidden></div>
+      </div>
+    </section>
+
     <div id="run-content" class="console-grid">
       <aside class="cast-rail" aria-labelledby="cast-heading">
         <div class="panel-heading"><h2 id="cast-heading">CAST</h2><span id="cast-count" class="count-label">0</span></div>
@@ -66,7 +78,7 @@
         <div id="dialogue" class="dialogue" tabindex="-1" aria-label="Owner and agent conversations"></div>
         <section class="log-dock" aria-labelledby="log-heading">
           <div class="log-toolbar"><button id="toggle-log" class="quiet-button log-toggle" type="button" aria-expanded="true" aria-controls="channel-tabs log-list">Collapse log</button><h2 id="log-heading">EVENT LOG <span id="log-count" class="count-label">0</span></h2><div class="log-search-wrap"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg><label class="sr-only" for="log-search">Search this turn's logs</label><input id="log-search" type="search" placeholder="Search this turn" autocomplete="off"></div></div>
-          <div id="channel-tabs" class="channel-tabs" role="group" aria-label="Filter log channel"><button type="button" class="is-active" data-channel="all" aria-pressed="true">All</button><button type="button" data-channel="chat" aria-pressed="false">Chat</button><button type="button" data-channel="mail" aria-pressed="false">Mail</button><button type="button" data-channel="board" aria-pressed="false">Board</button><button type="button" data-channel="tools" aria-pressed="false">Tools</button><button type="button" data-channel="director" aria-pressed="false">Director</button><button type="button" data-channel="errors" aria-pressed="false">Errors</button></div>
+          <div id="channel-tabs" class="channel-tabs" role="group" aria-label="Filter log channel"><button type="button" class="is-active" data-channel="all" aria-pressed="true">All</button><button type="button" data-channel="chat" aria-pressed="false">Chat</button><button type="button" data-channel="mail" aria-pressed="false">Mail</button><button type="button" data-channel="board" aria-pressed="false">Board</button><button type="button" data-channel="tools" aria-pressed="false">Tools</button><button type="button" data-channel="director" aria-pressed="false">Director</button><button type="button" data-channel="jobs" aria-pressed="false" hidden>Jobs</button><button type="button" data-channel="actions" aria-pressed="false" hidden>Actions</button><button type="button" data-channel="records" aria-pressed="false" hidden>Records</button><button type="button" data-channel="errors" aria-pressed="false">Errors</button></div>
           <div id="log-list" class="log-list" aria-label="Saved events for this turn"></div>
         </section>
       </main>
@@ -81,7 +93,7 @@
 
     <footer class="transport" aria-label="Saved turn replay controls">
       <div class="playback-controls"><button id="previous-turn" class="icon-button" type="button" title="Previous turn" aria-label="Previous turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4v12M15 5l-7 5 7 5z"/></svg></button><button id="play" class="play-button" type="button" disabled><svg class="play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 9 6-9 6z"/></svg><span id="play-label">Play</span></button><button id="next-turn" class="icon-button" type="button" title="Next turn" aria-label="Next turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M15 4v12M5 5l7 5-7 5z"/></svg></button><label class="sr-only" for="speed">Replay speed</label><select id="speed" class="speed-select"><option value="1000">Fast</option><option value="2500" selected>Normal</option><option value="5000">Slow</option></select></div>
-      <div class="timeline"><div class="timeline-label"><label for="turn-slider">TURN <strong id="turn-now">—</strong><span class="timeline-divider">/</span><span id="turn-total">—</span></label><span>Replay · saved turns</span></div><input id="turn-slider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Select turn"><div id="turn-markers" class="turn-markers" aria-label="Turn markers"></div></div>
+      <div class="timeline"><div class="timeline-label"><label for="turn-slider"><span id="turn-word">TURN</span> <strong id="turn-now">—</strong><span class="timeline-divider">/</span><span id="turn-total">—</span></label><span id="turn-note">Replay · saved turns</span></div><input id="turn-slider" type="range" min="0" max="0" value="0" step="1" disabled aria-label="Select turn"><div id="turn-markers" class="turn-markers" aria-label="Turn markers"></div></div>
       <div class="transport-actions"><label class="check-label" for="live-follow"><input id="live-follow" type="checkbox"><span>Follow latest</span></label><button id="refresh-turn" class="icon-button" type="button" title="Refresh current turn" aria-label="Refresh current turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16.5 7A7 7 0 1 0 17 11M16.5 3v4h-4"/></svg></button><button id="copy-link" class="icon-button" type="button" title="Copy link to this turn" aria-label="Copy link to this turn" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 7 2-2a3.5 3.5 0 0 1 5 5l-2 2M12 13l-2 2a3.5 3.5 0 0 1-5-5l2-2M7.5 12.5l5-5"/></svg></button></div>
     </footer>
   </div>

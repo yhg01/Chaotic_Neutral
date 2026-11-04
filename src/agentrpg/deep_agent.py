@@ -26,6 +26,8 @@ from deepagents.backends import StateBackend
 from deepagents.graph import DeepAgentState
 from deepagents.middleware.summarization import (
     DEEPAGENTS_DEFAULT_SUMMARY_PROMPT,
+    SummarizationMiddleware,
+    compute_summarization_defaults,
     create_summarization_middleware,
 )
 from langchain.agents.middleware import AgentMiddleware, hook_config
@@ -40,13 +42,21 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from pydantic import ValidationError, create_model
 
-from agentrpg.activation import ActivationEnvelope, ActivationResult, WaitReply
+from agentrpg.activation import (
+    ActivationEnvelope,
+    ActivationResult,
+    ClockedActivationResult,
+    WaitReply,
+)
+from agentrpg.actor import ModelGenerationError
 from agentrpg.agent_model import ProviderCallError
 from agentrpg.agent_surface import (
+    CLOCKED_END_TURN_DESCRIPTION,
     END_TURN_DESCRIPTION,
     LEGACY,
     NATURAL,
     SURFACES,
+    ClockedEndTurn,
     EndTurn,
     internal_tool_name,
     present_result,
@@ -54,8 +64,9 @@ from agentrpg.agent_surface import (
     tool_description,
     tool_name,
 )
-from agentrpg.agent_tools import _TOOLS, BoardTools
+from agentrpg.agent_tools import BoardTools
 from agentrpg.budget import BudgetError
+from agentrpg.clock import format_time
 from agentrpg.environment_tools import EnvironmentTools
 from agentrpg.migrate import migrate
 from agentrpg.shop_browser import SHOP_BROWSER_TOOLS
@@ -72,6 +83,9 @@ _EMPTY_SCRATCH_DETAIL = (
     "If required facts are unavailable, report what is missing and ask the appropriate "
     "person once, then declare the expected wait event. Do not repeat empty searches."
 )
+# Clocked sessions summarize early: model input stays near this size, and cost depends on it.
+CLOCKED_SUMMARY_TOKENS = 20_000
+CLOCKED_SUMMARY_KEEP_TOKENS = 6_000
 
 
 def _tool_name(tool):
@@ -94,6 +108,13 @@ class AgentTransientError(AgentRuntimeError):
     def __init__(self, *, tool: bool = False):
         self.failure_kind = "tool_transient" if tool else "provider_transient"
         super().__init__("Temporary request failure; the saved task and call IDs are retained.")
+
+
+class AgentRunStopped(AgentTransientError):
+    """A tool found the run stopped. It runs again after a resume and enters no history."""
+
+    def __init__(self) -> None:
+        super().__init__(tool=True)
 
 
 class AgentProviderError(AgentRuntimeError):
@@ -131,7 +152,7 @@ def _previous_activation(state):
         return None
     try:
         activation_id = str(UUID(state["active_task_id"]))
-        result = ActivationResult.model_validate(state["activation_result"])
+        result = ClockedActivationResult.model_validate(state["activation_result"])
     except (KeyError, ValueError, TypeError):
         raise AgentRuntimeError("The saved previous activation is invalid.") from None
     return {
@@ -187,8 +208,29 @@ class _ActivationYield(AgentMiddleware):
 
     @hook_config(can_jump_to=["end"])
     async def abefore_model(self, state, runtime):
+        decision = await self._decide(state)
+        gate = self.agent.gate
+        if gate is not None and not (decision or {}).get("jump_to"):
+            # A model call follows, so nothing this process owes can land before its floor.
+            gate.before_model(self.agent.clock_process, state.get("messages", []))
+        return decision
+
+    async def _decide(self, state):
         if not state.get("activation_mode"):
             return None
+        result_model = self.agent._result_model
+        # On a clocked session a status read returns normally. Only a submission in this
+        # batch ends the activation, because the clearing comes at a later boundary.
+        pending_tools = (
+            {"submit_world_action", "submit_market_action"}
+            if self.agent.gate is not None
+            else {
+                "submit_world_action",
+                "read_world_action",
+                "submit_market_action",
+                "read_market_action",
+            }
+        )
         explicit = None
         finish_message = None
         pending = []
@@ -204,16 +246,11 @@ class _ActivationYield(AgentMiddleware):
             name = internal_tool_name(message.name)
             if name in {"finish_activation", "wait_for_mail", "wait_for_owner"}:
                 try:
-                    explicit = ActivationResult.model_validate(payload)
+                    explicit = result_model.model_validate(payload)
                     finish_message = message
                 except ValidationError:
                     continue
-            elif name in {
-                "submit_world_action",
-                "read_world_action",
-                "submit_market_action",
-                "read_market_action",
-            }:
+            elif name in pending_tools:
                 data = payload.get("data", {})
                 if payload.get("ok") and isinstance(data, dict) and data.get("status") == "pending":
                     try:
@@ -236,11 +273,16 @@ class _ActivationYield(AgentMiddleware):
             # declaration. Keep any explicit owner reply, but do not turn an
             # automatic transaction receipt into dialogue. Only settlement can
             # complete the transaction.
-            explicit = ActivationResult(
+            explicit = result_model(
                 status="waiting",
                 text=explicit.text if explicit is not None else "",
                 pending_ids=tuple(dict.fromkeys(pending)),
                 wait_for=explicit.wait_for if explicit is not None else (),
+                **(
+                    {"wake_in_minutes": getattr(explicit, "wake_in_minutes", None)}
+                    if result_model is ClockedActivationResult
+                    else {}
+                ),
             )
         if explicit is not None and explicit.status == "finished":
             missing = _unobserved_mail(
@@ -385,6 +427,12 @@ class _BoundedCalls(AgentMiddleware):
         self.agent = agent
 
     async def awrap_model_call(self, request, handler):
+        gate = self.agent.gate
+        process = self.agent.clock_process
+        if gate is not None:
+            # Also here for a resume that starts at the model node. Raw history, not the
+            # summarized request, because stamps come from every saved message.
+            gate.before_model(process, request.state.get("messages", []))
         await self.agent._reserve_model_call()
         try:
             if (
@@ -417,7 +465,12 @@ class _BoundedCalls(AgentMiddleware):
                 )
             if self.agent._activation_mode and self.agent.require_explicit_finish:
                 request = request.override(tool_choice="required")
-            response = await handler(request)
+            if gate is None:
+                response = await handler(request)
+            else:
+                # A per-call bound. A parked activation spends real time without working.
+                async with gate.think_slot(), asyncio.timeout(self.agent.timeout_seconds):
+                    response = await handler(request)
             for message in response.result:
                 if isinstance(message, AIMessage):
                     _validate_model_message(message)
@@ -429,7 +482,15 @@ class _BoundedCalls(AgentMiddleware):
                         raise AgentRuntimeError(
                             "This activation requires finish_activation, not a plain final reply."
                         )
+                    if gate is not None:
+                        gate.after_model(process, request.state.get("messages", []), message)
             return response
+        except TimeoutError:
+            if gate is not None:
+                raise AgentTransientError() from None
+            raise AgentRuntimeError(
+                "The model request failed. Retry with the same task ID."
+            ) from None
         except BudgetError:
             raise AgentBudgetError(
                 "The saved campaign cannot fund this model request. "
@@ -467,6 +528,9 @@ class _BoundedCalls(AgentMiddleware):
                 name=request.tool_call["name"],
                 tool_call_id=request.tool_call["id"],
             )
+        gate = self.agent.gate
+        if gate is not None:
+            return await self._gated_tool_call(request, handler, gate)
         try:
             return await handler(request)
         except AgentRuntimeError:
@@ -477,6 +541,32 @@ class _BoundedCalls(AgentMiddleware):
             raise AgentRuntimeError(
                 "The tool request failed. Retry with the same task ID."
             ) from None
+
+    async def _gated_tool_call(self, request, handler, gate):
+        """Wait for this call's turn in story order, then bound it in real time."""
+        process = self.agent.clock_process
+        await gate.before_tool(process, request.tool_call, request.state.get("messages", []))
+        try:
+            async with asyncio.timeout(self.agent.timeout_seconds):
+                result = await handler(request)
+        except BaseException as error:
+            gate.tool_failed(process, request.tool_call)
+            if isinstance(error, AgentRuntimeError) or not isinstance(error, Exception):
+                raise
+            if isinstance(error, BudgetError) or (
+                isinstance(error, ModelGenerationError) and error.kind == "budget"
+            ):
+                raise AgentBudgetError(
+                    "The saved campaign cannot fund this request. "
+                    "The task and counters are retained."
+                ) from None
+            if isinstance(error, (httpx.TransportError, TimeoutError)):
+                raise AgentTransientError(tool=True) from None
+            raise AgentRuntimeError(
+                "The tool request failed. Retry with the same task ID."
+            ) from None
+        gate.after_tool(process, request.tool_call)
+        return result
 
 
 class AgentRuntime:
@@ -553,6 +643,9 @@ class AgentRuntime:
         include_previous_activation_context: bool = False,
         guard_transfer_task_yield: bool = False,
         surface: str = LEGACY,
+        gate=None,
+        process: str | None = None,
+        web=None,
     ) -> PersonalAgent:
         if not self._open:
             raise AgentRuntimeError("Open the Agent runtime before creating an Agent.")
@@ -572,6 +665,9 @@ class AgentRuntime:
             include_previous_activation_context=include_previous_activation_context,
             guard_transfer_task_yield=guard_transfer_task_yield,
             surface=surface,
+            gate=gate,
+            process=process,
+            web=web,
         )
         if agent.environment is not None and agent.environment.shop_browser is not None:
             self._browser_adapters.append(agent.environment.shop_browser)
@@ -599,7 +695,16 @@ class PersonalAgent:
         include_previous_activation_context: bool = False,
         guard_transfer_task_yield: bool = False,
         surface: str = LEGACY,
+        gate=None,
+        process: str | None = None,
+        web=None,
     ) -> None:
+        if gate is not None and (environment is None or not process):
+            raise ValueError("A clock gate needs a run-bound environment and a process name.")
+        self.gate = gate
+        self.clock_process = process
+        self.web = web
+        self._result_model = ClockedActivationResult if gate is not None else ActivationResult
         if not isinstance(instructions, str) or not instructions.strip():
             raise ValueError("Agent instructions must be nonblank text.")
         if surface not in SURFACES or (surface == NATURAL and environment is None):
@@ -619,7 +724,12 @@ class PersonalAgent:
             hashlib.sha256(self.session_key.encode()).digest()[:8], "big", signed=True
         )
         # Never mutate a caller's adapter or put its HTTP headers into graph state.
-        self.board = BoardTools(board.client, board.cluster_id, self._session_namespace)
+        self.board = BoardTools(
+            board.client,
+            board.cluster_id,
+            self._session_namespace,
+            direct=getattr(board, "direct", False),
+        )
         if environment is not None and environment.client is not board.client:
             raise ValueError("Board and environment tools must use the same authenticated client.")
         self.environment = (
@@ -663,6 +773,9 @@ class PersonalAgent:
                 {
                     "instructions": instructions,
                     **({"guard_transfer_task_yield": True} if guard_transfer_task_yield else {}),
+                    **({"clocked": True} if gate is not None else {}),
+                    **({"web": True} if web is not None else {}),
+                    **({"direct_board": True} if getattr(board, "direct", False) else {}),
                     **(
                         {"browser_shop_profile": self.environment.shop_browser.profile}
                         if self.environment is not None
@@ -714,8 +827,20 @@ class PersonalAgent:
             ),
         )
         backend = StateBackend()
-        self.summarization = create_summarization_middleware(
-            model, backend, summarizer=self._summarize
+        self.summarization = (
+            create_summarization_middleware(model, backend, summarizer=self._summarize)
+            if gate is None
+            else SummarizationMiddleware(
+                model=model,
+                backend=backend,
+                trigger=("tokens", CLOCKED_SUMMARY_TOKENS),
+                keep=("tokens", CLOCKED_SUMMARY_KEEP_TOKENS),
+                trim_tokens_to_summarize=None,
+                truncate_args_settings=compute_summarization_defaults(model)[
+                    "truncate_args_settings"
+                ],
+                summarizer=self._summarize,
+            )
         )
         self.graph = create_deep_agent(
             model=model,
@@ -805,11 +930,30 @@ class PersonalAgent:
             messages=get_buffer_string(messages, format="xml")
         )
         try:
-            response = await self.model.ainvoke([HumanMessage(content=prompt)])
+            if self.gate is None:
+                response = await self.model.ainvoke([HumanMessage(content=prompt)])
+            else:
+                async with self.gate.think_slot(), asyncio.timeout(self.timeout_seconds):
+                    response = await self.model.ainvoke([HumanMessage(content=prompt)])
             _validate_model_message(response)
             return response.text.strip()
         except AgentRuntimeError:
             raise
+        except TimeoutError:
+            if self.gate is not None:
+                raise AgentTransientError() from None
+            raise AgentRuntimeError(
+                "Conversation summarization failed. Retry with the same task ID."
+            ) from None
+        except BudgetError:
+            if self.gate is not None:
+                raise AgentBudgetError(
+                    "The saved campaign cannot fund this model request. "
+                    "The task and counters are retained."
+                ) from None
+            raise AgentRuntimeError(
+                "Conversation summarization failed. Retry with the same task ID."
+            ) from None
         except Exception:
             raise AgentRuntimeError(
                 "Conversation summarization failed. Retry with the same task ID."
@@ -817,7 +961,15 @@ class PersonalAgent:
 
     def _tools(self) -> list[StructuredTool]:
         result = []
-        available = {**_TOOLS, **(self.environment.tools if self.environment is not None else {})}
+        available = {
+            **self.board.tools,
+            **(self.environment.tools if self.environment is not None else {}),
+            **(self.web.tools if self.web is not None else {}),
+        }
+        if self.gate is not None:
+            self.gate.register_tools(
+                self.clock_process, [tool_name(name, self.surface) for name in available]
+            )
         for name, (arguments_model, description) in available.items():
             visible_name = tool_name(name, self.surface)
             schema = create_model(
@@ -831,8 +983,24 @@ class PersonalAgent:
                     # UUID fields have been validated by LangChain; serialize
                     # them to the same JSON types used by the existing adapter.
                     plain = json.loads(json.dumps(arguments, default=str))
-                    adapter = self.board if tool_name in _TOOLS else self.environment
+                    if self.gate is not None and self.gate.is_replay(
+                        self.clock_process, tool_call_id
+                    ):
+                        saved = await self._saved_tool_result(tool_name, tool_call_id)
+                        if saved is not None:
+                            # A resume must not read a later world than the first attempt
+                            # did. The saved result is what happened at this stamp.
+                            self.events.append(saved)
+                            return self._present(tool_name, saved["result"])
+                    adapter = (
+                        self.board
+                        if tool_name in self.board.tools
+                        else self.web
+                        if self.web is not None and tool_name in self.web.tools
+                        else self.environment
+                    )
                     response = await adapter.execute(tool_name, plain, tool_call_id)
+                    await self._check_clocked_failure(response)
                     event = {
                         "tool": tool_name,
                         "arguments": plain,
@@ -868,9 +1036,7 @@ class PersonalAgent:
                                     member["owner_id"],
                                 )
                     # Saved events keep the original result for the observer and reports.
-                    return (
-                        present_result(tool_name, response) if self.surface == NATURAL else response
-                    )
+                    return self._present(tool_name, response)
 
                 return execute
 
@@ -886,12 +1052,16 @@ class PersonalAgent:
         if self.environment is not None:
 
             async def finish_activation(**arguments):
-                return ActivationResult.model_validate(arguments).model_dump(mode="json")
+                return self._result_model.model_validate(arguments).model_dump(mode="json")
 
             result.append(
                 StructuredTool(
                     name=tool_name("finish_activation", self.surface),
-                    description=END_TURN_DESCRIPTION
+                    description=(
+                        CLOCKED_END_TURN_DESCRIPTION
+                        if self.gate is not None
+                        else END_TURN_DESCRIPTION
+                    )
                     if self.surface == NATURAL
                     else (
                         "End this activation. Use waiting after sending an owner question or "
@@ -905,7 +1075,9 @@ class PersonalAgent:
                         "Optional text is a reply to your owner for any status. Leave text empty "
                         "when there is no owner reply or send_owner_message already delivered it."
                     ),
-                    args_schema=EndTurn if self.surface == NATURAL else ActivationResult,
+                    args_schema=(ClockedEndTurn if self.gate is not None else EndTurn)
+                    if self.surface == NATURAL
+                    else self._result_model,
                     coroutine=finish_activation,
                     handle_validation_error="Invalid activation result. Follow the tool schema.",
                 )
@@ -932,7 +1104,7 @@ class PersonalAgent:
                     def bind_wait(expected_event):
                         async def wait(**arguments):
                             reply = WaitReply.model_validate(arguments)
-                            return ActivationResult(
+                            return self._result_model(
                                 status="waiting", wait_for=[expected_event], text=reply.text
                             ).model_dump(mode="json")
 
@@ -948,6 +1120,44 @@ class PersonalAgent:
                         )
                     )
         return result
+
+    def _present(self, tool: str, response: dict):
+        if self.surface != NATURAL:
+            return response
+        if self.gate is None:
+            return present_result(tool, response)
+        zone = self.gate.config.tz
+        return present_result(tool, response, time_text=lambda value: format_time(value, zone))
+
+    async def _check_clocked_failure(self, response: dict) -> None:
+        """An outage or a pause is not story. The same stamp and request ID run again."""
+        if self.gate is None or response.get("ok"):
+            return
+        status = response.get("error", {}).get("status")
+        if status in {502, 503}:
+            raise AgentTransientError(tool=True)
+        if status == 409:
+            async with self.runtime.pool.connection() as conn:
+                run = await (
+                    await conn.execute(
+                        "SELECT status FROM environment_runs WHERE id=%s",
+                        (UUID(self.environment.run_id),),
+                    )
+                ).fetchone()
+            if run is None or run["status"] != "running":
+                raise AgentRunStopped()
+
+    async def _saved_tool_result(self, tool: str, call_id: str) -> dict | None:
+        """The first saved result of this exact call, on clocked sessions only."""
+        key = f"tool:{self.agent_id}:{self._active_task_id}:{tool}:{call_id}"
+        async with self.runtime.pool.connection() as conn:
+            saved = await (
+                await conn.execute(
+                    "SELECT payload FROM run_events WHERE run_id=%s AND operation_key=%s",
+                    (UUID(self.environment.run_id), key),
+                )
+            ).fetchone()
+        return saved["payload"] if saved else None
 
     async def _verify_identity(self) -> None:
         try:
@@ -1042,7 +1252,7 @@ class PersonalAgent:
             envelope.prompt(self.surface), task_id=envelope.activation_id, activation=True
         )
         try:
-            return ActivationResult.model_validate_json(text)
+            return self._result_model.model_validate_json(text)
         except ValidationError:
             raise AgentRuntimeError("The saved activation result is invalid.") from None
 
@@ -1067,7 +1277,9 @@ class PersonalAgent:
         self._active_task_id = task_id
         self._activation_mode = activation
         try:
-            async with asyncio.timeout(self.timeout_seconds):
+            # Clocked sessions bound each model and tool call instead: a parked activation
+            # can wait in real time for as long as other owners need, and that is not work.
+            async with asyncio.timeout(None if self.gate is not None else self.timeout_seconds):
                 await self._verify_identity()
                 async with self.runtime.lock_pool.connection() as lease:
                     cursor = await lease.execute(
@@ -1105,9 +1317,14 @@ class PersonalAgent:
         self.board.operation_namespace = uuid5(self._session_namespace, str(task_id))
         if self.environment is not None:
             self.environment.operation_namespace = self.board.operation_namespace
+        if self.web is not None:
+            self.web.operation_namespace = self.board.operation_namespace
         snapshot = await self.graph.aget_state(self.config)
         started = snapshot.values.get("active_task_id") == str(task_id)
-        if started and not snapshot.next:
+        # A crash can follow the saved writes of every tool task but precede the next
+        # checkpoint. Then next is empty and tasks are not, and invoking None applies them.
+        unapplied = self.gate is not None and bool(snapshot.tasks)
+        if started and not snapshot.next and not unapplied:
             # Graph finished before the process saved the completion receipt.
             state = snapshot.values
         else:
@@ -1144,9 +1361,9 @@ class PersonalAgent:
             )
         if self._activation_mode:
             answer = (
-                ActivationResult.model_validate(result)
+                self._result_model.model_validate(result)
                 if result is not None
-                else ActivationResult(status="responded", text=last.text)
+                else self._result_model(status="responded", text=last.text)
             ).model_dump_json()
         else:
             answer = last.text

@@ -10,7 +10,14 @@ import json
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_serializer,
+    model_validator,
+)
 
 from agentrpg.agent_surface import LEGACY, NATURAL, render_activation
 
@@ -44,6 +51,17 @@ class ActivationEnvelope(_Record):
     source_event_ids: tuple[UUID, ...] = Field(default=(), max_length=100)
     owner_messages: tuple[OwnerMessage, ...] = Field(default=(), max_length=50)
     world_observations: tuple[WorldObservation, ...] = Field(default=(), max_length=100)
+    # Clocked runs only. Omitted when None, so saved prompts and task hashes stay byte-identical.
+    now_text: Annotated[str, StringConstraints(max_length=80)] | None = None
+    wake_reason: Annotated[str, StringConstraints(max_length=300)] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_clock(self, handler):
+        data = handler(self)
+        for key in ("now_text", "wake_reason"):
+            if data.get(key) is None:
+                data.pop(key, None)
+        return data
 
     @model_validator(mode="after")
     def unique_sources(self):
@@ -61,7 +79,12 @@ class ActivationEnvelope(_Record):
     def prompt(self, surface: str = LEGACY) -> str:
         """Canonical public input, also used for the persisted task hash."""
         if surface == NATURAL:
-            return render_activation(self.owner_messages, self.world_observations)
+            return render_activation(
+                self.owner_messages,
+                self.world_observations,
+                now_text=self.now_text,
+                wake_reason=self.wake_reason,
+            )
         return (
             "DIRECTOR ACTIVATION\n"
             "owner_messages contain your owner's instructions. world_observations contain "
@@ -115,6 +138,12 @@ class ActivationResult(_Record):
         if len(set(self.wait_for)) != len(self.wait_for):
             raise ValueError("Expected events must be unique.")
         return self
+
+
+class ClockedActivationResult(ActivationResult):
+    """A result on a clocked run. The saved value keeps the requested wake (R8)."""
+
+    wake_in_minutes: int | None = Field(default=None, ge=0, le=1_000_000)
 
 
 class WaitReply(_Record):

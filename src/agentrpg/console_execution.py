@@ -33,6 +33,14 @@ ROOT = Path(__file__).resolve().parents[2]
 router = APIRouter(prefix="/api/v1/console", tags=["console controls"])
 ACTIVE = {"queued", "running"}
 TERMINAL_RUNS = {"completed", "incomplete", "invalid"}
+CLOCKED_REFUSAL = (
+    "The run script drives this clocked run (scripts/run_clocked.py). Step and Continue "
+    "are not available here. The console replays its saved records."
+)
+
+
+def is_clocked(run) -> bool:
+    return bool((run.get("scenario") or {}).get("clock"))
 
 
 class ConsoleError(ValueError):
@@ -361,6 +369,8 @@ async def execution_state(pool, root, run_id):
             reason = "This run has ended. Create a branch from a saved turn to continue."
         if active or external_active:
             reason = "A worker is active for this run."
+        if is_clocked(run):
+            reason = CLOCKED_REFUSAL
         interventions = await rows(
             conn,
             "SELECT * FROM console_interventions WHERE run_id=%s "
@@ -428,6 +438,8 @@ async def start_execution(
         run = await row(conn, "SELECT * FROM environment_runs WHERE id=%s FOR UPDATE", (run_id,))
         if run is None:
             raise HTTPException(404, "Run not found.")
+        if is_clocked(run):
+            raise HTTPException(409, CLOCKED_REFUSAL)
         await recover_stale(conn, run_id)
         existing = await row(
             conn,

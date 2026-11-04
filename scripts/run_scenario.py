@@ -20,8 +20,8 @@ from psycopg.types.json import Jsonb
 
 from agentrpg.actor import ModelActor, ModelGenerationError, ScriptedActor
 from agentrpg.agent_model import UsageTracker, create_model, local_model_calls
-from agentrpg.agent_surface import INSTRUCTIONS as NATURAL_INSTRUCTIONS
 from agentrpg.agent_surface import LEGACY, NATURAL, SURFACES
+from agentrpg.agent_surface import WINDOW_INSTRUCTIONS as NATURAL_INSTRUCTIONS
 from agentrpg.agent_tools import BoardTools
 from agentrpg.budget import BudgetBinding, CampaignLedger, budget_context, fetch_model_prices
 from agentrpg.deep_agent import AgentRuntime

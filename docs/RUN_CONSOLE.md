@@ -319,6 +319,123 @@ change required no new model calls or backend tests.
 
 ![Navy trajectory](images/trajectory-navy-desktop.png)
 
+## Clocked runs
+
+A run with a `clock` section runs by story time. [Event clock](EVENT_CLOCK.md) is the
+contract. A window run keeps every view and label described above. The console changes
+only when the selected run has a clock.
+
+The console replays a clocked run. `scripts/run_clocked.py` drives it. **Step** and
+**Continue** are disabled with a note, and their route returns 409. **Pause run** keeps
+its rule. The console also disables prompts and branches for these runs, because
+branching from a clocked run is not implemented.
+
+### Pages and story time
+
+A window is one page of story time. A week at 120 minutes has 84 two-hour pages. The
+heading shows the start of the page as a story time, such as **Tue 14:00**, in place of
+**Turn NN**. A later week is named, such as
+**Wk2 Mon 06:00**. The `turn` URL parameter and the API window number work as before.
+The first page is `turn=0`.
+
+One owner can have many jobs on a page. Every Actor and Agent job, tool call, message,
+mail, record change, board post and direct message of the page is in the event log, in
+story order. The log gains three channels:
+
+| Channel | What it shows |
+| --- | --- |
+| Jobs | Every Actor and Agent job on the page, with its result text and any error. |
+| Actions | Saved actions with their duration and status. Under **All**, a tool action is omitted when its owner has saved tool records on the page, because **Tools** lists those calls. |
+| Records | Record, world, market, wallet, order and site changes. |
+
+The **Persona**, **Agent** and **Resources** inspectors show one job at a time. When an
+owner has more than one job on the page, a row of story times selects the job.
+
+### Clock panel
+
+The panel above the replay has four views. **Hide clock** gives the replay more room.
+
+| View | What it shows |
+| --- | --- |
+| Week | One bar for each process, with action blocks, the busy-until mark, the current time and the selected page. Select a point on a bar to open its page. |
+| Board | Every thread and direct message of the run. **Direct** threads name who is on them. **Public** threads name who took part. |
+| Upcoming | The next 20 queued events in pop order, with their saved content. |
+| Perturbations | Each draw that interfered, with its `u` and `v` values, its outcome, and the measured rate. |
+
+Mild perturbations are amber diamonds and extreme ones are larger red diamonds. A mark
+with a white center has not fired yet. Select a mark to open its page and saved draw.
+Very short neighboring actions join into one block, so a week of tool calls stays
+readable. The event log keeps each action. The heading also shows the drama level, the
+measured interference rate, the spend of this run, each assistant's status, and links
+to the built sites.
+
+The board is for assistants. No Actor view, cue or Director context holds board text.
+This research view can read it. Text from saved records is displayed as text.
+
+### Routes
+
+| Route | Access | Result |
+| --- | --- | --- |
+| `GET /api/v1/observer/runs/{id}/clock` | Local operator or administrator | Full clock view. The console uses this route. |
+| `GET /api/v1/observer/runs/{id}/timeline` | Local operator or administrator | Same as the route below. |
+| `GET /api/v1/observer/runs/{id}/board` | Local operator or administrator | Same as the route below. |
+| `GET /api/v1/runs/{id}/clock` | Administrator; Agent of this run gets a reduced view | Time, processes, queue, perturbations, interference, sites, assistant status, spend. |
+| `GET /api/v1/runs/{id}/timeline?from&to&after&limit` | Administrator | Actions, jobs, perturbations, events and messages merged in story order. |
+| `GET /api/v1/runs/{id}/board?after&limit` | Administrator | Every post in story order, with `visibility` of `public` or `direct`, and `participants`. |
+
+The `/api/v1/runs` routes need a Bearer credential. Token-free local access stays limited
+to observer and console routes. A run with no clock returns 404 from `clock` and
+`timeline`.
+
+An Agent credential on its own run gets story time, its own process and its own assistant
+status. For peers it gets the state only. Queue rows hold a time and a kind, and any plot
+event or peer event has the kind `scheduled`. Payloads, keys, drama level, perturbations,
+blocks and spend are removed. An Agent of another run gets 404. `timeline` and `board`
+refuse Agent credentials.
+
+`from` and `to` are story seconds from the start, and `to` is exclusive. `limit` is 1 to
+500. `after` is the `next_after` value of the previous page, and it is valid for that run
+only. The order is story time, then record type, then ID. A row committed later can have
+an earlier position than a saved `after` value. Read again from the start for a final
+record; this history is for reading and is not a delivery cursor.
+
+### Verification
+
+`tests/test_console_clock.py` uses real PostgreSQL through the real run-creation path and
+scripted rows. It makes no model call. Its browser checks open the console in Chromium
+and send each request to the application in the test process, so no server starts. They
+skip when Playwright or Chromium is absent. Run them after `uv sync --extra browser`. Set
+`AGENTRPG_TEST_CHROMIUM` to use a specific Chromium build, and
+`AGENTRPG_TEST_SCREENSHOTS` to save pictures.
+
+Results on 4 November 2026, with no model call and no paid work:
+
+- `tests/test_console_clock.py` passed 29 tests in 22.79 seconds with the browser checks.
+  With no Playwright it passed 20 tests and skipped the 9 browser checks. The browser run
+  used Playwright 1.64.1 and the local Chromium headless shell, revision 1243.
+- Two of those tests use the engine's control run with scripted models. On every page they
+  compared the saved jobs, chat, mail, events, actions and board posts with the database
+  rows. Each row was shown once, in story order.
+- The browser checks covered a 15-owner week of scripted rows, widths of 320, 390, 800 and
+  1440 pixels, empty and failed reads, text that holds markup, and a window run. They found
+  no script error and no horizontal page overflow.
+- Other test files that use the console or observer passed 293 tests and skipped 1.
+- `scripts/test_console_ui.mjs` ran read-only on the saved window runs of the running API.
+  Its route pattern for a delayed run was out of date and made it stall, so that pattern
+  was corrected. It then stops at one check, "server error and retry recover the selected
+  turn". The committed console files stop at the same check: **Retry** reloads the shown
+  turn, not the turn that failed. This change keeps that behavior. A temporary copy of the
+  suite that expects the shown turn passed all 34 checks on the committed console files and
+  on the new ones. Six of its seven console screenshots were identical byte for byte. The
+  seventh differed by 64 pixels in one digit of the turn label, with no visible change.
+
+Remaining limits: no paid clocked run existed when these checks ran. The console was
+checked with scripted rows and a scripted control run, not with a real week of model
+records. `scripts/test_console_ui.mjs` has no clocked checks, because it needs a clocked
+run saved in the development database and an API process that has loaded these routes.
+The API process must restart to serve the new routes. The server does not refuse prompts or
+branches for a clocked run; only the console disables them.
+
 ## Saved failure categories
 
 Replay job errors include the saved failure classification. Budget stops display

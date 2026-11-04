@@ -156,7 +156,7 @@ def test_model_result_hides_run_fields_and_leaves_the_saved_result_unchanged():
         "id": "m",
         "status": "pending",
         "read": False,
-        "sender_type": "automated notice",
+        "sender_type": "outside contact",
         "items": [{"body": "kept"}],
     }
 

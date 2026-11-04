@@ -22,7 +22,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool, PoolClosed, PoolTimeout
 
 from agentrpg.config import Settings
-from agentrpg.schemas import Acknowledgements, Named, NewReply, NewThread
+from agentrpg.schemas import Acknowledgements, Named, NewDirectThread, NewReply, NewThread
 
 PREFIX = "/api/v1"
 STATIC = Path(__file__).parent / "static"
@@ -30,11 +30,15 @@ DIAGRAM = Path(__file__).resolve().parents[2] / "docs" / "diagram.html"
 BEARER = HTTPBearer(auto_error=False)
 PAGE_LIMIT = Annotated[int, Query(ge=1, le=100)]
 CURSOR = Annotated[str | None, Query(max_length=512)]
+# Replies store no audience. The join to the root gives every message its thread's audience.
 MESSAGE_SELECT = """
     SELECT m.id, m.cluster_id, m.author_id, a.name AS author_name,
-           m.thread_id, m.parent_id, m.title, m.body, m.created_at, m.seq
+           m.thread_id, m.parent_id, m.title, m.body, m.created_at, m.seq,
+           root.audience, root.author_id AS root_author_id
     FROM messages m JOIN agents a ON a.id = m.author_id
+    JOIN messages root ON root.id = m.thread_id
 """
+INTERNAL_MESSAGE_FIELDS = {"seq", "audience", "root_author_id", "participants"}
 AGENT_FIELDS = "id, cluster_id, name, created_at"
 
 
@@ -57,7 +61,108 @@ async def many(connection, sql, parameters=()):
 
 
 def message(row: dict) -> dict:
-    return {key: value for key, value in row.items() if key != "seq"}
+    """Shape one row. Only a direct message has labels, so public rows keep their old form."""
+    result = {key: value for key, value in row.items() if key not in INTERNAL_MESSAGE_FIELDS}
+    if row.get("audience") is not None:
+        result.update(direct=True, audience=row["audience"], participants=row["participants"])
+    return result
+
+
+def can_see(root: dict, agent_id: UUID) -> bool:
+    return root["audience"] is None or agent_id == root["author_id"] or agent_id in root["audience"]
+
+
+def visible_to(principal: Principal) -> tuple[str, tuple]:
+    """Return the SQL condition on the alias `root` that limits reads to this principal.
+
+    The administrator token is read-only research access and sees every thread.
+    """
+    if principal.role != "agent":
+        return "TRUE", ()
+    agent_id = principal.agent["id"]
+    return (
+        "(root.audience IS NULL OR root.author_id = %s OR %s = ANY(root.audience))",
+        (agent_id, agent_id),
+    )
+
+
+async def add_participants(connection, rows: list[dict]) -> None:
+    """Name the people on each direct message. Public rows need no query."""
+    direct = [row for row in rows if row["audience"] is not None]
+    if not direct:
+        return
+    members = await many(
+        connection,
+        "SELECT a.id, a.name, p.owner_id FROM agents a "
+        "LEFT JOIN run_participants p ON p.agent_id = a.id WHERE a.id = ANY(%s)",
+        (list({person for row in direct for person in (row["root_author_id"], *row["audience"])}),),
+    )
+    people = {
+        member["id"]: {
+            "board_id": member["id"],
+            "owner_id": member["owner_id"],
+            "name": member["name"],
+        }
+        for member in members
+    }
+    for row in direct:
+        row["participants"] = [
+            people[person] for person in (row["root_author_id"], *row["audience"])
+        ]
+
+
+async def resolve_audience(
+    connection, cluster_id: UUID, author_id: UUID, recipients: list[str]
+) -> list[UUID]:
+    """Map owner IDs and board IDs to Agents of this cluster only.
+
+    Another cluster's Agent gives the same result as an unknown ID.
+    """
+    known = {}
+    for member in await many(
+        connection,
+        "SELECT a.id, p.owner_id FROM agents a "
+        "LEFT JOIN run_participants p ON p.agent_id = a.id WHERE a.cluster_id = %s",
+        (cluster_id,),
+    ):
+        known[str(member["id"])] = member["id"]
+        if member["owner_id"] is not None:
+            known[member["owner_id"]] = member["id"]
+    audience = set()
+    for name in recipients:
+        try:
+            agent_id = known.get(name) or known.get(str(UUID(name)))
+        except ValueError:
+            agent_id = None
+        if agent_id is None:
+            raise HTTPException(404, "One or more recipients were not found.")
+        audience.add(agent_id)
+    audience.discard(author_id)
+    if not audience:
+        raise HTTPException(422, "Name at least one other assistant.")
+    return sorted(audience)
+
+
+def payload_digest(parent_id: UUID | None, title, body: str, audience=None) -> str:
+    """Digest one write. Public writes keep the form saved in existing rows."""
+    content = {
+        "operation": "thread" if parent_id is None else "reply",
+        "parent_id": str(parent_id) if parent_id else None,
+        "title": title,
+        "body": body,
+    }
+    if audience is not None:
+        content["audience"] = sorted(str(person) for person in audience)
+    return digest(json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False))
+
+
+def event_audience(row: dict) -> list[str] | None:
+    """Return who a post is for: None when public, else the other people on the thread."""
+    if row["audience"] is None:
+        return None
+    return sorted(
+        str(person) for person in {row["root_author_id"], *row["audience"]} - {row["author_id"]}
+    )
 
 
 def encode_cursor(scope: str, sequence: int) -> str:
@@ -191,21 +296,17 @@ async def write_message(
     pool, principal: Principal, cluster_id: UUID, payload, parent_id: UUID | None
 ) -> tuple[dict, bool]:
     author = require_agent(principal)
-    canonical = json.dumps(
-        {
-            "operation": "thread" if parent_id is None else "reply",
-            "parent_id": str(parent_id) if parent_id else None,
-            "title": getattr(payload, "title", None),
-            "body": payload.body,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    payload_hash = digest(canonical)
+    title = getattr(payload, "title", None)
     replay = False
     async with pool.connection() as connection:
         await require_cluster(connection, principal, cluster_id)
+        recipients = getattr(payload, "to", None)
+        audience = (
+            None
+            if recipients is None
+            else await resolve_audience(connection, cluster_id, author["id"], recipients)
+        )
+        payload_hash = payload_digest(parent_id, title, payload.body, audience)
         existing = await one(
             connection,
             "SELECT id, payload_hash FROM messages WHERE author_id = %s AND request_id = %s",
@@ -222,26 +323,29 @@ async def write_message(
             if parent_id is not None:
                 root = await one(
                     connection,
-                    "SELECT id FROM messages WHERE cluster_id = %s AND id = %s AND is_root",
+                    "SELECT id, author_id, audience FROM messages "
+                    "WHERE cluster_id = %s AND id = %s AND is_root",
                     (cluster_id, parent_id),
                 )
-                if root is None:
+                if root is None or not can_see(root, author["id"]):
                     raise HTTPException(404, "Thread not found.")
             inserted = await one(
                 connection,
                 """INSERT INTO messages
-                   (id, cluster_id, author_id, parent_id, title, body, request_id, payload_hash)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   (id, cluster_id, author_id, parent_id, title, body, request_id, payload_hash,
+                    audience)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT (author_id, request_id) DO NOTHING RETURNING id""",
                 (
                     uuid4(),
                     cluster_id,
                     author["id"],
                     parent_id,
-                    getattr(payload, "title", None),
+                    title,
                     payload.body,
                     payload.request_id,
                     payload_hash,
+                    audience,
                 ),
             )
             if inserted is None:
@@ -261,11 +365,13 @@ async def write_message(
             message_id = existing["id"]
             replay = True
         result = await one(connection, MESSAGE_SELECT + " WHERE m.id = %s", (message_id,))
+        await add_participants(connection, [result])
         # Shared run locks allow concurrent posts and fence a clock/stop change.
         # The message and its durable notification commit in this same transaction.
         from agentrpg.director import emit
 
         if run is not None:
+            # This event is run data, so it never holds a body or a direct thread's subject.
             await emit(
                 connection,
                 run["id"],
@@ -275,7 +381,8 @@ async def write_message(
                     "message_id": str(message_id),
                     "thread_id": str(result["thread_id"]),
                     "author_id": str(author["id"]),
-                    "title": result["title"],
+                    "title": None if result["audience"] is not None else result["title"],
+                    "audience": event_audience(result),
                 },
                 f"board:{message_id}",
             )
@@ -438,6 +545,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         scope = f"threads:{cluster_id}"
         after = decode_cursor(cursor, scope)
+        condition, viewer = visible_to(principal)
         async with app.state.pool.connection() as connection:
             await require_cluster(connection, principal, cluster_id)
             rows = await many(
@@ -448,16 +556,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "WHERE r.cluster_id = m.cluster_id AND r.parent_id = m.id)"
                     "::integer AS reply_count",
                 )
-                + " WHERE m.cluster_id = %s AND m.is_root"
+                + f" WHERE m.cluster_id = %s AND m.is_root AND {condition}"
                 + (" AND m.seq < %s" if after is not None else "")
                 + " ORDER BY m.seq DESC LIMIT %s",
-                (cluster_id, after, limit + 1) if after is not None else (cluster_id, limit + 1),
+                (cluster_id, *viewer, after, limit + 1)
+                if after is not None
+                else (cluster_id, *viewer, limit + 1),
             )
+            await add_participants(connection, rows)
         return page(rows, limit, scope)
 
     @app.post(PREFIX + "/clusters/{cluster_id}/threads", status_code=201)
     async def create_thread(
         cluster_id: UUID, payload: NewThread, response: Response, principal: AUTH
+    ):
+        result, replay = await write_message(app.state.pool, principal, cluster_id, payload, None)
+        if replay:
+            response.status_code = 200
+            response.headers["Idempotent-Replay"] = "true"
+        return result
+
+    @app.post(PREFIX + "/clusters/{cluster_id}/direct-threads", status_code=201)
+    async def create_direct_thread(
+        cluster_id: UUID, payload: NewDirectThread, response: Response, principal: AUTH
     ):
         result, replay = await write_message(app.state.pool, principal, cluster_id, payload, None)
         if replay:
@@ -475,12 +596,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ):
         scope = f"replies:{cluster_id}:{thread_id}"
         after = decode_cursor(cursor, scope)
+        condition, viewer = visible_to(principal)
         async with app.state.pool.connection() as connection:
             await require_cluster(connection, principal, cluster_id)
             root = await one(
                 connection,
-                MESSAGE_SELECT + " WHERE m.cluster_id = %s AND m.id = %s AND m.is_root",
-                (cluster_id, thread_id),
+                MESSAGE_SELECT
+                + f" WHERE m.cluster_id = %s AND m.id = %s AND m.is_root AND {condition}",
+                (cluster_id, thread_id, *viewer),
             )
             if root is None:
                 raise HTTPException(404, "Thread not found.")
@@ -494,6 +617,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if after is not None
                 else (cluster_id, thread_id, limit + 1),
             )
+            await add_participants(connection, [root, *rows])
         result = page(rows, limit, scope)
         return {
             "thread": message(root),
@@ -516,29 +640,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get(PREFIX + "/clusters/{cluster_id}/updates")
     async def updates(cluster_id: UUID, principal: AUTH, limit: PAGE_LIMIT = 20):
         agent = require_agent(principal)
+        condition, viewer = visible_to(principal)
         async with app.state.pool.connection() as connection:
             await require_cluster(connection, principal, cluster_id)
             rows = await many(
                 connection,
                 MESSAGE_SELECT
-                + """ WHERE m.cluster_id = %s AND NOT EXISTS (
+                + f""" WHERE m.cluster_id = %s AND {condition} AND NOT EXISTS (
                     SELECT 1 FROM message_receipts receipt
                     WHERE receipt.agent_id = %s AND receipt.message_id = m.id
                 ) ORDER BY m.seq ASC LIMIT %s""",
-                (cluster_id, agent["id"], limit + 1),
+                (cluster_id, *viewer, agent["id"], limit + 1),
             )
+            await add_participants(connection, rows)
         return {"items": [message(row) for row in rows[:limit]], "has_more": len(rows) > limit}
 
     @app.post(PREFIX + "/clusters/{cluster_id}/acknowledgements")
     async def acknowledge(cluster_id: UUID, payload: Acknowledgements, principal: AUTH):
         agent = require_agent(principal)
         ids = sorted(set(payload.message_ids))
+        condition, viewer = visible_to(principal)
         async with app.state.pool.connection() as connection:
             await require_cluster(connection, principal, cluster_id)
             found = await many(
                 connection,
-                "SELECT id FROM messages WHERE cluster_id = %s AND id = ANY(%s)",
-                (cluster_id, ids),
+                "SELECT m.id FROM messages m JOIN messages root ON root.id = m.thread_id "
+                f"WHERE m.cluster_id = %s AND m.id = ANY(%s) AND {condition}",
+                (cluster_id, ids, *viewer),
             )
             if len(found) != len(ids):
                 raise HTTPException(404, "One or more messages were not found.")
@@ -570,6 +698,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from agentrpg.resource_api import router as resource_router
     from agentrpg.run_branches import router as branches_router
     from agentrpg.shop_api import router as shop_router
+    from agentrpg.sim_web_api import router as sim_web_router
     from agentrpg.transfer_api import router as transfer_router
 
     app.include_router(environment_router)
@@ -581,6 +710,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(branches_router)
     app.include_router(transfer_router)
     app.include_router(shop_router)
+    app.include_router(sim_web_router)
 
     @app.get("/runs", include_in_schema=False)
     async def runs_observer():

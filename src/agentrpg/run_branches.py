@@ -409,6 +409,8 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
                     "title": record["title"],
                     "body": record["body"],
                 }
+                if record.get("audience") is not None:
+                    payload["audience"] = sorted(record["audience"])
                 record["payload_hash"] = hashlib.sha256(
                     json.dumps(
                         payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False

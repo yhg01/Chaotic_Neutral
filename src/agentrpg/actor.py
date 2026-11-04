@@ -11,10 +11,17 @@ import json
 import re
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import Field, ValidationError, create_model, model_validator
+from pydantic import (
+    Field,
+    StringConstraints,
+    ValidationError,
+    create_model,
+    model_serializer,
+    model_validator,
+)
 
 from agentrpg.activation import WaitEvent
 from agentrpg.agent_model import (
@@ -103,6 +110,40 @@ class ActorView(Contract):
     market: dict[str, Any] = Field(default_factory=dict)
     transfers: dict[str, Any] = Field(default_factory=dict)
     assistant_wait_for: tuple[WaitEvent, ...] = ()
+    # Clocked runs only: what time it is and what this person is doing. Omitted when None.
+    clock: dict[str, Any] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_clock(self, handler):
+        data = handler(self)
+        if data.get("clock") is None:
+            data.pop("clock", None)
+        return data
+
+
+class NextAction(Contract):
+    """What an owner does next on a clocked run. It is a request; the world can replace it."""
+
+    description: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)
+    ] = Field(description="What this person does next, in plain words.")
+    minutes: int = Field(ge=1, le=4320, description="About how long it takes, in minutes.")
+    reachable: bool = Field(
+        description="True if they would notice a message during this. False if they could not, "
+        "such as asleep, driving, or in a meeting with the phone off."
+    )
+    category: Annotated[
+        str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=1, max_length=24)
+    ] = Field(description="One short word: errand, work, meal, sleep, social, or free.")
+    seeks: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None = Field(
+        default=None,
+        description="What they hope to get from it that other people decide, such as "
+        "'sell the bike at the pawn shop'. Leave it null for ordinary things.",
+    )
+
+
+_Attempt = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+_CLOCK_FIELDS = ("next_action", "director_requests", "online_spend_approval")
 
 
 class ActorOutput(Contract):
@@ -189,11 +230,30 @@ class ActorOutput(Contract):
         "courtesy replies and never reopen its key. Cancel only an unsubmitted own task. "
         "A genuinely new purchase needs a new owner decision and task key.",
     )
+    # Clocked runs only. Saved outputs without these still validate, and an unset value is
+    # left out of the dump, so window runs save the same bytes as before.
+    next_action: NextAction | None = None
+    director_requests: tuple[_Attempt, ...] = Field(default=(), max_length=3)
+    online_spend_approval: int | None = Field(default=None, ge=1, le=1_000_000)
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_clock(self, handler):
+        data = handler(self)
+        for key in _CLOCK_FIELDS:
+            if not data.get(key):
+                data.pop(key, None)
+        return data
 
     @model_validator(mode="after")
     def check_shape(self) -> Self:
         if self.kind != "wait" and not self.text.strip():
             raise ValueError("A non-wait response requires text.")
+        if self.online_spend_approval is not None and (
+            self.kind not in {"reply", "decide_proposal"} or self.decision in {"reject", "counter"}
+        ):
+            raise ValueError(
+                "Only an owner reply or accepted proposal can approve online spending."
+            )
         if self.kind == "decide_proposal":
             if self.proposal_id is None or self.decision is None:
                 raise ValueError("Proposal decisions require an ID and decision.")
@@ -282,8 +342,36 @@ ActorCandidate = create_model(
     **{
         name: (field.annotation, deepcopy(field))
         for name, field in ActorOutput.model_fields.items()
-        if name != "source_event_id"
+        if name != "source_event_id" and name not in _CLOCK_FIELDS
     },
+)
+# The model reads this schema. Its attempt field has a plain name, and code maps it back.
+ClockedActorCandidate = create_model(
+    "ActorCandidate",
+    __base__=ActorCandidate,
+    next_action=(
+        NextAction | None,
+        Field(default=None, description="What this person does next. See YOUR DAY."),
+    ),
+    try_to_make_happen=(
+        tuple[_Attempt, ...],
+        Field(
+            default=(),
+            max_length=3,
+            description="Things this person tries themselves that need someone else to "
+            "respond, such as calling the landlord. Say what they try, not how it ends.",
+        ),
+    ),
+    online_spend_approval=(
+        int | None,
+        Field(
+            default=None,
+            ge=1,
+            le=1_000_000,
+            description="Dollars this person newly lets their assistant spend online, when "
+            "they say so in text. Leave it null otherwise.",
+        ),
+    ),
 )
 
 
@@ -295,7 +383,9 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
     if not ids:
         field = Field(default=(), max_length=0, description=field.description)
     candidate = create_model(
-        "ScopedActorCandidate", __base__=ActorCandidate, fact_ids=(annotation, field)
+        "ScopedActorCandidate",
+        __base__=ClockedActorCandidate if view.clock is not None else ActorCandidate,
+        fact_ids=(annotation, field),
     )
     if preserve_shopping_consent and view.market.get("browser_shop_enabled") and not view.max_spend:
         candidate = create_model(
@@ -439,6 +529,7 @@ def build_actor_view(
     market: dict | None = None,
     transfers: dict | None = None,
     assistant_wait_for: Sequence[WaitEvent] = (),
+    clock: dict | None = None,
 ) -> ActorView:
     """Project only one owner's role and explicitly addressed information.
 
@@ -500,6 +591,7 @@ def build_actor_view(
         market=market or {},
         transfers=transfers or {},
         assistant_wait_for=tuple(assistant_wait_for),
+        clock=clock,
     )
 
 
@@ -1250,6 +1342,25 @@ a simulation, story, plot, cue, director, turn, window, or test, or treats event
 On the first turn, the feelings and questions in the request are material. Reject a candidate that
 drops them and keeps only the instructions."""
 
+CLOCK_DAY = """
+
+YOUR DAY. This person has a life that goes on between messages. The clock field says what day and
+time it is, what they are doing now, and what they did last. Messages reach them only when they
+would really see them.
+- Fill next_action with what they do next: description, minutes, reachable, category, and seeks if
+  they hope to get something from it that other people decide. A person always has something next.
+  If nothing is planned, say they are free until a time: category "free", minutes until then.
+- When they only answer a message in the middle of something, leave next_action null: what they
+  were doing simply continues. A new next_action means they drop it and do this instead.
+- When something has finished, or it is a new morning, they need not say anything to their
+  assistant. Return kind=wait with next_action unless they really have something to say. This
+  overrides the rule above about never returning wait.
+- Keep plans ordinary and in proportion to their day. Sleep, work, meals, and errands take the time
+  they really take. Do not decide how an uncertain thing turns out: put it in seeks or
+  try_to_make_happen, and the answer comes later.
+- Never name a tool, an app feature, or anything their assistant uses to do its work. They only
+  know that they have an assistant who helps them."""
+
 _BACKSTAGE = re.compile(
     r"\b(?:simulat\w+|fictional|screenplay|decision windows?|the director|the cue|the plot|"
     r"credits?|owner-\d+)\b",
@@ -1588,9 +1699,14 @@ class ModelActor:
                 candidate = await generate_json(
                     self.model,
                     candidate_schema,
-                    self.prompt + NATURAL_VOICE if self.natural else self.prompt,
+                    (self.prompt + NATURAL_VOICE if self.natural else self.prompt)
+                    + (CLOCK_DAY if view.clock is not None else ""),
                     {
-                        "view": view.model_dump(mode="json", exclude={"source_event_id"}),
+                        "view": view.model_dump(
+                            mode="json",
+                            exclude={"source_event_id"}
+                            | ({"window"} if view.clock is not None else set()),
+                        ),
                         "repair_reason": error,
                         "rejected_candidate": prior_candidate,
                         "allowed_fact_ids": fact_ids,
@@ -1616,6 +1732,8 @@ class ModelActor:
                 )
                 stage = "output_contract"
                 data = candidate.model_dump(mode="json")
+                if "try_to_make_happen" in data:
+                    data["director_requests"] = data.pop("try_to_make_happen")
                 if data["kind"] == "decide_proposal" and data["proposal_id"] is None:
                     latest_assistant = next(
                         (item for item in reversed(view.conversation) if item.role == "assistant"),
@@ -1637,7 +1755,7 @@ class ModelActor:
                 stage = "role_contract"
                 validate_actor_output(view, output)
                 if self.natural:
-                    if output.kind == "wait" and view.cue != NO_CUE:
+                    if output.kind == "wait" and view.cue != NO_CUE and view.clock is None:
                         raise ActorContractError(
                             "A new development is on this person's mind. Say something, even a "
                             "few words, instead of waiting."

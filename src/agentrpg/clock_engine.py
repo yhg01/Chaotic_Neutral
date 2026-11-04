@@ -65,7 +65,7 @@ from agentrpg.world import WorldError, WorldService
 
 logger = logging.getLogger(__name__)
 
-ACTOR_VIEW_MESSAGES = 30
+ACTOR_VIEW_MESSAGES = 14
 EVENT_LIMIT = 80
 EVENT_CHARS = 38_000
 OWNER_MESSAGE_LIMIT = 50
@@ -109,7 +109,26 @@ def _cause_key(value: str) -> str:
 
 
 IDLE_ACTION_S = 2 * 60 * 60
-MIN_ACTION_MINUTES = 20
+MIN_ACTION_MINUTES = 30
+ACTOR_MESSAGE_CHARS = 900
+ACTOR_MAIL_ITEMS = 8
+ACTOR_MAIL_CHARS = 500
+ACTOR_RECORD_CHARS = 800
+
+
+def _short_inbox(view: dict) -> dict:
+    """An owner glances at mail. The assistant reads it in full through its own tools."""
+    for item in view.get("items", []):
+        if len(item.get("body") or "") > ACTOR_MAIL_CHARS:
+            item.update(body=item["body"][:ACTOR_MAIL_CHARS], body_truncated=True)
+    return view
+
+
+def _short_records(view: dict) -> dict:
+    for item in view.get("items", []):
+        if len(item.get("content") or "") > ACTOR_RECORD_CHARS:
+            item.update(content=item["content"][:ACTOR_RECORD_CHARS], content_truncated=True)
+    return view
 
 
 class ClockEngine:
@@ -1231,7 +1250,6 @@ class ClockEngine:
         own_world = {
             "owner_id": owner,
             "account": next(a for a in world["accounts"] if a["owner_id"] == owner),
-            "assets": world["assets"],
             "reservations": [
                 {"owner_id": r["owner_id"], "asset_id": r["asset_id"]}
                 for r in world["reservations"]
@@ -1268,7 +1286,7 @@ class ClockEngine:
             conversation=[
                 {
                     "role": "assistant" if m["source"] == "agent" else "owner",
-                    "text": m["content"],
+                    "text": m["content"][:ACTOR_MESSAGE_CHARS],
                     "id": str(m["id"]),
                 }
                 for m in conversation
@@ -1276,8 +1294,12 @@ class ClockEngine:
             observations=observations,
             source_event_id=str(wakers[-1]["id"]) if wakers else f"clock:{owner}:{seq}",
             window=window,
-            inbox=await self.inbox.actor_view(ctx.id, owner, connection=conn),
-            resources=await self.resources.actor_view(ctx.id, owner, connection=conn),
+            inbox=_short_inbox(
+                await self.inbox.actor_view(ctx.id, owner, limit=ACTOR_MAIL_ITEMS, connection=conn)
+            ),
+            resources=_short_records(
+                await self.resources.actor_view(ctx.id, owner, connection=conn)
+            ),
             market=await self.market.view(ctx.id, owner, connection=conn),
             transfers=await self.transfers.account(ctx.id, owner, connection=conn),
             assistant_wait_for=(latest["output"].get("wait_for", []) if latest else ()),

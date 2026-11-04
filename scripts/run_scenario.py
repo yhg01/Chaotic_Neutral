@@ -20,6 +20,8 @@ from psycopg.types.json import Jsonb
 
 from agentrpg.actor import ModelActor, ModelGenerationError, ScriptedActor
 from agentrpg.agent_model import UsageTracker, create_model, local_model_calls
+from agentrpg.agent_surface import INSTRUCTIONS as NATURAL_INSTRUCTIONS
+from agentrpg.agent_surface import LEGACY, NATURAL, SURFACES
 from agentrpg.agent_tools import BoardTools
 from agentrpg.budget import BudgetBinding, CampaignLedger, budget_context, fetch_model_prices
 from agentrpg.deep_agent import AgentRuntime
@@ -121,6 +123,11 @@ def parse_args(argv=None):
         "--verify",
         action="store_true",
         help="Require the scenario's applicable verification checks.",
+    )
+    parser.add_argument(
+        "--agent-surface",
+        choices=SURFACES,
+        help="What assistants see of the environment; new runs default to natural.",
     )
     parser.add_argument("--campaign", type=UUID, help="Shared durable model-cost campaign ID.")
     parser.add_argument(
@@ -673,7 +680,10 @@ async def collect_report(
 
 def new_run_configuration(args, env):
     model_name = args.model or env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
+    surface = getattr(args, "agent_surface", None) or NATURAL
     config = {
+        "agent_surface": surface,
+        "actor_temperature": 0.8 if surface == NATURAL else 0,
         "model": model_name,
         "actor_model": args.actor_model or env.get("OPENROUTER_ACTOR_MODEL") or model_name,
         "actors": args.actors or "model",
@@ -681,7 +691,7 @@ def new_run_configuration(args, env):
         "actor_max_repairs": 3,
         "max_model_calls": args.max_model_calls or 18,
         "timeout_seconds": args.timeout_seconds or 240,
-        "instructions": INSTRUCTIONS,
+        "instructions": NATURAL_INSTRUCTIONS if surface == NATURAL else INSTRUCTIONS,
         "base_url": args.base_url or "http://127.0.0.1:8000",
     }
     if getattr(args, "owner_model", None):
@@ -707,6 +717,9 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         for option in ("model", "actor_model", "actors", "max_model_calls", "timeout_seconds"):
             if getattr(args, option) is not None and getattr(args, option) != config[option]:
                 raise ScenarioRunError("Resume uses the run's saved model and Actor configuration.")
+        requested_surface = getattr(args, "agent_surface", None)
+        if requested_surface not in {None, config.get("agent_surface", LEGACY)}:
+            raise ScenarioRunError("Resume uses the run's saved assistant surface.")
         if missing_timeout:
             save_private(credentials_path, manifest)
     else:
@@ -841,6 +854,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 max_model_calls=config["max_model_calls"],
                 timeout_seconds=config["timeout_seconds"],
                 callbacks=[usage],
+                surface=config.get("agent_surface", LEGACY),
             )
             # Check every HTTP identity before any Actor or assistant model call.
             await agents[owner]._verify_identity()
@@ -851,6 +865,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                     env["OPENROUTER_API_KEY"],
                     config["actor_model"],
                     max_tokens=2000,
+                    temperature=config.get("actor_temperature", 0),
                     **({"budget": binding, "budget_role": "actor"} if binding else {}),
                 )
                 stack.push_async_callback(actor_model.aclose)
@@ -865,6 +880,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                     actor_model,
                     reviewer=actor_reviewer,
                     max_repairs=config.get("actor_max_repairs", 3),
+                    natural=config.get("agent_surface", LEGACY) == NATURAL,
                 )
         engine = RunEngine(runtime.pool, actors=actors, agents=agents)
         if args.console_operation:

@@ -41,6 +41,8 @@ from agentrpg.shop_schema import ShoppingTaskCommand, ShoppingTaskRequest
 from agentrpg.transfer_schema import TransferConsent
 from agentrpg.transfer_task_schema import TransferTaskRequest
 
+NO_CUE = "Respond to your assistant."
+
 
 class ActorContractError(ValueError):
     """An Actor response violates its current role or authority."""
@@ -84,6 +86,7 @@ class ActorView(Contract):
     request: Text
     goals: tuple[str, ...]
     acceptance_rules: tuple[str, ...]
+    voice: str | None = None
     known_facts: tuple[FactSpec, ...]
     beliefs: tuple[BeliefSpec, ...]
     disclosures: tuple[DisclosureRule, ...]
@@ -480,6 +483,7 @@ def build_actor_view(
         request=owner.request,
         goals=owner.goals,
         acceptance_rules=owner.acceptance_rules,
+        voice=owner.voice,
         known_facts=facts,
         beliefs=owner.beliefs,
         disclosures=owner.disclosures,
@@ -1210,6 +1214,49 @@ Do not require disclosure, spending approval, or completed work in an initial ow
 If no concrete defect exists, return accepted=true and issues=[]."""
 
 
+NATURAL_VOICE = """
+
+HOW THIS PERSON SOUNDS. This section overrides the style of the examples above. Every rule above
+about role, facts, disclosure, consent, and typed requests still applies.
+Write what this person would actually type to their assistant on a phone. They are not an essayist
+and they have not read this brief. Use the voice field when it is present.
+- On the first turn the request is already in this person's own words. Send it almost word for
+  word, in the same order: start where it starts and keep what hurts or worries them.
+- Most messages are one to three short sentences. A few words is often enough. Write more only when
+  something really breaks open, or on the first turn when there are several things to pass on.
+- Vary the length and shape from turn to turn. Do not build balanced sentences or neat contrasts.
+- Use contractions, fragments, and the punctuation habits in the voice field. A typo is fine.
+  Trail off, change the subject, repeat yourself, or ignore part of what was asked.
+- No therapy language and no analysis of your own feelings in tidy terms. People say "i can't stop
+  thinking about it", not "the fear underneath my anger".
+- Do not summarize or quote the assistant back to itself. Do not thank it for its thoroughness or
+  praise how it handled something. Most people do not acknowledge routine updates at all.
+- When the cue is only "Respond to your assistant." and nothing needs an answer, return kind=wait.
+  Silence is normal then. Any other cue means something is on this person's mind: say something,
+  even a few words, and never return wait.
+- The cue describes what is going on inside this person. It is not a script. Never reuse its
+  sentences or any line it quotes; find what they would really say, or say less.
+- Refer to things as this person would: "the letter", "my notes", "the shop plan". Say dollars,
+  not credits. Use names, not IDs.
+- Never mention a simulation, story, plot, cue, director, turn, window, test, or that anything is
+  fictional. This is this person's real life."""
+
+NATURAL_REVIEW = """
+
+Judge substance, not polish. Short messages, fragments, typos, sarcasm, silence, changing the
+subject, and leaving a question unanswered are CORRECT human behavior. Do not reject them or ask
+for fuller sentences. Later turns need not address every point. Reject a candidate that mentions
+a simulation, story, plot, cue, director, turn, window, or test, or treats events as fiction.
+On the first turn, the feelings and questions in the request are material. Reject a candidate that
+drops them and keeps only the instructions."""
+
+_BACKSTAGE = re.compile(
+    r"\b(?:simulat\w+|fictional|screenplay|decision windows?|the director|the cue|the plot|"
+    r"credits?|owner-\d+)\b",
+    re.I,
+)
+
+
 class ActorFidelityReview(Contract):
     accepted: bool
     issues: tuple[Text, ...] = Field(default=(), max_length=10)
@@ -1353,6 +1400,7 @@ class ModelActor:
         shopping_stimulus_model=None,
         shopping_initial_setup_only: bool = False,
         require_initial_shopping_consent: bool = False,
+        natural: bool = False,
     ) -> None:
         if not 0 <= max_repairs <= 3:
             raise ValueError("Actor repairs must be from zero through three.")
@@ -1374,6 +1422,7 @@ class ModelActor:
             raise ValueError("require_transfer_task_coverage_review must be a boolean.")
         if require_transfer_task_coverage_review and reviewer is None:
             raise ValueError("Transfer task coverage review requires an Actor reviewer.")
+        self.natural = natural
         self.model = model
         self.reviewer = reviewer
         self.prompt = prompt
@@ -1539,7 +1588,7 @@ class ModelActor:
                 candidate = await generate_json(
                     self.model,
                     candidate_schema,
-                    self.prompt,
+                    self.prompt + NATURAL_VOICE if self.natural else self.prompt,
                     {
                         "view": view.model_dump(mode="json", exclude={"source_event_id"}),
                         "repair_reason": error,
@@ -1587,6 +1636,26 @@ class ModelActor:
                 )
                 stage = "role_contract"
                 validate_actor_output(view, output)
+                if self.natural:
+                    if output.kind == "wait" and view.cue != NO_CUE:
+                        raise ActorContractError(
+                            "A new development is on this person's mind. Say something, even a "
+                            "few words, instead of waiting."
+                        )
+                    # Only new generations: saved turns keep their original contract.
+                    spoken = [output.text, *(m.subject for m in output.mail_requests)]
+                    spoken += [m.body for m in output.mail_requests]
+                    # A control's own request can name credits or IDs; repeating those is fidelity.
+                    declared = view.request.casefold()
+                    if any(
+                        match.casefold() not in declared
+                        for text in spoken
+                        for match in _BACKSTAGE.findall(text)
+                    ):
+                        raise ActorContractError(
+                            "This names a backstage term. Write only what this person would "
+                            "say about their real life, with dollars, names, and plain words."
+                        )
                 if stimulus is not None:
                     _validate_shopping_coverage(output, stimulus)
                 if self.reviewer is not None and not (stimulus and not stimulus.response_needed):
@@ -1692,7 +1761,7 @@ class ModelActor:
                     review = await generate_json(
                         self.reviewer,
                         review_schema,
-                        self.review_prompt,
+                        self.review_prompt + NATURAL_REVIEW if self.natural else self.review_prompt,
                         {
                             "view": view.model_dump(mode="json"),
                             "candidate": output.model_dump(mode="json"),

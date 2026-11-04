@@ -12,6 +12,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from agentrpg.agent_surface import LEGACY, NATURAL, render_activation
+
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=12000)]
 WaitEvent = Literal["owner_message", "inbox_received", "board_posted", "world_change"]
 
@@ -56,8 +58,10 @@ class ActivationEnvelope(_Record):
             raise ValueError("World observation IDs must occur in source_event_ids.")
         return self
 
-    def prompt(self) -> str:
+    def prompt(self, surface: str = LEGACY) -> str:
         """Canonical public input, also used for the persisted task hash."""
+        if surface == NATURAL:
+            return render_activation(self.owner_messages, self.world_observations)
         return (
             "DIRECTOR ACTIVATION\n"
             "owner_messages contain your owner's instructions. world_observations contain "

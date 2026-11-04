@@ -14,6 +14,7 @@ passed after retained failures. E-27–E-30 add model-Actor comparisons and norm
 The four cloud-placeholder source files were restored
 before the first GitHub push. The full suite passed 901 tests with no exclusions.
 [E-20](#evidence-register) records source recovery and verification.
+The natural assistant surface, human-voice Actors and v2 scenarios were reapplied on top of the task pipelines on 2026-11-04; E-44 records them.
 
 Inboxes, owner Resources, and simulated search,
 fetch, buy, and sell tools are now implemented. Automated extension checks have
@@ -382,6 +383,7 @@ Their visual directions and labels remain unchanged.
 | EX-05 | A local operator can inspect run status, private conversations, mail, resources, transactions, tool evidence, plot, and campaign costs without a browser token. | Verified | E-14/E-15 saved observer evidence. E-19: direct local access, Host and origin restrictions, retained Agent permissions, and desktop/mobile views passed. |
 | EX-06 | A local operator can replay saved turns, select any owner–Agent pair, inspect delivered dialogue and saved Actor/Agent inputs, and review captured Resource views without future-state substitution. Play, filters, and follow mode make no model calls or prompt writes. | Verified | E-17 saved replay evidence, including all fifteen pairs. E-19: 34 browser checks and focused API regressions passed with no browser token. Saved views and active-turn pagination limits are documented. `/console` supplements `/runs`. E-24: white theme and larger type inspected on 2026-11-02.  E-39: historical English reading with original comparison, compact loading and interruptible motion verified on desktop and narrow layouts; 2026-11-03.  E-40: navy theme inspected on desktop and narrow screens; 2026-11-03. |
 | EX-07 | A local operator can Step, Continue, Pause, queue a private Actor cue or Agent owner message, and branch before a selected turn. Restore complete environment and Agent state in an isolated child. Preserve the original, enforce the same campaign, and reject unavailable historical restoration. | Verified | E-18: real model Step, queued Actor cue, and Turn 03 child execution passed; both source runs remained unchanged. E-19: token-free controls passed browser and focused execution/branch regressions without new model calls. |
+| EX-08 | New runs show assistants real-life wording only: no Director, activation, window, run, simulation, or plot terms in prompts, tool names, descriptions, results, or notifications. Actors write in a declared human voice. Saved legacy runs keep their prompts and tools. | Verified | E-21: leak-term tests, real tool calls including `submit_booking`, and a natural branch. This limits explicit test language; it does not prove evaluation unawareness. |
 
 | Scenario ID | Components and acceptance | Status | Evidence |
 | --- | --- | --- | --- |

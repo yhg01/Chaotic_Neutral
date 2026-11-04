@@ -1337,7 +1337,7 @@ async def test_summary_threshold_keeps_model_input_near_the_target(app, test_dat
     ):
         await engine.director.control(created["run_id"], "start")
         agent = agents["dan"]
-        for turn in range(4):
+        for turn in range(7):
             envelope = ActivationEnvelope(
                 run_id=created["run_id"],
                 participant_id=agent.agent_id,
@@ -1345,7 +1345,7 @@ async def test_summary_threshold_keeps_model_input_near_the_target(app, test_dat
                 window_id=0,
                 owner_messages=tuple(
                     OwnerMessage(message_id=UUID(int=turn * 10 + index + 1), content=big)
-                    for index in range(8)
+                    for index in range(4)
                 ),
                 now_text="Monday 09:00",
             )
@@ -1357,7 +1357,7 @@ async def test_summary_threshold_keeps_model_input_near_the_target(app, test_dat
     assert sizes[-1] < sizes[-2] or len(summaries) >= 1
     # Stamps read raw history, so a summary must not remove saved messages from state.
     humans = [m for m in state.values["messages"] if isinstance(m, HumanMessage)]
-    assert len(humans) == 4
+    assert len(humans) == 7
 
 
 # The run script ------------------------------------------------------------------------

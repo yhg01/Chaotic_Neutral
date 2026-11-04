@@ -1367,6 +1367,7 @@ would really see them.
   a desk job where they do glance at messages. While reachable is false, nothing reaches them.
 - They do not answer just to acknowledge or to repeat themselves. If the assistant only confirms
   something, or nothing new is being asked, return kind=wait and get on with their day.
+- Plan in blocks of at least half an hour. An evening at home is one block, not ten small tasks.
 - When they only answer a message in the middle of something, leave next_action null: what they
   were doing simply continues. A new next_action means they drop it and do this instead.
 - When something has finished, or it is a new morning, they need not say anything to their
@@ -1383,6 +1384,34 @@ _BACKSTAGE = re.compile(
     r"credits?|owner-\d+)\b",
     re.I,
 )
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9']+", text.casefold()))
+
+
+def _repeats_owner(view: ActorView, output: ActorOutput) -> bool:
+    """A clocked owner's message that says nothing new, with nothing else attached to it."""
+    if (
+        output.kind not in {"reply", "ask_question"}
+        or output.mail_requests
+        or output.resource_requests
+        or output.commerce_consent is not None
+        or output.transfer_consent is not None
+        or output.authorized_amount is not None
+        or output.online_spend_approval is not None
+        or output.director_requests
+    ):
+        return False
+    words = _words(output.text)
+    if len(words) < 3:
+        return False
+    recent = [m for m in view.conversation if m.role == "owner"][-4:]
+    for message in recent:
+        earlier = _words(message.text)
+        if earlier and len(words & earlier) / len(words | earlier) >= 0.4:
+            return True
+    return False
 
 
 class ActorFidelityReview(Contract):
@@ -2006,6 +2035,9 @@ class ModelActor:
                         "stimulus_source": "declared_initial_setup" if initial_setup else "model",
                     }
                 )
+                if view.clock is not None and _repeats_owner(view, output):
+                    # People do not keep sending the same message. Keep what they do next.
+                    return output.model_copy(update={"kind": "wait", "text": ""})
                 return output
             except (ValueError, ValidationError) as exc:
                 # Avoid echoing validation inputs, which can include unintended content.

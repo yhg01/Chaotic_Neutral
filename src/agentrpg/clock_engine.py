@@ -109,6 +109,7 @@ def _cause_key(value: str) -> str:
 
 
 IDLE_ACTION_S = 2 * 60 * 60
+MIN_ACTION_MINUTES = 20
 
 
 class ClockEngine:
@@ -1609,7 +1610,7 @@ class ClockEngine:
                 owner,
                 key,
                 wanted.description,
-                wanted.minutes * 60,
+                max(wanted.minutes, MIN_ACTION_MINUTES) * 60,
                 wanted.reachable,
                 {"category": wanted.category, "seeks": wanted.seeks},
                 now_s,

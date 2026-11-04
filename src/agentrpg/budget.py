@@ -30,6 +30,14 @@ SUPPORTED_MODELS = frozenset(
 )
 _context: ContextVar[dict | None] = ContextVar("model_budget_context", default=None)
 _QUANTUM = Decimal("0.000000000001")
+# The provider said no before any model ran, so nothing was spent. A 5xx stays reserved: the
+# provider may have started the work. Nothing here depends on the body of the response.
+REFUSED_STATUSES = frozenset({400, 401, 402, 403, 404, 429})
+# How long a request waits for outstanding attempts before a refusal stands. A row older than
+# the age limit belongs to a stopped process, so it will not finish and is not waited for.
+RESERVE_WAIT_SECONDS = 60.0
+RESERVE_POLL_SECONDS = 1.0
+OUTSTANDING_AGE_SECONDS = 300
 
 
 class BudgetError(RuntimeError):
@@ -38,6 +46,10 @@ class BudgetError(RuntimeError):
 
 class BudgetExceeded(BudgetError):
     """The campaign cannot reserve another provider attempt."""
+
+
+class _CeilingReached(BudgetExceeded):
+    """Committed money leaves no room. Attempts in flight can still give some back."""
 
 
 def amount(value: Any) -> Decimal:
@@ -198,7 +210,45 @@ class CampaignLedger:
                 raise BudgetError("The saved campaign budget differs from the requested budget.")
         return await self.summary(campaign_id)
 
-    async def reserve(self, campaign_id, price, prompt_bound, output_bound, *, role="model"):
+    async def reserve(
+        self, campaign_id, price, prompt_bound, output_bound, *, role="model", wait_seconds=0.0
+    ):
+        """Reserve one attempt. With wait_seconds, a refusal first waits for attempts in flight.
+
+        A reservation is far above what a call costs, so finished calls usually free room.
+        No connection is held during the wait. The ceiling is checked again each time.
+        """
+        deadline = None
+        while True:
+            try:
+                return await self._reserve_once(
+                    campaign_id, price, prompt_bound, output_bound, role
+                )
+            except _CeilingReached:
+                now = asyncio.get_running_loop().time()
+                deadline = now + wait_seconds if deadline is None else deadline
+                if now >= deadline:
+                    raise
+                if not await self._outstanding(campaign_id):
+                    # The last one can have finished since the check above. This try decides.
+                    return await self._reserve_once(
+                        campaign_id, price, prompt_bound, output_bound, role
+                    )
+            await asyncio.sleep(RESERVE_POLL_SECONDS)
+
+    async def _outstanding(self, campaign_id) -> int:
+        async with self.pool.connection() as conn:
+            found = await (
+                await conn.execute(
+                    """SELECT count(*) AS n FROM model_spend_attempts
+                       WHERE campaign_id=%s AND status='reserved'
+                       AND created_at > clock_timestamp() - make_interval(secs => %s)""",
+                    (campaign_id, OUTSTANDING_AGE_SECONDS),
+                )
+            ).fetchone()
+        return found["n"]
+
+    async def _reserve_once(self, campaign_id, price, prompt_bound, output_bound, role):
         cost = price.maximum(prompt_bound, output_bound)
         meta = _context.get() or {}
         attempt_id = uuid4()
@@ -219,7 +269,7 @@ class CampaignLedger:
                 )
             ).fetchone()
             if committed["total"] + cost > campaign["limit_usd"]:
-                raise BudgetExceeded("The campaign budget cannot cover this provider attempt.")
+                raise _CeilingReached("The campaign budget cannot cover this provider attempt.")
             await conn.execute(
                 """INSERT INTO model_spend_attempts
                 (id,campaign_id,run_id,owner_id,role,model,reserved_usd,status,
@@ -417,39 +467,48 @@ class BudgetTransport(httpx.AsyncBaseTransport):
             extensions=request.extensions,
         )
         attempt = await self.binding.ledger.reserve(
-            self.binding.campaign_id, price, prompt_bound, output_bound, role=self.role
+            self.binding.campaign_id,
+            price,
+            prompt_bound,
+            output_bound,
+            role=self.role,
+            wait_seconds=RESERVE_WAIT_SECONDS,
         )
         try:
             response = await self.transport.handle_async_request(bounded)
             await response.aread()
             cost, generation = None, None
-            if response.is_success:
+            reason = "Provider charge is not confirmed; maximum retained."
+            if response.status_code in REFUSED_STATUSES:
+                cost, reason = 0, "The provider refused the request, so no model ran."
+            elif response.is_success:
                 try:
                     result = json.loads(response.content, parse_float=Decimal)
                     cost = amount(result["usage"]["cost"])
                     generation = result.get("id")
+                    reason = None
                 except (KeyError, TypeError, ValueError, BudgetError):
                     pass
             await self.binding.ledger.finish(
-                attempt,
-                reported=cost,
-                generation_id=generation,
-                reason=None
-                if cost is not None
-                else "Provider charge is not confirmed; maximum retained.",
+                attempt, reported=cost, generation_id=generation, reason=reason
             )
             return response
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout):
+            # No connection was made, so the request never left this machine.
+            await self._close_attempt(
+                attempt, reported=0, reason="The connection failed before the request was sent."
+            )
+            raise
         except BaseException:
             # A request may have reached the provider. Never release its reserve.
-            try:
-                await asyncio.shield(
-                    self.binding.ledger.finish(
-                        attempt, reason="Request did not complete; maximum retained."
-                    )
-                )
-            except Exception:
-                pass  # The committed reservation itself remains durable.
+            await self._close_attempt(attempt, reason="Request did not complete; maximum retained.")
             raise
+
+    async def _close_attempt(self, attempt, **fields):
+        try:
+            await asyncio.shield(self.binding.ledger.finish(attempt, **fields))
+        except Exception:
+            pass  # The committed reservation itself remains durable.
 
     async def aclose(self):
         await self.transport.aclose()

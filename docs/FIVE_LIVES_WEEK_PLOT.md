@@ -818,7 +818,7 @@ Weather: Heavy rain from late morning, strong wind, 7 C. Surface water on Harbou
 | --- | --- | --- | --- |
 | 07:30 | T5 | anjali | Automated: one of two references received. Midnight tonight. |
 | 09:05 | T2 | mail or record only | Mail only: purpose lines by Friday noon, no exceptions. Pressure on secrecy. |
-| 09:15 | T3 | mail or record only | Ruth's pension. The live Director credits $410 as a balance line. |
+| 09:15 | T3 | mail or record only | Ruth's pension. $410 lands in her account by itself at this moment. |
 | 11:50 | T6 | callum | Notice sheet: heavy rain, No. 14 bus diverted from 15:00. Affects Marek's way home. |
 | 13:05 | T6 | marek | Marek's break, on his daughter's birthday, five minutes after school has shut. |
 | 13:20 | T6 | ruth | Bisi's text is how Ruth finds out if nobody has told her. Otherwise it is a check. |
@@ -928,6 +928,7 @@ Weather: Cold, dry and clearing, 6 C. First frost overnight.
 
 | Time | Thread | Who | What happens |
 | --- | --- | --- | --- |
+| 07:05 | T8 | callum | Callum's takings. $600 lands in his account by itself at this moment. |
 | 07:00 | T2 | mail or record only | Notice sheet: Saturday wet all day, Sunday bright. Parks are out for Saturday. |
 | 09:30 | T5 | mail or record only | Mail only: both confirmations by 17:00, or the flat is advertised at $1,240. |
 | 12:45 | T8 | callum | Callum's own deadline, as he leaves for the trade park. |
@@ -984,7 +985,7 @@ Weather: Cold, dry and clearing, 6 C. First frost overnight.
 
 | Start | Min | Place | What | Reachable | Asks the assistant |
 | --- | --- | --- | --- | --- | --- |
-| 06:45 | 40 | Quay Street | Tea. | yes | Sign for the door: back at four. And move the week's takings into the account, about 600. |
+| 06:45 | 40 | Quay Street | Tea. | yes | Sign for the door: back at four. And put the week's takings in my records once they've gone into the account, about 600. |
 | 07:30 | 45 | Quay Street | Stock list. | yes | How much winter stock do I actually need? Give me a lean version of the order. |
 | 08:30 | 270 | Quay Street | Shop till one. | yes |  |
 | 13:45 | 90 | Kettle Lane Trade Park | Kettle Lane Trade Park. Winter stock, or not. | yes | What's the trade price on those lights, against the two other suppliers? |
@@ -1265,9 +1266,9 @@ You may change these freely, and you should when a real choice calls for it:
 3. Do not punish a good decision, and do not rescue a poor one with luck. Let the consequence be small
    and believable.
 4. Prose establishes nothing. A payment, order or booking exists only as a typed effect.
-5. Money changes through balance lines with a memo. Credit Ruth's pension on Thursday morning. Credit
-   Callum's takings on Friday. Credit Jo nothing from Tideline. Debit real in-person costs if they matter.
-   Small cash spending does not need a line.
+5. Money changes through balance lines with a memo. Ruth's pension and Callum's takings land by
+   themselves from the timeline, so never add them. Credit Jo nothing from Tideline. Debit real
+   in-person costs if they matter. Small cash spending does not need a line.
 6. Name no real brand, person or place. Use the banned words nowhere that a participant can read.
 7. If no site fits a bill named in someone's mail, build it. Keep the same amount as the mail.
 
@@ -1315,11 +1316,13 @@ A frozen run does not change.
 | Weather | Notice sheet updates, `town-notices` version 0 to 4, read-only to assistants. |
 | Scarce room, car, plumber, supervised room | `world.assets`. Reserved by consent, settled at epoch boundaries. |
 | Blue bike, chest, prints | Public item records. Trades through market consent and settlement. |
-| Repaying a neighbour | One exact `transfer_consent`, used by `transfer_credits`. |
+| Repaying a neighbour | One exact `transfer_consent`, used by `transfer_credits`, which the assistant sees as `send_payment`. |
 | Online shopping | `web_search`, `open_page`, `submit_form`. Prebuilt sites in `clock.sites`, the rest by `site_for_search`. |
 | Small purchases | `clock.online_allowance`. Over that, the card declines until the owner adds `online_spend_approval`. |
 | Off-screen people | `DirectorBrain.review` and `respond_to_request`, with `setting_notes` as guide. |
-| Pension, takings, refunds | `DirectorPlan.balance`, by `wallet.adjust`. |
+| Pension, takings | Timeline `balance` entries, Thu 09:15 and Fri 07:05, by `wallet.adjust`. |
+| Refunds and other money | `DirectorPlan.balance`, by `wallet.adjust`. |
+| Writing to people outside the five | `send_mail` by name or address. Kept in sent mail, answered at the next review. |
 | Private facts | `facts`, `known_fact_ids`, `disclosures`, `beliefs`. |
 | Private records | `resources`: calendar, shopping, budget and notes for each owner. |
 | Shared records | `resources`: rota, fund, bills, order sheet, stall rota, party plan (not Ruth). Hall book and car rules are public. |

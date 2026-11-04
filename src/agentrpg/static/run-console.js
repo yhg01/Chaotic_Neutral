@@ -979,7 +979,7 @@
     stats.append(clockStat("Drama", readable(clock.drama)));
     stats.append(clockStat("Interference", measured.drawn
       ? measured.interfered + " of " + measured.drawn + " actions · " + percent(measured.rate) + (measured.target_rate !== null ? " (set " + percent(measured.target_rate) + ")" : "")
-      : "No draws yet", "Measured from saved draws: " + measured.mild + " mild, " + measured.extreme + " extreme"));
+      : "No draws yet", "Saved draws: " + measured.mild + " mild, " + measured.extreme + " extreme. Fired: " + measured.fired + ". With an effect: " + measured.with_effect));
     stats.append(clockStat("Spend", money(clock.spend.spent_usd) + (Number(clock.spend.reserved_usd) ? " + " + money(clock.spend.reserved_usd) + " reserved" : ""), clock.spend.attempts + " model calls saved for this run"));
     for (const assistant of clock.assistants) {
       const bills = assistant.bills.map(bill => (bill.bill_id || "bill") + " " + readable(bill.status) + (bill.due_at ? ", due " + bill.due_at : "")).join("; ");
@@ -1187,7 +1187,7 @@
     if (!clock) { host.append(node("p", state.clockError || "Loading the clock…", "empty-note")); return; }
     const measured = clock.interference;
     host.append(node("p", measured.drawn
-      ? "Saved draws: " + measured.drawn + ". Interfered: " + measured.interfered + " (" + percent(measured.rate) + "). Mild: " + measured.mild + ". Extreme: " + measured.extreme + "."
+      ? "Saved draws: " + measured.drawn + ". Drawn to interfere: " + measured.interfered + " (" + percent(measured.rate) + "). Mild: " + measured.mild + ". Extreme: " + measured.extreme + ". Fired: " + measured.fired + ". With an effect: " + measured.with_effect + "."
       : "No draws were saved yet.", "control-note"));
     if (!clock.perturbations.length) { host.append(node("p", clock.drama === "off" ? "Drama is off, so nothing will interfere." : "Nothing has interfered so far.", "empty-note")); return; }
     const list = node("div", null, "clock-list");

@@ -226,6 +226,30 @@ class ClockDirector(Contract):
     review_every_minutes: int = Field(default=360, strict=True, ge=1, le=129600)
     max_sites: int = Field(default=12, strict=True, ge=0, le=200)
     setting_notes: str = Field(default="", max_length=8000)
+    # True asks reviews for small happenings even with nothing waiting. It is the only such switch.
+    small_happenings: bool = False
+
+    @model_serializer(mode="wrap")
+    def _omit_default_happenings(self, handler):
+        # Saved clocked scenarios keep the same JSON and hash unless this is set.
+        data = handler(self)
+        if not data.get("small_happenings"):
+            data.pop("small_happenings", None)
+        return data
+
+
+class ClockBalanceChange(Contract):
+    """Money that lands or leaves at a known time. wallet.adjust applies it once (R12)."""
+
+    owner_id: Identifier
+    delta: int = Field(strict=True, ge=-1_000_000, le=1_000_000)
+    memo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+    @model_validator(mode="after")
+    def changes_something(self) -> Self:
+        if self.delta == 0:
+            raise ValueError("A timeline balance change must not be zero.")
+        return self
 
 
 class ClockTimelineItem(Contract):
@@ -235,6 +259,7 @@ class ClockTimelineItem(Contract):
     cue: Text | None = None
     mail: tuple[InitialMailSpec, ...] = Field(default=(), max_length=15)
     resource_effects: tuple[ResourceEffect, ...] = Field(default=(), max_length=15)
+    balance: tuple[ClockBalanceChange, ...] = Field(default=(), max_length=15)
 
     @model_validator(mode="after")
     def has_effect(self) -> Self:
@@ -242,8 +267,8 @@ class ClockTimelineItem(Contract):
             raise ValueError("Duplicate timeline recipients.")
         if self.cue is not None and not self.recipients:
             raise ValueError("A timeline cue needs recipients.")
-        if self.cue is None and not (self.mail or self.resource_effects):
-            raise ValueError("A timeline item needs a cue, mail, or a record effect.")
+        if self.cue is None and not (self.mail or self.resource_effects or self.balance):
+            raise ValueError("A timeline item needs a cue, mail, a record effect, or money.")
         if len({mail.id for mail in self.mail}) != len(self.mail):
             raise ValueError("Duplicate timeline mail IDs.")
         return self
@@ -506,6 +531,8 @@ class ScenarioSpec(Contract):
         for item in clock.timeline:
             if not set(item.recipients) <= owners:
                 raise ValueError(f"Timeline item {item.id} references an unknown owner.")
+            if not {change.owner_id for change in item.balance} <= owners:
+                raise ValueError(f"Timeline item {item.id} money references an unknown owner.")
             for mail in item.mail:
                 if mail.recipient_owner_id not in owners or mail.sender_owner_id not in owners | {
                     None
@@ -560,6 +587,9 @@ class ScenarioSpec(Contract):
             for key in ("mail", "resource_effects"):
                 if not beat[key]:
                     beat.pop(key)
+        for item in (payload.get("clock") or {}).get("timeline", ()):
+            if not item["balance"]:
+                item.pop("balance")
         return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
     def content_hash(self) -> str:

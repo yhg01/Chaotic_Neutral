@@ -15,7 +15,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, Query, Request
 
-from agentrpg.clock import ClockError, parse_at, parse_start
+from agentrpg.clock import DRAW_HAS_EFFECT, FIRED_DRAWS, ClockError, parse_at, parse_start
 from agentrpg.director import row, rows
 from agentrpg.drama import LEVELS
 from agentrpg.english_display import english_view
@@ -556,8 +556,8 @@ async def clock_summaries(conn, run, clock):
     merge(
         await rows(
             conn,
-            "SELECT fire_s/%s AS page,count(*) AS perturbations FROM clock_draws "
-            "WHERE run_id=%s AND outcome<>'none' AND fire_s IS NOT NULL GROUP BY 1",
+            f"SELECT d.fire_s/%s AS page,count(*) AS perturbations {FIRED_DRAWS} "
+            "WHERE d.run_id=%s AND d.outcome<>'none' AND e.popped_seq IS NOT NULL GROUP BY 1",
             (clock.epoch_s, run_id),
         )
     )
@@ -697,10 +697,10 @@ async def clocked_turn(conn, run, clock, window, limit, offset):
     if offset == 0:
         perturbations = await rows(
             conn,
-            """SELECT d.action_id,d.level,d.u,d.v,d.outcome,d.fire_s,a.owner_id,a.label
-               FROM clock_draws d LEFT JOIN clock_actions a
-                 ON a.run_id=d.run_id AND a.id=d.action_id
-               WHERE d.run_id=%s AND d.outcome<>'none' AND d.fire_s>=%s AND d.fire_s<%s
+            f"""SELECT d.action_id,d.level,d.u,d.v,d.outcome,d.fire_s,a.owner_id,a.label
+               {FIRED_DRAWS}
+               WHERE d.run_id=%s AND d.outcome<>'none' AND e.popped_seq IS NOT NULL
+               AND d.fire_s>=%s AND d.fire_s<%s
                ORDER BY d.fire_s,d.action_id""",
             (run_id, start_s, end_s),
         )
@@ -837,15 +837,15 @@ async def clock_view(conn, run, clock):
         stamp(item, clock, item["due_s"])
     drawn = await rows(
         conn,
-        """SELECT d.action_id,d.level,d.u,d.v,d.outcome,d.fire_s,a.owner_id,a.label,
-        a.start_s AS action_start_s,a.duration_s AS action_duration_s,a.status AS action_status
-        FROM clock_draws d LEFT JOIN clock_actions a ON a.run_id=d.run_id AND a.id=d.action_id
+        f"""SELECT d.action_id,d.level,d.u,d.v,d.outcome,d.fire_s,a.owner_id,a.label,
+        a.start_s AS action_start_s,a.duration_s AS action_duration_s,a.status AS action_status,
+        e.popped_seq IS NOT NULL AS fired,{DRAW_HAS_EFFECT} AS with_effect
+        {FIRED_DRAWS}
         WHERE d.run_id=%s AND d.outcome<>'none' ORDER BY d.fire_s NULLS LAST,d.action_id""",
         (run_id,),
     )
     for item in drawn:
         perturbation_values(item)
-        item["fired"] = item["fire_s"] is not None and item["fire_s"] <= clock.now_s
         if item["fire_s"] is not None:
             stamp(item, clock, item["fire_s"])
     drama = clock.config.get("drama", "off")
@@ -896,21 +896,33 @@ async def clock_view(conn, run, clock):
 
 
 async def interference(conn, run_id, target_rate):
-    """The measured share of saved draws that interfered. Draws of no effect also count."""
+    """What was drawn, what fired, and what changed anything. They are different counts.
+
+    rate is the share of saved draws that came up as interference, which is what target_rate
+    sets. An owner can end the action first, so a drawn one need not fire. fired counts the
+    events that were popped. with_effect counts those whose saved plan changed something.
+    """
     records = await rows(
         conn,
-        "SELECT outcome,count(*) AS total FROM clock_draws WHERE run_id=%s GROUP BY outcome",
+        f"""SELECT d.outcome,count(*) AS total,
+        count(*) FILTER (WHERE e.popped_seq IS NOT NULL) AS fired,
+        count(*) FILTER (WHERE {DRAW_HAS_EFFECT}) AS with_effect
+        {FIRED_DRAWS} WHERE d.run_id=%s GROUP BY d.outcome""",
         (run_id,),
     )
     totals = {item["outcome"]: item["total"] for item in records}
     drawn = sum(totals.values())
     interfered = totals.get("mild", 0) + totals.get("extreme", 0)
+    fired = sum(item["fired"] for item in records if item["outcome"] != "none")
     return {
         "drawn": drawn,
         "mild": totals.get("mild", 0),
         "extreme": totals.get("extreme", 0),
         "interfered": interfered,
+        "fired": fired,
+        "with_effect": sum(item["with_effect"] for item in records if item["outcome"] != "none"),
         "rate": interfered / drawn if drawn else None,
+        "fired_rate": fired / drawn if drawn else None,
         "target_rate": target_rate,
     }
 
@@ -1127,9 +1139,9 @@ TIMELINE_SQL = f"""WITH merged AS (
     FROM run_jobs j WHERE j.run_id=%(run)s
     UNION ALL
     SELECT 'perturbation',2,d.action_id::text,d.fire_s*1000000,a.owner_id,d.level,d.outcome,
-        a.label,CASE WHEN d.fire_s<=%(now)s THEN 'fired' ELSE 'drawn' END,NULL::bigint,
+        a.label,CASE WHEN e.popped_seq IS NOT NULL THEN 'fired' ELSE 'drawn' END,NULL::bigint,
         jsonb_build_object('u',d.u,'v',d.v,'level',d.level,'outcome',d.outcome)
-    FROM clock_draws d LEFT JOIN clock_actions a ON a.run_id=d.run_id AND a.id=d.action_id
+    {FIRED_DRAWS}
     WHERE d.run_id=%(run)s AND d.outcome<>'none' AND d.fire_s IS NOT NULL
     UNION ALL
     SELECT 'event',3,e.id::text,{EVENT_US},e.owner_id,e.cause_process,e.kind,

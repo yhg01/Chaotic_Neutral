@@ -35,7 +35,8 @@ THINKING = "thinking"
 ACTING = "acting"
 SETTLING = "settling"
 
-ARRIVAL_TIMEOUT_S = 300.0
+# Longer than the longest retry wait, so a call waiting out an outage keeps its slot.
+ARRIVAL_TIMEOUT_S = 600.0
 
 
 @dataclass(eq=False)
@@ -94,6 +95,8 @@ class ClockGate:
         self._slots = asyncio.Semaphore(config.max_parallel_thinkers)
         self.calls_in_flight = 0
         self.peak_calls_in_flight = 0
+        # Real work that came back. The conductor's circuit breaker reads this.
+        self.successes = 0
 
     # Who is doing what -------------------------------------------------------------------
 
@@ -176,6 +179,7 @@ class ClockGate:
         state = self._processes.get(process)
         if state is None:
             return
+        self.successes += 1
         fold = self._fold(state, [*messages, ai_message])
         state.bar_s = fold.end_s
         for call in fold.last_message_calls:
@@ -211,11 +215,19 @@ class ClockGate:
                 if getattr(message, "type", None) == "tool"
             }
             state.replays.update(call_id for call_id in saved if call_id not in answered)
+            # Only a result after the last model message answers its calls. A provider can
+            # reuse a call ID, and an older result must not let this call skip its turn.
+            current = set()
+            for message in reversed(messages):
+                if getattr(message, "type", None) == "ai":
+                    break
+                if getattr(message, "type", None) == "tool":
+                    current.add(getattr(message, "tool_call_id", None))
             for call in fold.last_message_calls:
                 if (
                     call.gated
                     and call.call_id not in saved
-                    and call.call_id not in answered
+                    and call.call_id not in current
                     and call.call_id not in state.entries
                 ):
                     self._register(state, call)
@@ -259,6 +271,7 @@ class ClockGate:
         entry = state.entries.pop(str(tool_call.get("id")), None)
         if entry is None:
             return
+        self.successes += 1
         entry.completed = True
         entry.running = False
         entry.finished.set()

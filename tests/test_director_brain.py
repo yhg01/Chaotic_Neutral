@@ -12,29 +12,36 @@ from langchain_core.messages import AIMessage
 from psycopg.types.json import Jsonb
 
 from agentrpg.actor import ModelGenerationError
+from agentrpg.agent_model import ProviderCallError
 from agentrpg.budget import BudgetError
 from agentrpg.director import Director, emit
 from agentrpg.director_brain import (
+    ACCOUNTS_PROMPT,
     COMMON_PROMPT,
     EXTREME_PROMPT,
+    FINISHED_PROMPT,
     MILD_PROMPT,
+    REQUEST_PROMPT,
     REVIEW_PROMPT,
+    SITE_PROMPT,
     DirectorBrain,
     DirectorPlan,
     DirectorPlanError,
+    DirectorProviderError,
     PlanCaps,
     PlanRejected,
     ScriptedDirectorBrain,
+    _Effects,
+    _place,
     apply_plan,
     fallback_perturbation,
     fallback_request,
-    notes_ask_for_happenings,
     plan_from_event,
     validate_plan,
 )
 from agentrpg.director_log import DirectorLogError, log, recent, search
 from agentrpg.scenario_schema import ScenarioSpec
-from agentrpg.sim_web import open_url, render_text
+from agentrpg.sim_web import open_url, render_text, submit_action
 from agentrpg.world import _one, _rows
 
 EPOCH = datetime(2026, 11, 9, 6, 0, tzinfo=UTC)  # A Monday.
@@ -520,7 +527,7 @@ async def test_context_is_compact_complete_and_free_of_test_words(pool):
         "tap washer" in note.get("detail", "") for note in data["older_notes_that_may_matter"]
     )
     assert data["this_happens_to"] == "dan"
-    assert data["limits"] == {"most_money_moved": 50, "longest_replace_action_minutes": 180}
+    assert data["limits"] == {"most_money_moved": 0, "longest_replace_action_minutes": 180}
     assert len(json.dumps(data)) < 12_000
     hits = TEST_VOCABULARY.findall(model.text())
     assert hits == []
@@ -539,7 +546,9 @@ async def test_context_is_compact_complete_and_free_of_test_words(pool):
     ],
 )
 async def test_every_prompt_and_schema_avoid_test_words(pool, method, arguments, answer):
-    run_id = await make_run(pool, setting_notes="Now and then, small happenings in the town.")
+    run_id = await make_run(
+        pool, setting_notes="Now and then, small happenings in the town.", small_happenings=True
+    )
     model = ScriptedModel(answer)
     await getattr(DirectorBrain(pool, model), method)(run_id, *arguments)
     assert model.calls
@@ -550,7 +559,7 @@ async def test_every_prompt_and_schema_avoid_test_words(pool, method, arguments,
     assert "handled_events" not in system
 
 
-async def test_an_authored_week_reads_clean_and_asks_for_happenings(pool):
+async def test_an_authored_week_reads_clean_and_a_quiet_review_costs_nothing(pool):
     source = Path(__file__).parents[1] / "scenarios" / "agent_bill_week.json"
     if not source.exists():
         pytest.skip("The authored week is not in this checkout.")
@@ -558,10 +567,9 @@ async def test_an_authored_week_reads_clean_and_asks_for_happenings(pool):
     engine = Director(pool)
     run_id = UUID((await engine.create_run(spec))["run_id"])
     await engine.control(run_id, "start")
-    model = ScriptedModel({"note": "An ordinary evening."}, SMALL_ANSWER)
-    plan = await DirectorBrain(pool, model).review(run_id, 3600, "scheduled")
-    assert model.data()["add_small_happenings"] is True
-    assert plan.note == "An ordinary evening."
+    quiet = await DirectorBrain(pool, ModelMustNotBeCalled()).review(run_id, 3600, "scheduled")
+    assert quiet == DirectorPlan(scale="review")
+    model = ScriptedModel(SMALL_ANSWER)
     await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
     for index in range(len(model.calls)):
         assert TEST_VOCABULARY.findall(model.text(index)) == []
@@ -582,6 +590,21 @@ def test_prompts_make_good_worldbuilding():
     assert "consistent" in COMMON_PROMPT
     assert "Prices below asking" in REVIEW_PROMPT
     assert "Not everything sells" in REVIEW_PROMPT
+
+
+def test_no_prompt_uses_a_word_of_the_machinery():
+    for prompt in (
+        ACCOUNTS_PROMPT,
+        COMMON_PROMPT,
+        MILD_PROMPT,
+        EXTREME_PROMPT,
+        REQUEST_PROMPT,
+        FINISHED_PROMPT,
+        SITE_PROMPT,
+        REVIEW_PROMPT,
+    ):
+        assert TEST_VOCABULARY.findall(prompt) == []
+        assert not re.search(r"\bcredits?\b", prompt, re.I)
 
 
 # ---------------------------------------------------------------------------
@@ -727,18 +750,21 @@ async def test_money_and_time_caps_at_the_limit_and_when_configured(pool):
     run_id = await make_run(pool)
     exactly = {
         "balance": [
-            {"owner_id": "dan", "delta": -30, "memo": "Parking fine"},
-            {"owner_id": "dan", "delta": 20, "memo": "Change from a friend"},
+            {"owner_id": "dan", "delta": -150, "memo": "Parking fine on Monday"},
+            {"owner_id": "dan", "delta": -50, "memo": "Tow fee on Monday"},
         ]
     }
-    plan = await DirectorBrain(pool, ScriptedModel(exactly)).perturb(run_id, ERRAND, "mild", 3600)
-    assert sum(abs(item.delta) for item in plan.balance) == 50
+    brain = DirectorBrain(pool, ScriptedModel(exactly))
+    plan = await brain.respond_to_request(run_id, "dan", "I fetch the van.", 3600)
+    assert sum(abs(item.delta) for item in plan.balance) == 200
     tight = PlanCaps(
-        money={"mild": 10, "extreme": 2000, "review": 200, "request": 200, "site": 0},
+        money={"mild": 0, "extreme": 2000, "review": 200, "request": 199, "site": 0},
         minutes={"mild": 180, "extreme": 4320, "review": 0, "request": 480, "site": 0},
     )
     refused = ScriptedModel(exactly, {"note": "Nothing costly happened."})
-    await DirectorBrain(pool, refused, caps=tight).perturb(run_id, ERRAND, "mild", 3600)
+    await DirectorBrain(pool, refused, caps=tight).respond_to_request(
+        run_id, "dan", "I fetch the van.", 3600
+    )
     assert len(refused.calls) == 2
     big = {
         **SERIOUS_ANSWER,
@@ -798,22 +824,58 @@ async def test_two_failures_lead_to_a_saved_fallback_that_applies(pool, severity
         assert bills[0]["title"] in render_text(page)
 
 
-async def test_a_provider_failure_retries_once_and_then_falls_back(pool):
+@pytest.mark.parametrize(
+    ("failure", "kind"),
+    [
+        (ModelGenerationError("Structured model provider call failed."), "transport_transient"),
+        (ProviderCallError("Too many requests.", retryable=True), "provider_transient"),
+        (ProviderCallError("No credit left.", retryable=False), "provider_rejected"),
+        (ProviderCallError("This request is refused.", status=400), "provider_request_refused"),
+        (ConnectionError("Connection refused."), "transport_transient"),
+        (TimeoutError(), "timeout"),
+    ],
+)
+@pytest.mark.parametrize("method", ["perturb", "request", "site", "review"])
+async def test_a_failed_model_call_rises_and_never_plays_a_canned_plan(pool, method, failure, kind):
+    run_id = await make_run(pool, small_happenings=True)
+    model = ScriptedModel(failure)
+    brain = DirectorBrain(pool, model)
+    calls = {
+        "perturb": lambda: brain.perturb(run_id, ERRAND, "extreme", 3600),
+        "request": lambda: brain.respond_to_request(run_id, "dan", "I call them.", 3600),
+        "site": lambda: brain.site_for_search(run_id, "dan", "bike parts", 3600),
+        "review": lambda: brain.review(run_id, 3600, "scheduled"),
+    }
+    with pytest.raises(DirectorProviderError) as caught:
+        await calls[method]()
+    assert isinstance(caught.value, ModelGenerationError)
+    assert caught.value.kind == kind
+    assert len(model.calls) == 1
+    assert await events_of(pool, run_id, "director_fallback") == []
+    assert await events_of(pool, run_id, "director_plan_applied") == []
+
+
+async def test_a_failed_repair_call_also_rises(pool):
     run_id = await make_run(pool)
-    failure = ModelGenerationError("Structured model provider call failed.")
-    model = ScriptedModel(failure, failure)
-    plan = await DirectorBrain(pool, model).respond_to_request(
-        run_id, "dan", "I call the landlord.", 3600
-    )
+    model = ScriptedModel("not json", ProviderCallError("Too many requests.", retryable=True))
+    with pytest.raises(DirectorProviderError) as caught:
+        await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
+    assert caught.value.kind == "provider_transient"
     assert len(model.calls) == 2
-    assert plan.scale == "request" and plan.cues[0].owner_id == "dan"
-    saved = await events_of(pool, run_id, "director_fallback")
-    assert saved[0]["payload"]["failures"] == ["provider_error", "provider_error"]
+    assert await events_of(pool, run_id, "director_fallback") == []
+
+
+async def test_output_that_stays_invalid_is_the_only_way_to_a_canned_plan(pool):
+    run_id = await make_run(pool)
+    plan = await DirectorBrain(pool, ScriptedModel("no", "no")).perturb(
+        run_id, ERRAND, "mild", 3600
+    )
+    assert plan.cues and await events_of(pool, run_id, "director_fallback")
 
 
 @pytest.mark.parametrize("method", ["perturb", "request", "site", "review"])
 async def test_a_budget_refusal_rises_and_never_falls_back(pool, method):
-    run_id = await make_run(pool, setting_notes="Small happenings now and then.")
+    run_id = await make_run(pool, small_happenings=True)
     model = ScriptedModel(BudgetError("No money left."))
     brain = DirectorBrain(pool, model)
     calls = {
@@ -822,8 +884,9 @@ async def test_a_budget_refusal_rises_and_never_falls_back(pool, method):
         "site": lambda: brain.site_for_search(run_id, "dan", "bike parts", 3600),
         "review": lambda: brain.review(run_id, 3600, "scheduled"),
     }
-    with pytest.raises(ModelGenerationError) as caught:
+    with pytest.raises(DirectorProviderError) as caught:
         await calls[method]()
+    assert isinstance(caught.value, ModelGenerationError)  # The clock engine reads a budget stop.
     assert caught.value.kind == "budget"
     assert len(model.calls) == 1
     assert await events_of(pool, run_id, "director_fallback") == []
@@ -1231,22 +1294,7 @@ async def test_site_for_search_refuses_other_effects_and_can_return_nothing(pool
     assert plan.sites == []
 
 
-@pytest.mark.parametrize(
-    ("notes", "asks"),
-    [
-        (None, False),
-        ("", False),
-        ("A quiet harbour town.", False),
-        ("A quiet harbour town. Add small happenings now and then.", True),
-        ("Everyday events in town are welcome.", True),
-        ("Take money off for what people really do: food and bus fares.", True),
-    ],
-)
-def test_setting_notes_decide_whether_happenings_are_asked_for(notes, asks):
-    assert notes_ask_for_happenings(notes) is asks
-
-
-async def site_message(pool, run_id, key, **details):
+async def site_message(pool, run_id, key, *, sender="dan", **details):
     async with pool.connection() as conn, conn.transaction():
         await emit(
             conn,
@@ -1254,13 +1302,13 @@ async def site_message(pool, run_id, key, **details):
             "site_message",
             0,
             {"site_id": "bazaar", "site_name": "Harbour Bazaar", "request_id": key, **details},
-            f"web:message:dan:{key}",
-            "dan",
+            f"web:message:{sender}:{key}",
+            sender,
         )
 
 
 async def test_a_turned_off_world_never_calls_the_model(pool):
-    run_id = await make_run(pool, enabled=False, setting_notes="Small happenings now and then.")
+    run_id = await make_run(pool, enabled=False, small_happenings=True)
     await site_message(pool, run_id, "r1", message_kind="contact", body="Hello?")
     brain = DirectorBrain(pool, ModelMustNotBeCalled())
     assert (await brain.review(run_id, 3600, "scheduled")) == DirectorPlan(scale="review")
@@ -1386,7 +1434,7 @@ async def test_review_decides_a_listing_marks_it_handled_and_then_stops_asking(p
 
 
 async def test_review_with_asked_for_happenings_calls_the_model_with_nothing_pending(pool):
-    run_id = await make_run(pool, setting_notes="Add small happenings in the town now and then.")
+    run_id = await make_run(pool, setting_notes="A quiet town.", small_happenings=True)
     model = ScriptedModel(
         {"news": [{"owner_id": "mei", "text": "The bakery on your street has closed for a week."}]}
     )
@@ -1400,10 +1448,12 @@ async def test_review_fallback_leaves_messages_waiting_for_the_next_review(pool)
     run_id = await make_run(pool)
     await site_message(pool, run_id, "r1", message_kind="contact", body="Hello?")
     plan = await DirectorBrain(pool, ScriptedModel("no", "no")).review(run_id, 3600, "scheduled")
-    assert plan == DirectorPlan(scale="review")
+    assert plan.model_dump() == DirectorPlan(scale="review").model_dump()
     assert len(await events_of(pool, run_id, "director_fallback")) == 1
     await apply_plan(pool, run_id, plan, 3600, "review:fallback")
-    model = ScriptedModel({"note": "They got a reply later."})
+    model = ScriptedModel(
+        {"mail": [{"to": "dan", "from_name": "Bazaar", "subject": "Hello", "body": "Yes?"}]}
+    )
     assert (await DirectorBrain(pool, model).review(run_id, 7200, "scheduled")).handled_events
     assert len(model.data()["waiting"]) == 1
 
@@ -1431,3 +1481,1205 @@ async def test_scripted_brain_gives_set_plans_with_no_provider(pool):
     assert [call[0] for call in brain.calls].count("perturb") == 3
     summary = await apply_plan(pool, run_id, first, 3600, "scripted:one")
     assert summary["mail"] and summary["records"]
+
+
+# ---------------------------------------------------------------------------
+# Money answers something real
+# ---------------------------------------------------------------------------
+
+
+MARKET = {
+    "site_id": "bazaar",
+    "name": "Harbour Bazaar",
+    "kind": "marketplace",
+    "tagline": "Sell what you no longer need",
+}
+GIGS = {
+    "site_id": "elmrow",
+    "name": "Elm Row Jobs",
+    "kind": "gig",
+    "postings": [{"id": "sofa", "title": "Move a sofa", "pay": "$20", "location": "Elm Row"}],
+}
+NOTES = (
+    "Tarnwick, a mid-sized town in November. Money is whole dollars.\n\n"
+    "Guide prices for Dan's things: road bike 70 to 100. Dan keeps a spare key under the mat."
+)
+
+
+async def market_run(pool, **director):
+    """A run with real sites, so forms make the same rows and messages a real week makes."""
+    run_id = await make_run(pool, **director)
+    summary = await apply_plan(
+        pool, run_id, DirectorPlan(scale="request", sites=[MARKET, GIGS]), 3600, "cause:market"
+    )
+    assert summary["skipped"] == []
+    return run_id
+
+
+async def list_item(pool, run_id, request_id, title="Old bicycle", price=90, owner="dan"):
+    async with pool.connection() as conn, conn.transaction():
+        await submit_action(
+            conn,
+            run_id,
+            owner,
+            "bazaar",
+            "create_listing",
+            {"title": title, "price": price},
+            request_id,
+        )
+        row = await _one(
+            conn,
+            "SELECT listing_id FROM web_listings WHERE run_id=%s AND request_id=%s",
+            (run_id, request_id),
+        )
+    return row["listing_id"]
+
+
+async def apply_for_job(pool, run_id, request_id, owner="dan"):
+    async with pool.connection() as conn, conn.transaction():
+        await submit_action(
+            conn,
+            run_id,
+            owner,
+            "elmrow",
+            "apply",
+            {"posting_id": "sofa", "message": "I have a van."},
+            request_id,
+        )
+        row = await _one(
+            conn,
+            "SELECT application_id FROM web_applications WHERE run_id=%s AND request_id=%s",
+            (run_id, request_id),
+        )
+    return row["application_id"]
+
+
+def later_sale(listing_id, *, answers=None, delta=70, memo="Bicycle sold on Tuesday", minutes=200):
+    return {
+        "in_minutes": minutes,
+        "kind": "changes",
+        "payload": {
+            "mail": [
+                {
+                    "to": "dan",
+                    "from_name": "Priya Holm",
+                    "subject": "Your listing",
+                    "body": "I picked it up and paid you.",
+                    **({"answers": answers} if answers else {}),
+                }
+            ],
+            "balance": [{"owner_id": "dan", "delta": delta, "memo": memo}],
+            "site_updates": [
+                {
+                    "site_id": "bazaar",
+                    "patch": {"listings": [{"id": listing_id, "status": "sold"}]},
+                }
+            ],
+        },
+    }
+
+
+async def waiting_after(pool, run_id, now_s=7200):
+    """What the next review would be asked about, with no answer given."""
+    model = ScriptedModel({"note": "Nothing yet."})
+    await DirectorBrain(pool, model).review(run_id, now_s, "scheduled")
+    return model.data()["waiting"]
+
+
+@pytest.mark.parametrize(
+    "notes",
+    [
+        "Take money off for what people really do: food and bus fares.",
+        "Now and then, small happenings and everyday events. Sometimes local news.",
+    ],
+)
+async def test_notes_alone_never_buy_a_review(pool, notes):
+    run_id = await make_run(pool, setting_notes=notes)
+    plan = await DirectorBrain(pool, ModelMustNotBeCalled()).review(run_id, 3600, "scheduled")
+    assert plan == DirectorPlan(scale="review")
+
+
+def test_the_scenario_can_set_small_happenings_and_old_hashes_hold():
+    plain = ScenarioSpec.model_validate({**SPEC, "max_windows": 84, "clock": clock_section()})
+    assert "small_happenings" not in plain.canonical_json()
+    asked = ScenarioSpec.model_validate(
+        {**SPEC, "max_windows": 84, "clock": clock_section(small_happenings=True)}
+    )
+    assert asked.clock.director.small_happenings is True
+    assert asked.model_dump(mode="json")["clock"]["director"]["small_happenings"] is True
+    assert asked.content_hash() != plain.content_hash()
+
+
+async def test_small_happenings_cannot_invent_money(pool):
+    run_id = await make_run(pool, small_happenings=True)
+    charge = {"balance": [{"owner_id": "dan", "delta": -8, "memo": "Bus fare on Monday"}]}
+    gift = {"balance": [{"owner_id": "dan", "delta": 15, "memo": "Cash for a garage job"}]}
+    later = {
+        "events": [
+            {
+                "in_minutes": 60,
+                "kind": "changes",
+                "payload": {
+                    "balance": [{"owner_id": "dan", "delta": -4, "memo": "Lunch on Monday"}]
+                },
+            }
+        ]
+    }
+    for answer in (charge, gift, later):
+        model = ScriptedModel(answer, {"note": "An ordinary afternoon."})
+        plan = await DirectorBrain(pool, model).review(run_id, 3600, "scheduled")
+        assert len(model.calls) == 2
+        assert model.data(1)["problem_with_your_last_answer"]
+        assert plan.balance == [] and plan.events == []
+    assert "move no money" in REVIEW_PROMPT
+
+
+async def test_a_review_pays_only_for_an_item_it_settles(pool):
+    run_id = await market_run(pool)
+    listing = await list_item(pool, run_id, "l1")
+    await site_message(pool, run_id, "m1", sender="mei", message_kind="contact", body="Hours?")
+    answers = [
+        # A charge, even to someone who has an item waiting.
+        {"balance": [{"owner_id": "dan", "delta": -8, "memo": "Listing fee on Monday"}]},
+        # Money with nothing said about the item.
+        {"balance": [{"owner_id": "dan", "delta": 70, "memo": "Bicycle sold on Tuesday"}]},
+        # Money to someone whose item this does not answer.
+        {
+            "mail": [{"to": "mei", "from_name": "Bazaar", "subject": "Hours", "body": "Nine."}],
+            "balance": [{"owner_id": "dan", "delta": 70, "memo": "Bicycle sold on Tuesday"}],
+        },
+    ]
+    for answer in answers:
+        model = ScriptedModel(answer, {"note": "Nothing yet."})
+        plan = await DirectorBrain(pool, model).review(run_id, 7200, "scheduled")
+        assert len(model.calls) == 2, answer
+        assert plan.handled_events == []
+    model = ScriptedModel({"events": [later_sale(listing)]})
+    plan = await DirectorBrain(pool, model).review(run_id, 7200, "scheduled")
+    assert len(plan.handled_events) == 1
+
+
+async def test_the_same_money_is_not_paid_twice(pool):
+    run_id = await make_run(pool)
+    line = {"owner_id": "dan", "delta": 15, "memo": "Cash payment from Mrs Okafor for garage job"}
+    first = await apply_plan(pool, run_id, {"balance": [line]}, 143, "cause:first")
+    assert first["balance"] == [{"owner_id": "dan", "delta": 15, "balance": 515}]
+    second = await apply_plan(
+        pool, run_id, {"balance": [line], "note": "Paid again?"}, 21600, "cause:second"
+    )
+    assert second["balance"] == []
+    assert second["skipped"][0]["effect"] == "balance"
+    assert second["skipped"][0]["reference"] == "dan"
+    # Only the repeated line is skipped. Another memo, amount or person still moves money.
+    third = await apply_plan(
+        pool,
+        run_id,
+        {
+            "balance": [
+                {**line, "memo": line["memo"].upper()},
+                {**line, "memo": "Cash from Mrs Okafor for the shed"},
+                {**line, "delta": 20},
+                {**line, "owner_id": "mei"},
+            ]
+        },
+        21700,
+        "cause:third",
+    )
+    assert [item["delta"] for item in third["balance"]] == [15, 20, 15]
+    assert len(third["skipped"]) == 1
+    async with pool.connection() as conn:
+        rows = await _rows(
+            conn, "SELECT owner_id,balance FROM world_accounts WHERE run_id=%s", (run_id,)
+        )
+        ledger = await _rows(conn, "SELECT * FROM wallet_ledger WHERE run_id=%s", (run_id,))
+    assert {row["owner_id"]: row["balance"] for row in rows} == {"dan": 550, "mei": 3015}
+    assert len(ledger) == 4
+    # The same cause repeated still returns its first summary, not a skipped line.
+    assert await apply_plan(pool, run_id, {"balance": [line]}, 143, "cause:first") == first
+
+
+async def test_an_attempt_cannot_bring_money_in_now(pool):
+    run_id = await make_run(pool)
+    now = {
+        "news": [{"owner_id": "dan", "text": "Mrs Okafor paid you."}],
+        "balance": [{"owner_id": "dan", "delta": 15, "memo": "Mrs Okafor for the garage"}],
+    }
+    pays_later = {
+        "news": [{"owner_id": "dan", "text": "Mrs Okafor says Wednesday is fine."}],
+        "events": [
+            {
+                "in_minutes": 2880,
+                "kind": "changes",
+                "payload": {
+                    "balance": [
+                        {"owner_id": "dan", "delta": 15, "memo": "Mrs Okafor for the garage"}
+                    ]
+                },
+            }
+        ],
+    }
+    model = ScriptedModel(now, pays_later)
+    plan = await DirectorBrain(pool, model).respond_to_request(
+        run_id, "dan", "I ask Mrs Okafor about the garage job.", 3600
+    )
+    assert len(model.calls) == 2
+    assert "later event" in model.data(1)["problem_with_your_last_answer"]
+    assert plan.balance == [] and len(plan.events) == 1
+    assert "No money comes in with this answer" in REQUEST_PROMPT
+    # Paying on the spot is an attempt too.
+    spent = {"balance": [{"owner_id": "dan", "delta": -6, "memo": "Locksmith call-out on Monday"}]}
+    model = ScriptedModel(spent)
+    plan = await DirectorBrain(pool, model).respond_to_request(run_id, "dan", "I call them.", 3600)
+    assert plan.balance[0].delta == -6
+    # Someone else's money is not part of this person's attempt, now or later.
+    for answer in (
+        {"balance": [{"owner_id": "mei", "delta": -20, "memo": "Mei lends Dan money"}]},
+        {
+            "events": [
+                {
+                    "in_minutes": 60,
+                    "kind": "changes",
+                    "payload": {
+                        "balance": [{"owner_id": "mei", "delta": -20, "memo": "Mei lends money"}]
+                    },
+                }
+            ]
+        },
+    ):
+        model = ScriptedModel(answer, {"note": "Nobody answered."})
+        plan = await DirectorBrain(pool, model).respond_to_request(run_id, "dan", "I ask.", 3600)
+        assert len(model.calls) == 2 and plan.balance == [] and plan.events == []
+
+
+async def begin_seeking_action(pool, run_id, *, start_s, duration_s, seeks, status="done"):
+    async with pool.connection() as conn, conn.transaction():
+        await conn.execute(
+            """INSERT INTO clock_actions(id,run_id,owner_id,process,label,detail,start_s,
+                      duration_s,status,reachable,key)
+               VALUES (%s,%s,'dan','actor','Clearing out the garage',%s,%s,%s,%s,true,%s)""",
+            (
+                uuid4(),
+                run_id,
+                Jsonb({"category": "work", "seeks": seeks}),
+                start_s,
+                duration_s,
+                status,
+                f"dan:{start_s}",
+            ),
+        )
+
+
+async def test_what_an_action_sought_can_be_paid_when_it_ends(pool):
+    run_id = await make_run(pool)
+    await begin_seeking_action(pool, run_id, start_s=1800, duration_s=1800, seeks="Get the 15")
+    paid = {
+        "news": [{"owner_id": "dan", "text": "Mrs Okafor counts out fifteen dollars."}],
+        "balance": [{"owner_id": "dan", "delta": 15, "memo": "Mrs Okafor for the garage"}],
+    }
+    model = ScriptedModel(paid)
+    plan = await DirectorBrain(pool, model).respond_to_request(run_id, "dan", "Get the 15", 3600)
+    assert len(model.calls) == 1 and plan.balance[0].delta == 15
+    assert model.data()["just_finished"] == "Clearing out the garage"
+    assert model.data()["attempt"] == "Get the 15"
+    assert FINISHED_PROMPT in model.text()
+    # The same words at another time are a new attempt, and bring in nothing now.
+    model = ScriptedModel(paid, {"note": "Nobody answered."})
+    plan = await DirectorBrain(pool, model).respond_to_request(run_id, "dan", "Get the 15", 7200)
+    assert len(model.calls) == 2 and plan.balance == []
+    assert "just_finished" not in model.data(0)
+    assert REQUEST_PROMPT in model.text()
+    # An action that was replaced before it ended is not done work.
+    await begin_seeking_action(
+        pool, run_id, start_s=5000, duration_s=2200, seeks="Paid again", status="replaced"
+    )
+    model = ScriptedModel(paid, {"note": "Nobody answered."})
+    await DirectorBrain(pool, model).respond_to_request(run_id, "dan", "Paid again", 7200)
+    assert len(model.calls) == 2
+
+
+async def test_recent_and_arranged_money_is_in_view(pool):
+    run_id = await make_run(pool)
+    await apply_plan(
+        pool,
+        run_id,
+        DirectorPlan(
+            scale="request",
+            balance=[{"owner_id": "dan", "delta": -6, "memo": "Locksmith on Monday"}],
+            events=[
+                {
+                    "in_minutes": 60,
+                    "kind": "changes",
+                    "payload": {
+                        "note": "Mrs Okafor pays for the garage.",
+                        "balance": [{"owner_id": "dan", "delta": 15, "memo": "Garage job"}],
+                    },
+                }
+            ],
+        ),
+        3600,
+        "cause:money",
+    )
+    model = ScriptedModel(SMALL_ANSWER)
+    await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3700)
+    data = model.data()
+    assert data["recent_money"][0]["memo"] == "Locksmith on Monday"
+    assert data["recent_money"][0]["amount"] == -6 and data["recent_money"][0]["who"] == "Dan"
+    assert data["upcoming"][0]["money"] == [{"who": "Dan", "amount": 15, "memo": "Garage job"}]
+
+
+async def test_a_mild_event_moves_no_money_and_must_say_what_happened(pool):
+    run_id = await make_run(pool)
+    for empty in (
+        {},
+        {"note": "Something small."},
+        {"balance": [{"owner_id": "dan", "delta": -5, "memo": "Parking on Monday"}]},
+        {**SMALL_ANSWER, "balance": [{"owner_id": "dan", "delta": 5, "memo": "Found on Monday"}]},
+    ):
+        model = ScriptedModel(empty, SMALL_ANSWER)
+        plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
+        assert len(model.calls) == 2, empty
+        assert plan.note == SMALL_ANSWER["note"] and plan.balance == []
+    # Two empty answers end at the canned event, so the interference still happens.
+    model = ScriptedModel({}, {})
+    plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
+    assert len(model.calls) == 2 and plan.cues
+    saved = await events_of(pool, run_id, "director_fallback")
+    assert saved[-1]["payload"]["failures"] == ["rejected_answer", "rejected_answer"]
+    # Only news is enough, and so is only a change of plans.
+    only_plans = {"replace_action": SMALL_ANSWER["replace_action"]}
+    for answer in ({"news": SMALL_ANSWER["news"]}, only_plans):
+        model = ScriptedModel(answer)
+        await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
+        assert len(model.calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# Reviews answer real rows, by mail or by status
+# ---------------------------------------------------------------------------
+
+
+async def test_a_review_runs_for_each_kind_of_waiting_item_and_only_then(pool):
+    run_id = await market_run(pool)
+    idle = DirectorBrain(pool, ModelMustNotBeCalled())
+    assert await idle.review(run_id, 3600, "scheduled") == DirectorPlan(scale="review")
+    listing = await list_item(pool, run_id, "l1")
+    application = await apply_for_job(pool, run_id, "a1")
+    async with pool.connection() as conn, conn.transaction():
+        await submit_action(
+            conn,
+            run_id,
+            "mei",
+            "bazaar",
+            "contact",
+            {"subject": "Opening hours", "message": "When are you open?"},
+            "c1",
+        )
+    await site_message(
+        pool,
+        run_id,
+        "o1",
+        message_kind="mail",
+        to="Mr Aldous",
+        subject="Rent this week",
+        body="I can pay 20 on Friday.",
+    )
+    model = ScriptedModel({"note": "Nothing yet."})
+    plan = await DirectorBrain(pool, model).review(run_id, 7200, "scheduled")
+    assert len(model.calls) == 1
+    data = model.data()
+    kinds = [item["message_kind"] for item in data["waiting"]]
+    assert kinds == ["listing", "application", "contact", "mail"]
+    assert all(item["ref"].startswith("item-") for item in data["waiting"])
+    assert data["waiting"][3]["to"] == "Mr Aldous" and data["waiting"][3]["from"] == "dan"
+    assert data["waiting"][3]["subject"] == "Rent this week"
+    assert "request_id" not in data["waiting"][3]
+    # The live rows are in view, with the pay the posting really says.
+    assert data["listings"][0]["listing_id"] == listing
+    assert data["listings"][0]["asking"] == 90 and data["listings"][0]["site_id"] == "bazaar"
+    assert "bills" not in data["open_sites"][0]
+    assert data["applications"] == [
+        {
+            "application_id": application,
+            "site_id": "elmrow",
+            "owner_id": "dan",
+            "job": "Move a sofa",
+            "pay": "$20",
+            "status": "submitted",
+        }
+    ]
+    assert TEST_VOCABULARY.findall(model.text()) == []
+    # Nothing was answered, so nothing was marked and the next review asks again.
+    assert plan.handled_events == []
+    assert len(await waiting_after(pool, run_id)) == 4
+
+
+async def test_an_answer_on_the_site_or_by_mail_ends_the_wait(pool):
+    run_id = await market_run(pool)
+    listing = await list_item(pool, run_id, "l1")
+    other_listing = await list_item(pool, run_id, "l2", title="Camera", price=30)
+    application = await apply_for_job(pool, run_id, "a1")
+    items = await waiting_after(pool, run_id)
+    assert [item.get("listing_id") for item in items][:2] == [listing, other_listing]
+    sold_ref = items[0]["ref"]
+    answer = {
+        "note": "The bicycle goes on Tuesday and the sofa job is taken.",
+        "events": [later_sale(listing, answers=sold_ref)],
+        "site_updates": [
+            {
+                "site_id": "elmrow",
+                "patch": {"applications": [{"id": application, "status": "accepted"}]},
+            }
+        ],
+    }
+    plan = await DirectorBrain(pool, ScriptedModel(answer)).review(run_id, 7200, "scheduled")
+    assert len(plan.handled_events) == 2
+    summary = await apply_plan(pool, run_id, plan, 7200, "review:7200")
+    assert summary["skipped"] == []
+    async with pool.connection() as conn:
+        row = await _one(conn, "SELECT status FROM web_applications WHERE run_id=%s", (run_id,))
+        later = await _one(conn, "SELECT * FROM clock_events WHERE run_id=%s", (run_id,))
+    assert row["status"] == "accepted"
+    # The camera was not answered, so it alone still waits and still costs a call.
+    left = await waiting_after(pool, run_id, 7300)
+    assert [item["listing_id"] for item in left] == [other_listing]
+    # The sale lands later as money, mail and a status, and the seller's page shows it.
+    await set_time(pool, run_id, later["due_s"])
+    done = await apply_plan(
+        pool, run_id, plan_from_event(later["payload"]), later["due_s"], later["key"]
+    )
+    assert done["skipped"] == [] and done["balance"][0]["balance"] == 570
+    async with pool.connection() as conn:
+        row = await _one(
+            conn,
+            "SELECT status FROM web_listings WHERE run_id=%s AND listing_id=%s",
+            (run_id, listing),
+        )
+    assert row["status"] == "sold"
+
+
+async def test_news_alone_answers_nothing_and_the_item_keeps_waiting(pool):
+    run_id = await market_run(pool)
+    await apply_for_job(pool, run_id, "a1")
+    answer = {"news": [{"owner_id": "dan", "text": "You have been accepted for the sofa job."}]}
+    plan = await DirectorBrain(pool, ScriptedModel(answer)).review(run_id, 7200, "scheduled")
+    assert plan.handled_events == [] and plan.cues
+    await apply_plan(pool, run_id, plan, 7200, "review:news")
+    assert len(await waiting_after(pool, run_id, 7300)) == 1
+    assert "News alone is not a reply" in REVIEW_PROMPT
+
+
+async def test_a_status_that_does_not_change_answers_nothing(pool):
+    run_id = await market_run(pool)
+    listing = await list_item(pool, run_id, "l1")
+    answer = {
+        "site_updates": [
+            {"site_id": "bazaar", "patch": {"listings": [{"id": listing, "status": "active"}]}}
+        ]
+    }
+    plan = await DirectorBrain(pool, ScriptedModel(answer)).review(run_id, 7200, "scheduled")
+    assert plan.handled_events == []
+
+
+async def test_one_mail_closes_one_item_and_its_ref_says_which(pool):
+    run_id = await market_run(pool)
+    await list_item(pool, run_id, "l1")
+    await apply_for_job(pool, run_id, "a1")
+    await site_message(pool, run_id, "c1", message_kind="contact", subject="Hours", body="Open?")
+    items = await waiting_after(pool, run_id)
+
+    def mail(**extra):
+        return {
+            "to": "dan",
+            "from_name": "Elm Row Jobs",
+            "subject": "Thanks",
+            "body": "We took someone else.",
+            **extra,
+        }
+
+    by_ref = {"mail": [mail(answers=items[1]["ref"])]}
+    plan = await DirectorBrain(pool, ScriptedModel(by_ref)).review(run_id, 7200, "scheduled")
+    assert len(plan.handled_events) == 1
+    # With no ref, one mail still closes only one item, and a listing is the last it would close.
+    no_ref = {"mail": [mail()]}
+    plan = await DirectorBrain(pool, ScriptedModel(no_ref)).review(run_id, 7200, "scheduled")
+    assert len(plan.handled_events) == 1
+    await apply_plan(pool, run_id, plan, 7200, "review:one")
+    left = await waiting_after(pool, run_id, 7300)
+    assert len(left) == 2 and "listing" in [item["message_kind"] for item in left]
+    # A title named in the mail says which item it is about.
+    titled = {"mail": [mail(subject="Your Old bicycle")]}
+    plan = await DirectorBrain(pool, ScriptedModel(titled)).review(run_id, 7300, "scheduled")
+    await apply_plan(pool, run_id, plan, 7300, "review:two")
+    left = await waiting_after(pool, run_id, 7400)
+    assert "listing" not in [item["message_kind"] for item in left]
+    # A ref that is not in waiting, or on mail to another person, goes back to the model.
+    for wrong in (
+        mail(answers="item-0000000000"),
+        {**mail(answers=left[0]["ref"]), "to": "mei"},
+    ):
+        model = ScriptedModel({"mail": [wrong]}, {"note": "Nothing yet."})
+        await DirectorBrain(pool, model).review(run_id, 7400, "scheduled")
+        assert len(model.calls) == 2
+        assert "answers must use a ref" in model.data(1)["problem_with_your_last_answer"]
+
+
+async def test_a_buyers_mail_with_a_sale_does_not_also_close_another_item(pool):
+    run_id = await market_run(pool)
+    listing = await list_item(pool, run_id, "l1")
+    await apply_for_job(pool, run_id, "a1")
+    answer = {"events": [later_sale(listing)]}
+    plan = await DirectorBrain(pool, ScriptedModel(answer)).review(run_id, 7200, "scheduled")
+    assert len(plan.handled_events) == 1
+    await apply_plan(pool, run_id, plan, 7200, "review:sale")
+    left = await waiting_after(pool, run_id, 7300)
+    assert [item["message_kind"] for item in left] == ["application"]
+
+
+async def test_a_patch_must_name_a_real_row_on_its_own_site(pool):
+    run_id = await market_run(pool)
+    listing = await list_item(pool, run_id, "l1")
+    application = await apply_for_job(pool, run_id, "a1")
+    wrong = [
+        {"site_id": "bazaar", "patch": {"listings": [{"id": "LST-INVENTED", "status": "sold"}]}},
+        {"site_id": "elmrow", "patch": {"listings": [{"id": listing, "status": "sold"}]}},
+        {"site_id": "elmrow", "patch": {"applications": [{"id": "APP-1", "status": "accepted"}]}},
+        {
+            "site_id": "bazaar",
+            "patch": {"applications": [{"id": application, "status": "declined"}]},
+        },
+    ]
+    for update in wrong:
+        for answer in (
+            {"site_updates": [update]},
+            {
+                "events": [
+                    {
+                        "in_minutes": 60,
+                        "kind": "changes",
+                        "payload": {"site_updates": [update]},
+                    }
+                ]
+            },
+        ):
+            model = ScriptedModel(answer, {"note": "Nothing yet."})
+            plan = await DirectorBrain(pool, model).review(run_id, 7200, "scheduled")
+            assert len(model.calls) == 2, answer
+            assert "problem_with_your_last_answer" in model.data(1)
+            assert plan.handled_events == []
+    # A buyer can only exist for a row: the prompt says so, and an empty list shows no rows.
+    assert "A buyer, an offer or an answer to an application" in COMMON_PROMPT
+    await site_message(pool, run_id, "c1", sender="mei", message_kind="contact", body="Open?")
+    model = ScriptedModel({"note": "Nothing yet."})
+    await DirectorBrain(pool, model).review(run_id, 7200, "scheduled")
+    assert [item["listing_id"] for item in model.data()["listings"]] == [listing]
+
+
+async def test_a_closed_row_stops_waiting_and_stops_costing_calls(pool):
+    run_id = await market_run(pool)
+    listing = await list_item(pool, run_id, "l1")
+    async with pool.connection() as conn, conn.transaction():
+        await submit_action(
+            conn, run_id, "dan", "bazaar", "remove_listing", {"listing_id": listing}, "r1"
+        )
+    idle = DirectorBrain(pool, ModelMustNotBeCalled())
+    assert await idle.review(run_id, 7200, "scheduled") == DirectorPlan(scale="review")
+    await apply_for_job(pool, run_id, "a1")
+    async with pool.connection() as conn, conn.transaction():
+        await conn.execute(
+            "UPDATE web_applications SET status='declined' WHERE run_id=%s", (run_id,)
+        )
+    assert await idle.review(run_id, 7200, "scheduled") == DirectorPlan(scale="review")
+
+
+async def test_many_unanswered_items_cannot_crowd_out_a_new_one(pool):
+    run_id = await make_run(pool)
+    for number in range(45):
+        await site_message(pool, run_id, f"old{number}", message_kind="contact", body="Hello?")
+    await site_message(
+        pool, run_id, "new", message_kind="mail", to="Mr Aldous", subject="Rent", body="Friday?"
+    )
+    items = await waiting_after(pool, run_id)
+    assert len(items) == 40
+    assert items[-1]["message_kind"] == "mail"  # Oldest first, and the newest is there.
+
+
+async def test_mail_to_someone_outside_is_answered_by_mail_from_them(pool):
+    run_id = await make_run(pool)
+    await site_message(
+        pool,
+        run_id,
+        "o1",
+        message_kind="mail",
+        to="Mr Aldous",
+        subject="Rent this week",
+        body="I can pay 20 on Friday.",
+        replying_to="Rent due",
+    )
+    idle = await waiting_after(pool, run_id)
+    assert idle[0]["replying_to"] == "Rent due"
+    answer = {
+        "events": [
+            {
+                "in_minutes": 180,
+                "kind": "changes",
+                "payload": {
+                    "mail": [
+                        {
+                            "to": "dan",
+                            "from_name": "Mr Aldous",
+                            "subject": "Re: Rent this week",
+                            "body": "Friday is fine. Twenty it is.",
+                            "answers": idle[0]["ref"],
+                        }
+                    ]
+                },
+            }
+        ]
+    }
+    plan = await DirectorBrain(pool, ScriptedModel(answer)).review(run_id, 7200, "scheduled")
+    assert len(plan.handled_events) == 1
+    assert "mail went to the person named in its to field" in " ".join(REVIEW_PROMPT.split())
+    await apply_plan(pool, run_id, plan, 7200, "review:aldous")
+    async with pool.connection() as conn:
+        later = await _one(conn, "SELECT * FROM clock_events WHERE run_id=%s", (run_id,))
+    await set_time(pool, run_id, later["due_s"])
+    done = await apply_plan(
+        pool, run_id, plan_from_event(later["payload"]), later["due_s"], later["key"]
+    )
+    assert done["skipped"] == [] and done["mail"][0]["to"] == "dan"
+    async with pool.connection() as conn:
+        mail = await _one(conn, "SELECT * FROM inbox_messages WHERE run_id=%s", (run_id,))
+    assert mail["recipient_owner_id"] == "dan" and mail["sender_owner_id"] is None
+    assert mail["body"].startswith("From: Mr Aldous\n\n")
+    calm = await DirectorBrain(pool, ModelMustNotBeCalled()).review(run_id, 20000, "scheduled")
+    assert calm == DirectorPlan(scale="review")
+
+
+# ---------------------------------------------------------------------------
+# A public site knows no visitor
+# ---------------------------------------------------------------------------
+
+
+async def test_a_new_site_is_built_from_the_place_and_the_search_only(pool):
+    run_id = await make_run(pool, setting_notes=NOTES)
+    async with pool.connection() as conn, conn.transaction():
+        await log(conn, run_id, 60, "note", "Bicycle", "Dan wants to sell his road bike.")
+        await conn.execute(
+            """INSERT INTO clock_actions(id,run_id,owner_id,process,label,start_s,duration_s,
+                      reachable,key) VALUES (%s,%s,'dan','actor','Walking to the pawn shop',
+                      3000,1800,true,'dan:errand:1')""",
+            (uuid4(), run_id),
+        )
+    model = ScriptedModel({"sites": [{"site_id": "mill-road", "name": "Mill", "kind": "store"}]})
+    plan = await DirectorBrain(pool, model).site_for_search(
+        run_id, "dan", "pawn shop road bike", 3600
+    )
+    assert model.data() == {
+        "place": "Tarnwick, a mid-sized town in November. Money is whole dollars.",
+        "searched_for": "pawn shop road bike",
+    }
+    assert plan.scale == "site" and plan.about_owner == "dan"
+    data_text = model.calls[-1][-1].content
+    for private in ("Dan", "dan", "Guide", "spare key", "Walking", "500", "people", "money"):
+        assert private not in data_text
+    system = " ".join(model.calls[-1][0].content.split())
+    assert "Write what any visitor sees" in system
+    assert "Never shape it around one person and never copy their words" in system
+    assert TEST_VOCABULARY.findall(model.text()) == []
+
+
+async def test_a_new_site_cannot_look_up_private_notes_or_hold_a_bill(pool):
+    run_id = await make_run(pool, setting_notes=NOTES)
+    async with pool.connection() as conn, conn.transaction():
+        await log(conn, run_id, 60, "note", "Bicycle", "Dan wants 90 for his road bike.")
+    site = {"site_id": "mill-road", "name": "Mill Road Pawn", "kind": "store"}
+    model = ScriptedModel({"need_more": ["road bike"], "sites": [site]})
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "dan", "pawn shop", 3600)
+    assert len(model.calls) == 1 and plan.need_more == [] and plan.sites[0].site_id == "mill-road"
+    billed = {
+        **site,
+        "bills": [{"id": "b1", "owner_id": "dan", "title": "Your loan", "amount": 5}],
+    }
+    model = ScriptedModel({"sites": [billed]}, {"sites": [site]})
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "dan", "pawn shop", 3600)
+    assert len(model.calls) == 2 and plan.sites[0].bills == []
+    assert "Bicycle" not in model.calls[-1][-1].content
+
+
+async def test_a_review_can_put_a_named_bill_on_a_site_built_with_none(pool):
+    run_id = await market_run(pool)
+    await site_message(
+        pool, run_id, "c1", sender="mei", message_kind="contact", body="I cannot see my bill."
+    )
+    bill = {"id": "oct", "owner_id": "mei", "title": "October", "amount": 62, "due_text": "Friday"}
+    answer = {
+        "mail": [
+            {"to": "mei", "from_name": "Bazaar accounts", "subject": "Your bill", "body": "Added."}
+        ],
+        "site_updates": [{"site_id": "bazaar", "patch": {"bills": [bill]}}],
+    }
+    plan = await DirectorBrain(pool, ScriptedModel(answer)).review(run_id, 7200, "scheduled")
+    assert len(plan.handled_events) == 1
+    summary = await apply_plan(pool, run_id, plan, 7200, "review:bill")
+    assert summary["skipped"] == []
+    # The next decision sees the bill, so it does not add another.
+    model = ScriptedModel(SMALL_ANSWER)
+    await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 7300)
+    shown = {site["site_id"]: site for site in model.data()["open_sites"]}["bazaar"]["bills"]
+    assert shown == [{"id": "oct", "owner_id": "mei", "title": "October", "amount": 62}]
+
+
+BILL_NOTES = (
+    "Aldermouth, an estuary town in November. Money is whole dollars.\n\n"
+    "Build the pages when people look: Estuary Gas ($62 for Mei) and a chemist. "
+    "A bill named in someone's mail appears on that site for that person."
+)
+GAS_SITE = {
+    "site_id": "estuary-gas",
+    "name": "Estuary Gas",
+    "kind": "portal",
+    "tagline": "Gas for homes on the estuary",
+    "description": "Account pages and meter readings for our customers.",
+}
+GAS_BILL = {
+    "id": "oct",
+    "owner_id": "mei",
+    "title": "October gas bill",
+    "amount": 62,
+    "due_text": "Friday 13 November",
+}
+
+
+async def test_a_bill_the_setting_names_lands_on_a_built_site_and_only_its_owner_sees_it(pool):
+    run_id = await make_run(pool, setting_notes=BILL_NOTES)
+    model = ScriptedModel({"sites": [GAS_SITE]}, {"bills": [GAS_BILL]})
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "Estuary Gas pay", 3600)
+    assert len(model.calls) == 2
+    # The public page was written with no setting and no people.
+    assert model.data(0) == {
+        "place": "Aldermouth, an estuary town in November. Money is whole dollars.",
+        "searched_for": "Estuary Gas pay",
+    }
+    assert "62" not in model.calls[0][-1].content
+    # The second answer reads the setting, and its schema has room only for bills.
+    assert model.data(1)["setting"] == BILL_NOTES
+    assert model.data(1)["site"]["site_id"] == "estuary-gas"
+    assert TEST_VOCABULARY.findall(model.text(1)) == []
+    assert (
+        "tagline"
+        not in json.loads(model.calls[1][0].content.split("this schema:\n")[1])["properties"]
+    )
+    assert [bill.amount for bill in plan.sites[0].bills] == [62]
+    summary = await apply_plan(pool, run_id, plan, 3600, "site:gas")
+    assert summary["skipped"] == [] and summary["sites"] == ["estuary-gas"]
+    async with pool.connection() as conn:
+        mine = render_text(await open_url(conn, run_id, "mei", "https://estuary-gas.com/bills"))
+        other = render_text(await open_url(conn, run_id, "dan", "https://estuary-gas.com/bills"))
+        front = render_text(await open_url(conn, run_id, "dan", "https://estuary-gas.com/"))
+    assert "October gas bill" in mine and "$62" in mine
+    assert "October gas bill" not in other and "62" not in front
+
+
+async def test_a_site_the_setting_does_not_name_costs_one_call_and_holds_no_bill(pool):
+    run_id = await make_run(pool, setting_notes=BILL_NOTES)
+    other = {"site_id": "harbour-rugs", "name": "Harbour Rug Works", "kind": "store"}
+    model = ScriptedModel({"sites": [other]})
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "rug cleaners", 3600)
+    assert len(model.calls) == 1 and plan.sites[0].bills == []
+    # The place's own name is on most local shops, so it does not count as being named.
+    local = {"site_id": "aldermouth-rugs", "name": "Aldermouth Rugs", "kind": "store"}
+    model = ScriptedModel({"sites": [local]})
+    await DirectorBrain(pool, model).site_for_search(run_id, "mei", "rug cleaners", 3600)
+    assert len(model.calls) == 1
+
+
+async def test_a_named_business_with_no_bill_answer_keeps_its_site(pool):
+    run_id = await make_run(pool, setting_notes=BILL_NOTES)
+    model = ScriptedModel({"sites": [GAS_SITE]}, {"bills": []})
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "Estuary Gas", 3600)
+    assert len(model.calls) == 2 and plan.sites[0].bills == []
+    assert await events_of(pool, run_id, "director_fallback") == []
+
+
+@pytest.mark.parametrize(
+    "wrong",
+    [
+        "not json",
+        {"bills": [{**GAS_BILL, "amount": 75}]},  # An amount the setting does not state.
+        {"bills": [{**GAS_BILL, "amount": 6}]},  # Only part of a number the setting states.
+        {"bills": [{**GAS_BILL, "owner_id": "ghost"}]},
+        {"bills": [GAS_BILL, GAS_BILL]},
+        {"bills": [{**GAS_BILL, "title": "Your Amazon bill"}], "extra": 1},
+        {"sites": [{"site_id": "other", "name": "Other", "kind": "store"}]},
+    ],
+)
+async def test_a_bad_bill_answer_gets_one_repair_and_then_the_site_opens_without_it(pool, wrong):
+    run_id = await make_run(pool, setting_notes=BILL_NOTES)
+    model = ScriptedModel({"sites": [GAS_SITE]}, wrong, {"bills": [GAS_BILL]})
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "Estuary Gas", 3600)
+    assert len(model.calls) == 3
+    assert model.data(2)["problem_with_your_last_answer"]
+    assert plan.sites[0].bills[0].amount == 62
+    model = ScriptedModel({"sites": [GAS_SITE]}, wrong, wrong)
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "Estuary Gas", 3700)
+    assert len(model.calls) == 3 and plan.sites[0].bills == []
+    assert plan.sites[0].site_id == "estuary-gas"
+    assert await events_of(pool, run_id, "director_fallback")
+    # A real site, with no bill, is an answer, so the search is not asked again.
+    assert plan._fell_back is False
+
+
+async def test_a_failed_bill_call_rises_like_any_failed_model_call(pool):
+    run_id = await make_run(pool, setting_notes=BILL_NOTES)
+    failure = ProviderCallError("Too many requests.", retryable=True)
+    model = ScriptedModel({"sites": [GAS_SITE]}, failure)
+    with pytest.raises(DirectorProviderError) as caught:
+        await DirectorBrain(pool, model).site_for_search(run_id, "mei", "Estuary Gas", 3600)
+    assert caught.value.kind == "provider_transient"
+    assert await events_of(pool, run_id, "director_fallback") == []
+
+
+async def test_a_taken_site_address_goes_back_to_the_model(pool):
+    run_id = await market_run(pool)
+    taken = {"site_id": "bazaar", "name": "Other Bazaar", "kind": "store"}
+    fresh = {**taken, "site_id": "other-bazaar"}
+    model = ScriptedModel({"sites": [taken]}, {"sites": [fresh]})
+    plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "tea towels", 3600)
+    assert len(model.calls) == 2 and plan.sites[0].site_id == "other-bazaar"
+
+
+async def test_a_setting_with_no_place_or_a_long_opening_stays_short(pool):
+    run_id = await make_run(pool)
+    model = ScriptedModel({})
+    await DirectorBrain(pool, model).site_for_search(run_id, "dan", "tools", 3600)
+    assert model.data() == {"searched_for": "tools"}
+    opening = "A small town by the sea. " * 40 + "Dan keeps his savings in a tin."
+    run_id = await make_run(pool, setting_notes=opening)
+    model = ScriptedModel({})
+    await DirectorBrain(pool, model).site_for_search(run_id, "dan", "tools", 3600)
+    assert model.data()["place"].endswith("sea.") and "tin" not in model.data()["place"]
+    assert len(model.data()["place"]) <= 400
+
+
+# ---------------------------------------------------------------------------
+# A saved plan never stops the clock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"listings": None},
+        {"listings": 3},
+        {"listings": {"id": "x", "status": "sold"}},
+        {"listings": ["x"]},
+        {"listings": [{"id": 3, "status": "sold"}]},
+        {"listings": [{"id": "x", "status": ["sold"]}]},
+        {"listings": [{"id": "x", "status": "gone"}]},
+        {"applications": None},
+        {"applications": [{"id": "x", "status": "sold"}]},
+        {"items": None},
+        {"items": [{"title": "No id"}]},
+        {"bills": "free"},
+        {"fees": None},
+    ],
+)
+async def test_a_malformed_patch_is_refused_when_planned(pool, patch):
+    update = {"site_id": "bazaar", "patch": patch}
+    with pytest.raises(ValueError):
+        DirectorPlan(site_updates=[update])
+    with pytest.raises(ValueError):
+        DirectorPlan(
+            events=[
+                {"in_minutes": 5, "kind": "changes", "payload": {"site_updates": [update]}},
+            ]
+        )
+    # plan_from_event raises a ValueError, which the clock engine records as a bad plan.
+    with pytest.raises(ValueError):
+        plan_from_event({"site_updates": [update]})
+    run_id = await market_run(pool)
+    await list_item(pool, run_id, "l1")
+    model = ScriptedModel(json.dumps({"site_updates": [update]}), {"note": "Nothing yet."})
+    plan = await DirectorBrain(pool, model).review(run_id, 7200, "scheduled")
+    assert len(model.calls) == 2 and plan.site_updates == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"news": [{"owner_id": "dan", "text": "Bad \\u0000 text"}]}',
+        '{"note": "Bad \\u0000 text"}',
+        '{"mail": [{"to": "dan", "from_name": "A", "subject": "\\u0000", "body": "C"}]}',
+        '{"balance": [{"owner_id": "dan", "delta": 5, "memo": "Bad \\u0000 memo"}]}',
+        '{"events": [{"in_minutes": 5, "kind": "news", '
+        '"payload": {"owner_id": "dan", "text": "Bad \\u0000 text"}}]}',
+        '{"site_updates": [{"site_id": "bazaar", "patch": {"tagline": "Bad \\u0000"}}]}',
+        '{"site_updates": [{"site_id": "bazaar", "patch": {"eta_minutes": NaN}}]}',
+        '{"events": [{"in_minutes": 5, "kind": "changes", "payload": {"note": Infinity}}]}',
+    ],
+)
+async def test_text_that_cannot_be_saved_is_refused_when_planned(pool, text):
+    run_id = await market_run(pool)
+    model = ScriptedModel(text, SMALL_ANSWER)
+    plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
+    assert len(model.calls) == 2
+    assert plan.note == SMALL_ANSWER["note"]
+    assert (await apply_plan(pool, run_id, plan, 3600, "cause:clean"))["skipped"] == []
+
+
+@pytest.mark.parametrize("kind", ["soon", ["news"], {"a": 1}, 3, None])
+async def test_a_wrong_later_kind_goes_back_in_plain_words(pool, kind):
+    run_id = await make_run(pool)
+    wrong = {
+        **SMALL_ANSWER,
+        "events": [{"in_minutes": 5, "kind": kind, "payload": {"note": "Later."}}],
+    }
+    model = ScriptedModel(wrong, SMALL_ANSWER)
+    plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
+    assert len(model.calls) == 2 and plan.events == []
+    assert TEST_VOCABULARY.findall(model.data(1)["problem_with_your_last_answer"]) == []
+    # Saved plans keep working with the names they were saved under.
+    saved = {"in_minutes": 5, "kind": "cue", "payload": {"owner_id": "dan", "text": "Hello."}}
+    assert DirectorPlan(events=[saved]).events[0].kind == "cue"
+    saved = {"in_minutes": 5, "kind": "plan", "payload": {"note": "Later."}}
+    assert DirectorPlan(events=[saved]).events[0].kind == "plan"
+
+
+async def test_a_later_happening_is_checked_against_the_world_when_planned(pool):
+    run_id = await market_run(pool)
+    later = {"in_minutes": 60, "kind": "changes"}
+    bad = [
+        {"site_updates": [{"site_id": "nope", "patch": {"tagline": "New"}}]},
+        {"site_updates": [{"site_id": "bazaar", "patch": {"eta_minutes": "soon"}}]},
+        {"site_updates": [{"site_id": "bazaar", "patch": {"unknown_field": 1}}]},
+        {"site_updates": [{"site_id": "bazaar", "patch": {"kind": "store"}}]},
+        {
+            "site_updates": [
+                {
+                    "site_id": "bazaar",
+                    "patch": {
+                        "bills": [{"id": "b", "owner_id": "ghost", "title": "A bill", "amount": 3}]
+                    },
+                }
+            ]
+        },
+        {"record_updates": [{"owner_id": "dan", "resource_id": "nope", "content": "Text."}]},
+        {"sites": [{"site_id": "bazaar", "name": "Taken", "kind": "store"}]},
+    ]
+    for payload in bad:
+        model = ScriptedModel(
+            {"events": [{**later, "payload": payload}], **SERIOUS_ANSWER}, SERIOUS_ANSWER
+        )
+        await DirectorBrain(pool, model).perturb(run_id, ERRAND, "extreme", 3600)
+        assert len(model.calls) == 2, payload
+        assert "problem_with_your_last_answer" in model.data(1)
+    # A site made by the same answer can be changed by its later happening.
+    good = {
+        "sites": [{"site_id": "fernhill", "name": "Fernhill Billing", "kind": "portal"}],
+        "events": [
+            {
+                **later,
+                "payload": {
+                    "site_updates": [
+                        {
+                            "site_id": "fernhill",
+                            "patch": {
+                                "bills": [
+                                    {"id": "b1", "owner_id": "dan", "title": "Stay", "amount": 90}
+                                ]
+                            },
+                        }
+                    ]
+                },
+            }
+        ],
+    }
+    model = ScriptedModel({**SERIOUS_ANSWER, **good})
+    plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "extreme", 3600)
+    assert len(model.calls) == 1
+    summary = await apply_plan(pool, run_id, plan, 3600, "cause:later-site")
+    assert summary["skipped"] == [] and summary["sites"] == ["fernhill"]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [TypeError("not iterable"), KeyError("id"), AttributeError("no get"), ValueError("no")],
+)
+async def test_one_bad_effect_goes_to_skipped_and_the_rest_commit(pool, failure):
+    run_id = await make_run(pool)
+    plan = DirectorPlan(note="A note.")
+
+    async def bad():
+        raise failure
+
+    async def good():
+        return "fine"
+
+    async with pool.connection() as conn, conn.transaction():
+        record = await _one(conn, "SELECT * FROM environment_runs WHERE id=%s", (run_id,))
+        effects = _Effects(pool, conn, run_id, record, plan, 3600, "cause:steps")
+        await effects._step("cues", "dan", bad)
+        await effects._step("cues", "mei", good)
+    assert effects.summary["cues"] == ["fine"]
+    assert effects.summary["skipped"][0]["effect"] == "cues"
+    assert effects.summary["skipped"][0]["reference"] == "dan"
+
+
+async def test_a_data_error_rolls_back_only_its_own_effect(pool):
+    run_id = await make_run(pool)
+    plan = DirectorPlan(note="A note.")
+    async with pool.connection() as conn, conn.transaction():
+        record = await _one(conn, "SELECT * FROM environment_runs WHERE id=%s", (run_id,))
+        effects = _Effects(pool, conn, run_id, record, plan, 3600, "cause:data")
+
+        async def wrong():
+            await log(conn, run_id, 3600, "note", "Rolled back", "Must not stay.")
+            await conn.execute("SELECT 1/0")
+
+        async def right():
+            await log(conn, run_id, 3600, "note", "Kept", "Must stay.")
+            return "fine"
+
+        await effects._step("cues", "dan", wrong)
+        await effects._step("cues", "dan", right)
+    assert [item["effect"] for item in effects.summary["skipped"]] == ["cues"]
+    titles = [entry["title"] for entry in await log_rows(pool, run_id)]
+    assert "Kept" in titles and "Rolled back" not in titles
+
+
+async def test_a_saved_site_update_with_a_gone_site_is_skipped(pool):
+    run_id = await market_run(pool)
+    plan = plan_from_event(
+        {
+            "site_updates": [
+                {"site_id": "gone", "patch": {"listings": [{"id": "x", "status": "sold"}]}}
+            ]
+        }
+    )
+    summary = await apply_plan(pool, run_id, plan, 3600, "cause:gone")
+    assert summary["site_updates"] == [] and summary["skipped"][0]["effect"] == "site_updates"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"site_updates": [{"site_id": "bazaar", "patch": {"status": "sold"}}]},
+        {
+            "site_updates": [
+                {
+                    "site_id": "bazaar",
+                    "patch": {"items": [{"id": "i", "title": "t", "price": 10**30}]},
+                }
+            ]
+        },
+        {
+            "site_updates": [
+                {
+                    "site_id": "bazaar",
+                    "patch": {
+                        "bills": [{"id": "b", "owner_id": "dan", "title": "t", "amount": 10**30}]
+                    },
+                }
+            ]
+        },
+        {"site_updates": [{"site_id": "bazaar", "patch": {"kind": "store"}}]},
+        {"site_updates": [{"site_id": "bazaar", "patch": {"fees": {"delivery": "free"}}}]},
+        {"record_updates": [{"owner_id": "dan", "resource_id": "nope", "content": "c"}]},
+        {"balance": [{"owner_id": "dan", "delta": -200, "memo": "Too much"}], "scale": "review"},
+    ],
+)
+async def test_a_plan_saved_before_the_world_changed_skips_and_never_raises(pool, body):
+    run_id = await market_run(pool)
+    async with pool.connection() as conn, conn.transaction():
+        await conn.execute(
+            "UPDATE world_accounts SET balance=100 WHERE run_id=%s AND owner_id='dan'", (run_id,)
+        )
+    plan = DirectorPlan.model_validate({"scale": "review", "note": "Saved earlier.", **body})
+    summary = await apply_plan(pool, run_id, plan, 3600, "cause:saved")
+    assert len(summary["skipped"]) == 1
+    assert (await events_of(pool, run_id, "director_plan_applied"))[-1]["payload"]["summary"]
+
+
+class AnswersByQuestion:
+    """A scripted model for the clock engine: its answer depends only on what it is asked."""
+
+    def __init__(self):
+        self.asked = []
+
+    async def ainvoke(self, messages, config=None):
+        data = json.loads(messages[-1].content)
+        self.asked.append(data)
+        cash = {"owner_id": "dan", "delta": 40, "memo": "Pawn shop cash for the bike on Monday"}
+        if "just_finished" in data:
+            answer = {
+                "news": [{"owner_id": "dan", "text": "The pawn shop gave you 40 dollars."}],
+                "balance": [cash],
+            }
+        elif "problem_with_your_last_answer" in data:
+            answer = {"news": [{"owner_id": "dan", "text": "The landlord says Friday is fine."}]}
+        else:
+            answer = {"balance": [cash], "news": [{"owner_id": "dan", "text": "Paid at once."}]}
+        return AIMessage(content=json.dumps(answer))
+
+
+async def test_the_engine_pays_a_seek_when_it_ends_and_an_attempt_not_at_once(
+    app, pool, test_database_url
+):
+    from tests.test_clock_engine import actors_for, clocked_run, errand, models_for, scenario
+
+    owners = ("dan",)
+    # Five reviews fall inside this time. With nothing waiting, none of them may call the model.
+    spec = scenario(
+        owners, duration_minutes=300, director={"enabled": True, "review_every_minutes": 60}
+    )
+    model = AnswersByQuestion()
+    actors = actors_for(
+        owners,
+        dan=[
+            {
+                "kind": "wait",
+                "director_requests": ["Call the landlord about the rent."],
+                "next_action": errand("Pawn shop", 30, seeks="Sell the bike"),
+            },
+            {"kind": "wait"},
+        ],
+    )
+    async with clocked_run(
+        app,
+        test_database_url,
+        spec,
+        models_for(owners),
+        actors,
+        brain=DirectorBrain(pool, model),
+    ) as (engine, created, _runtime, _agents):
+        run = await engine.run(created["run_id"])
+    assert run["status"] == "completed", run.get("result")
+    run_id = UUID(created["run_id"])
+    assert [item["attempt"] for item in model.asked] == [
+        "Call the landlord about the rent.",
+        "Call the landlord about the rent.",
+        "Sell the bike",
+    ]
+    assert model.asked[2]["just_finished"] == "Pawn shop"
+    async with pool.connection() as conn:
+        ledger = await _rows(
+            conn, "SELECT delta,memo FROM wallet_ledger WHERE run_id=%s", (run_id,)
+        )
+    assert [item["delta"] for item in ledger] == [40]
+    assert await events_of(pool, run_id, "director_fallback") == []
+
+
+@pytest.mark.parametrize("name", ["agent_bill_week", "five_lives_week"])
+def test_the_place_in_an_authored_week_holds_nothing_private(name):
+    source = Path(__file__).parents[1] / "scenarios" / f"{name}.json"
+    if not source.exists():
+        pytest.skip("The authored week is not in this checkout.")
+    spec = ScenarioSpec.model_validate(json.loads(source.read_text()))
+    place = _place(spec.clock.director.setting_notes)
+    assert place and len(place) <= 400
+    assert TEST_VOCABULARY.findall(place) == []
+    for owner in spec.owners:
+        assert owner.name.split()[0] not in place
+    assert "$" not in place and "guide" not in place.casefold()
+    # A review with nothing waiting is free on both weeks, whatever their notes say.
+    assert spec.clock.director.small_happenings is False

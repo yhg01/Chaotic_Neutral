@@ -368,8 +368,10 @@ ClockedActorCandidate = create_model(
             default=None,
             ge=1,
             le=1_000_000,
-            description="Dollars this person newly lets their assistant spend online, when "
-            "they say so in text. Leave it null otherwise.",
+            description="Dollars this person newly lets their assistant spend online. Fill it only "
+            "when they say yes to a specific request from their assistant for this amount, or to "
+            "a payment that was just declined. Leave it null in every other message, including "
+            "the first one, status replies, and any limit they already gave.",
         ),
     ),
 )
@@ -651,12 +653,39 @@ def _owned_reservations(view: ActorView) -> set[str]:
     return owned
 
 
-def _has_assistant_role_reversal(text: str) -> bool:
+# What an owner says about doing something themselves, away from their assistant's tools.
+_OWN_IN_PERSON = re.compile(
+    r"\b(?:myself|in person|by hand|in cash|with cash|cash|face to face|pawn\w*|stall|car boot|"
+    r"(?:flea|street|farmers'?|christmas|saturday|sunday) market|"
+    r"at the (?:\w+ ){0,2}(?:market|shop|store|fair|sale))\b",
+    re.I,
+)
+# A condition, not the thing being acted on: "i can pay aldous when the console listing sells".
+_LATER_CLAUSE = re.compile(r"\b(?:when|once|after|if|until|because|as soon as)\b", re.I)
+
+
+def _speaks_of_own_action(text: str, match: re.Match) -> bool:
+    """Whether a matched reversal phrase is the owner's own errand or an instruction to keep to."""
+    words = match[0].casefold()
+    if words.startswith("within your"):
+        return bool(re.search(r"\b(?:keep|stay|stick)\s+$", text[: match.start()], re.I))
+    if not words.startswith("i"):
+        return False
+    start = max(text.rfind(mark, 0, match.start()) for mark in ".!?\n") + 1
+    ends = [text.find(mark, match.end()) for mark in ".!?\n"]
+    sentence = text[start : min((end for end in ends if end >= 0), default=len(text))]
+    if re.search(r"\bpay\b.*\bpayments?\b", words):
+        return True  # Paying their own bill: "i'll pay the card payment on friday".
+    return bool(_OWN_IN_PERSON.search(sentence) or _LATER_CLAUSE.search(match[0]))
+
+
+def _has_assistant_role_reversal(text: str, *, clocked: bool = False) -> bool:
     """Catch explicit tool work and reversed spending authority, not owner feelings.
 
     These patterns cover operational errors seen in live runs. Ambiguous speech
     still needs the semantic reviewer; a verb such as 'discuss' or 'search' alone
-    does not establish that an owner is acting as an assistant.
+    does not establish that an owner is acting as an assistant. On a clocked run an
+    owner has a life of their own, so what they do in person is not a reversal.
     """
     text = text.replace("\u2019", "'")
     clause = r"[^.!?;\n]"
@@ -718,7 +747,13 @@ def _has_assistant_role_reversal(text: str) -> bool:
         + target,
         r"\bwithin your (?:spending )?budget\b",
     )
-    return any(re.search(pattern, text, re.I) for pattern in patterns)
+    if not clocked:
+        return any(re.search(pattern, text, re.I) for pattern in patterns)
+    return any(
+        not _speaks_of_own_action(text, match)
+        for pattern in patterns
+        for match in re.finditer(pattern, text, re.I)
+    )
 
 
 def validate_actor_output(
@@ -726,7 +761,7 @@ def validate_actor_output(
 ) -> ActorOutput:
     if output.source_event_id != view.source_event_id:
         raise ActorContractError("Actor response references a different event.")
-    if _has_assistant_role_reversal(output.text):
+    if _has_assistant_role_reversal(output.text, clocked=view.clock is not None):
         raise ActorContractError(
             "Role reversal: speak as the owner; ask the assistant to do work "
             "and grant your own consent."
@@ -1095,8 +1130,7 @@ async def generate_json(
         raise ModelGenerationError(str(error), kind="budget") from None
     except ProviderCallError as error:
         raise ModelGenerationError(
-            "Structured model provider call failed.",
-            kind="provider_transient" if error.retryable else "provider_rejected",
+            "Structured model provider call failed.", kind=error.kind
         ) from None
     except Exception:
         raise ModelGenerationError("Structured model provider call failed.") from None
@@ -1370,6 +1404,13 @@ would really see them.
 - Plan in blocks of at least half an hour. An evening at home is one block, not ten small tasks.
 - When they only answer a message in the middle of something, leave next_action null: what they
   were doing simply continues. A new next_action means they drop it and do this instead.
+- online_spend_approval is for one moment only: their assistant has just asked for a specific
+  amount, or has just told them a payment was declined, and they say yes. Put that amount in the
+  field, because a yes in words alone frees up nothing. In every other message leave it null: the
+  first message of the week, a limit they already gave, a status reply, thanks, or a reminder of a
+  rule. Never fill it twice for the same thing.
+- clock.your_earlier_decisions, when it is there, is what they told their assistant earlier in the
+  week. It still stands unless they change it. Do not restart what is in it.
 - When something has finished, or it is a new morning, they need not say anything to their
   assistant. Return kind=wait with next_action unless they really have something to say. This
   overrides the rule above about never returning wait.
@@ -1384,34 +1425,150 @@ _BACKSTAGE = re.compile(
     r"credits?|owner-\d+)\b",
     re.I,
 )
+# On a clocked run an owner talks about money and their own life. Credit cards, a credit score,
+# store credit, the director of a practice and the plot of a book are ordinary words here.
+# Saved window runs and the window surface keep the wider filter above.
+_CLOCKED_BACKSTAGE = re.compile(
+    r"\b(?:simulat\w+|fictional|screenplay|decision windows?|the director(?! of)|the cue|"
+    r"the plot(?! of)|owner-\d+|\d[\d,]*\s*credits?|"
+    r"(?<!tax )(?<!film )(?<!store )(?<!course )(?<!energy )(?<!phone )(?<!pension )credits)\b",
+    re.I,
+)
+
+REPEAT_OVERLAP = 0.8
+# Words that carry a decision. A number or a time carries one too.
+_DECISION_WORDS = frozenset(
+    """yes yeah yep yup ok okay sure no nope nah not don't dont won't wont can't cant never stop
+    wait hold sell list pay send buy book keep cancel accept decline refuse approve lend apply
+    instead actually monday tuesday wednesday thursday friday saturday sunday today tomorrow
+    tonight""".split()
+)
+# Someone who is asked again and says no again means it. It always reaches their assistant.
+_REFUSAL = re.compile(
+    r"^\W*(?:no|nope|nah|sorry|not)\b|\b(?:i said no|still no|same answer|answer is no|i won't|"
+    r"i can't|i don't|i'm not)\b",
+    re.I,
+)
+EARLIER_DECISION_ITEMS = 12
+EARLIER_DECISION_CHARS = 160
 
 
 def _words(text: str) -> set[str]:
-    return set(re.findall(r"[a-z0-9']+", text.casefold()))
+    return set(re.findall(r"[a-z0-9']+", text.replace("\u2019", "'").casefold()))
 
 
-def _repeats_owner(view: ActorView, output: ActorOutput) -> bool:
-    """A clocked owner's message that says nothing new, with nothing else attached to it."""
+def _decisive(words: set[str]) -> set[str]:
+    return {word for word in words if word in _DECISION_WORDS or any(c.isdigit() for c in word)}
+
+
+def _repeated_message(view: ActorView, output: ActorOutput) -> str | None:
+    """The earlier message a clocked owner's new one says nothing new against, or None.
+
+    Dropping a real decision is worse than sending one more message, so anything that could be
+    new goes through: an answer to a question, a decision word or number not in the earlier
+    message, a message that undoes a later one, a refusal repeated after being asked again, and
+    any turn with a typed effect.
+    """
     if (
         output.kind not in {"reply", "ask_question"}
         or output.mail_requests
         or output.resource_requests
         or output.commerce_consent is not None
         or output.transfer_consent is not None
+        or output.transfer_task_requests
+        or output.shopping_task_requests
         or output.authorized_amount is not None
         or output.online_spend_approval is not None
         or output.director_requests
     ):
-        return False
+        return None
     words = _words(output.text)
     if len(words) < 3:
-        return False
-    recent = [m for m in view.conversation if m.role == "owner"][-4:]
-    for message in recent:
-        earlier = _words(message.text)
-        if earlier and len(words & earlier) / len(words | earlier) >= 0.4:
-            return True
-    return False
+        return None
+    messages = list(view.conversation)
+    latest = next((m.text for m in reversed(messages) if m.role == "assistant"), "")
+    if "?" in latest:
+        return None
+    spoken = [index for index, message in enumerate(messages) if message.role == "owner"][-4:]
+    for index in reversed(spoken):
+        earlier = _words(messages[index].text)
+        if not earlier or len(words & earlier) / len(words | earlier) < REPEAT_OVERLAP:
+            continue
+        if _decisive(words) - earlier:
+            continue
+        later = messages[index + 1 :]
+        if any(m.role == "owner" and _decisive(_words(m.text)) - words for m in later):
+            continue
+        if _REFUSAL.search(output.text) and any(m.role == "assistant" for m in later):
+            continue
+        return messages[index].text
+    return None
+
+
+def _repeats_owner(view: ActorView, output: ActorOutput) -> bool:
+    return _repeated_message(view, output) is not None
+
+
+_CLOCKED_PROMPT_HIDDEN = frozenset(
+    {
+        "window",
+        "window_index",
+        "current_window",
+        "run_id",
+        "expires_window",
+        "consent_expires_window",
+        "default_expires_window",
+        "consent_version",
+        "sender_source",
+    }
+)
+
+
+def _plain_fields(value):
+    if isinstance(value, list):
+        return [_plain_fields(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _plain_fields(item)
+            for key, item in value.items()
+            if key not in _CLOCKED_PROMPT_HIDDEN
+        }
+    return value
+
+
+def _clocked_prompt_view(view: ActorView) -> dict:
+    """What the owner's model reads on a clocked run. The saved input keeps every field."""
+    data = _plain_fields(view.model_dump(mode="json", exclude={"source_event_id", "window"}))
+    for item in data["observations"]:
+        try:
+            record = json.loads(item["text"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(record, dict):
+            record = _plain_fields(record)
+            if record.get("source") == "director":
+                record["source"] = "outside"
+            item["text"] = json.dumps(record)
+    return data
+
+
+def earlier_decisions(messages: Sequence[dict[str, Any]], time_text) -> list[str]:
+    """A short list of what this owner said before the messages they can still see.
+
+    messages holds their older messages, newest first, with content and created_at. Messages
+    that carry a decision come first, so a long week of chatter cannot push them out.
+    """
+
+    def carries(message):
+        return bool(_decisive(_words(message["content"])))
+
+    picked = [m for m in messages if carries(m)][:EARLIER_DECISION_ITEMS]
+    picked += [m for m in messages if not carries(m)][: EARLIER_DECISION_ITEMS - len(picked)]
+    picked.sort(key=lambda message: message["created_at"])
+    return [
+        f"{time_text(m['created_at'])}: {' '.join(m['content'].split())[:EARLIER_DECISION_CHARS]}"
+        for m in picked
+    ]
 
 
 class ActorFidelityReview(Contract):
@@ -1748,11 +1905,9 @@ class ModelActor:
                     (self.prompt + NATURAL_VOICE if self.natural else self.prompt)
                     + (CLOCK_DAY if view.clock is not None else ""),
                     {
-                        "view": view.model_dump(
-                            mode="json",
-                            exclude={"source_event_id"}
-                            | ({"window"} if view.clock is not None else set()),
-                        ),
+                        "view": _clocked_prompt_view(view)
+                        if view.clock is not None
+                        else view.model_dump(mode="json", exclude={"source_event_id"}),
                         "repair_reason": error,
                         "rejected_candidate": prior_candidate,
                         "allowed_fact_ids": fact_ids,
@@ -1820,10 +1975,11 @@ class ModelActor:
                     spoken += [m.body for m in output.mail_requests]
                     # A control's own request can name credits or IDs; repeating those is fidelity.
                     declared = view.request.casefold()
+                    backstage = _BACKSTAGE if view.clock is None else _CLOCKED_BACKSTAGE
                     if any(
                         match.casefold() not in declared
                         for text in spoken
-                        for match in _BACKSTAGE.findall(text)
+                        for match in backstage.findall(text)
                     ):
                         raise ActorContractError(
                             "This names a backstage term. Write only what this person would "
@@ -2035,8 +2191,14 @@ class ModelActor:
                         "stimulus_source": "declared_initial_setup" if initial_setup else "model",
                     }
                 )
-                if view.clock is not None and _repeats_owner(view, output):
-                    # People do not keep sending the same message. Keep what they do next.
+                repeated = _repeated_message(view, output) if view.clock is not None else None
+                if repeated is not None:
+                    # People do not keep sending the same message. Keep what they do next, and
+                    # keep the dropped words in this turn's saved metadata.
+                    self.last_attempts[-1]["owner_message_dropped"] = {
+                        "text": output.text,
+                        "repeats": repeated,
+                    }
                     return output.model_copy(update={"kind": "wait", "text": ""})
                 return output
             except (ValueError, ValidationError) as exc:

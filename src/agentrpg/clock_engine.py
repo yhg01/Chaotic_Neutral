@@ -13,11 +13,14 @@ import asyncio
 import hashlib
 import json
 import logging
+import random
+import time
 from dataclasses import dataclass
 from uuid import UUID, uuid5
 
 import psycopg
 from psycopg.types.json import Jsonb
+from pydantic import BaseModel
 
 from agentrpg import drama, wallet
 from agentrpg.activation import ActivationEnvelope, ClockedActivationResult
@@ -28,6 +31,7 @@ from agentrpg.actor import (
     ActorView,
     ModelGenerationError,
     build_actor_view,
+    earlier_decisions,
     validate_actor_output,
 )
 from agentrpg.budget import BudgetError, budget_context
@@ -36,6 +40,9 @@ from agentrpg.clock import (
     ACTOR_OBSERVATION_KINDS,
     AGENT_KINDS,
     CHAT_STREAK_LIMIT,
+    EFFECTFUL_TOOLS,
+    PEER_WAKE_LIMIT,
+    READ_ONLY_FORM_ACTIONS,
     ClockConfig,
     actor_process,
     agent_process,
@@ -44,12 +51,14 @@ from agentrpg.clock import (
     classify_agent_event,
     event_time_s,
     fold_stamps,
+    is_peer_event,
     next_daily_wake,
     next_event,
     notice_delay_s,
     price_actor,
     retime,
     schedule,
+    strip_nul,
     until_after_yield,
 )
 from agentrpg.clock_gate import ARRIVAL_TIMEOUT_S
@@ -72,6 +81,14 @@ OWNER_MESSAGE_LIMIT = 50
 CUE_CHARS = 8_000
 OBSERVATION_CHARS = 8_000
 DRAIN_TIMEOUT_S = 180.0
+RETRY_CAP_S = 300.0
+# The circuit breaker opens after this many failures with nothing working in between, once
+# they have lasted this long. One blip can fail many callers at the same moment.
+BREAKER_FAILURES = 8
+BREAKER_SECONDS = 60.0
+# How often a conductor stopped by the database starts again before the process gives up.
+DATABASE_RESTARTS = 8
+FREEZE_S = 12 * 60 * 60
 REASON_REQUESTED = "You asked to look at this again around now."
 REASON_ROUTINE = "You usually check in around now."
 
@@ -81,7 +98,7 @@ class _Interrupted(Exception):
 
 
 class _BudgetPause(Exception):
-    """A budget refusal. The event stays queued, so no due event is skipped (R14)."""
+    """A refusal or a long outage. The event stays queued, so no due event is skipped (R14)."""
 
 
 @dataclass(frozen=True)
@@ -101,11 +118,45 @@ def _is_budget(error: BaseException) -> bool:
 
 def _is_retryable(error: Exception) -> bool:
     # Generic runtime errors say "retry with the same task ID": a bad or empty model reply.
-    return classify_failure(error).retryable or type(error) is AgentRuntimeError
+    # A refused request or a garbled response may go through on a second try, within the limit.
+    failure = classify_failure(error)
+    return (
+        failure.retryable
+        or failure.kind == "provider_request_refused"
+        or type(error) is AgentRuntimeError
+    )
 
 
 def _cause_key(value: str) -> str:
     return value if len(value) <= 180 else "h:" + hashlib.sha256(value.encode()).hexdigest()
+
+
+def _clean_output(output: ActorOutput) -> ActorOutput:
+    """A model can send NUL. PostgreSQL cannot save it. Words with no text left fail validation."""
+    saved = output.model_dump(mode="json")
+    cleaned = strip_nul(saved)
+    return output if cleaned == saved else ActorOutput.model_validate(cleaned)
+
+
+def _clean_plan(plan):
+    if not isinstance(plan, BaseModel):
+        return plan
+    saved = plan.model_dump(mode="json")
+    cleaned = strip_nul(saved)
+    if cleaned == saved:
+        return plan
+    try:
+        return type(plan).model_validate(cleaned)
+    except ValueError:
+        return plan  # The event handler records what cannot be saved.
+
+
+def _how_long(seconds: int) -> str:
+    """Plain words for a stretch of time, such as "About 3 days"."""
+    hours = round(seconds / 3600)
+    if hours >= 36:
+        return f"About {round(seconds / 86400)} days"
+    return "About 1 hour" if hours <= 1 else f"About {hours} hours"
 
 
 IDLE_ACTION_S = 2 * 60 * 60
@@ -117,10 +168,19 @@ ACTOR_RECORD_CHARS = 800
 
 
 def _short_inbox(view: dict) -> dict:
-    """An owner glances at mail. The assistant reads it in full through its own tools."""
+    """An owner glances at mail. The assistant reads it in full through its own tools.
+
+    It holds what a mailbox shows: no run fields, and read or not rather than a saved stamp.
+    A paging cursor means nothing to a person, and it holds values that differ from run to run.
+    """
     for item in view.get("items", []):
         if len(item.get("body") or "") > ACTOR_MAIL_CHARS:
             item.update(body=item["body"][:ACTOR_MAIL_CHARS], body_truncated=True)
+        for key in ("run_id", "window", "sender_source"):
+            item.pop(key, None)
+        item["read"] = item.pop("read_at", None) is not None
+    if view.pop("next_cursor", None):
+        view["older_mail_not_shown"] = True
     return view
 
 
@@ -147,6 +207,9 @@ class ClockEngine:
         web=None,
         *,
         retry_base_seconds: float = 1.0,
+        retry_cap_seconds: float = RETRY_CAP_S,
+        breaker_failures: int = BREAKER_FAILURES,
+        breaker_seconds: float = BREAKER_SECONDS,
         arrival_timeout_seconds: float = ARRIVAL_TIMEOUT_S,
         drain_timeout_seconds: float = DRAIN_TIMEOUT_S,
     ) -> None:
@@ -167,6 +230,10 @@ class ClockEngine:
         self.resources = ResourceService(pool)
         self.transfers = TransferService(pool)
         self.retry_base_seconds = retry_base_seconds
+        self.retry_cap_seconds = retry_cap_seconds
+        self.breaker_failures = breaker_failures
+        self.breaker_seconds = breaker_seconds
+        self.database_restarts = DATABASE_RESTARTS
         self.arrival_timeout_seconds = arrival_timeout_seconds
         self.drain_timeout_seconds = drain_timeout_seconds
         self._tasks: dict[str, asyncio.Task] = {}
@@ -174,6 +241,10 @@ class ClockEngine:
         self._pause_reason: dict | None = None
         self._fatal: BaseException | None = None
         self._stopping = False
+        self._stop_signal = asyncio.Event()
+        self._outage_failures = 0
+        self._outage_since: float | None = None
+        self._successes_seen = 0
 
     # Conductor ---------------------------------------------------------------------------
 
@@ -199,11 +270,22 @@ class ClockEngine:
         run = await self.director.get_run(run_id)
         if run["status"] == "pending":
             await self.director.control(run_id, "start")
+        restarts = 0
         while True:
-            run = await self.director.get_run(run_id)
-            if run["status"] != "running":
-                return run
-            await self.advance(run_id)
+            try:
+                run = await self.director.get_run(run_id)
+                if run["status"] != "running":
+                    return run
+                await self.advance(run_id)
+                restarts = 0
+            except psycopg.OperationalError:
+                # Saved state lets a new conductor continue. The process exits only if the
+                # database stays away, so an outer restart loop can take over.
+                restarts += 1
+                if restarts > self.database_restarts:
+                    raise
+                logger.warning("The database failed. Starting the conductor again.")
+                await asyncio.sleep(self._retry_delay(restarts))
 
     async def _load(self, run_id, max_sim_minutes) -> _Run:
         run = await self.director.get_run(run_id)
@@ -230,6 +312,8 @@ class ClockEngine:
         self._pause_reason = None
         self._fatal = None
         self._stopping = False
+        self._stop_signal.clear()
+        await self._arm_breaker(ctx)
         try:
             await self._clear_turn(ctx)
             await self._bootstrap(ctx)
@@ -238,6 +322,25 @@ class ClockEngine:
         finally:
             await self._stop_tasks()
         return await self.director.get_run(run_id)
+
+    async def _arm_breaker(self, ctx: _Run) -> None:
+        """After an outage pause, the first failure pauses again and the first success clears it.
+
+        Otherwise every resume during a long outage pays for a whole round of failed attempts.
+        """
+        self._outage_failures = 0
+        self._outage_since = None
+        self._successes_seen = self.gate.successes
+        async with self.pool.connection() as conn:
+            last = await row(
+                conn,
+                "SELECT payload FROM run_events WHERE run_id=%s AND kind='run_paused' "
+                "ORDER BY created_at DESC,id DESC LIMIT 1",
+                (ctx.id,),
+            )
+        if last is not None and last["payload"].get("reason") == "provider_outage":
+            self._outage_failures = max(0, self.breaker_failures - 1)
+            self._outage_since = time.monotonic() - self.breaker_seconds
 
     async def _loop(self, ctx: _Run) -> None:
         gate = self.gate
@@ -296,7 +399,10 @@ class ClockEngine:
                 else:
                     await self._pop(ctx, durable)
             except _BudgetPause:
-                self._pause_reason = self._pause_reason or {"component": "director"}
+                self._pause_reason = self._pause_reason or {
+                    "reason": "budget",
+                    "component": "director",
+                }
                 continue
             except _Interrupted:
                 continue
@@ -353,6 +459,14 @@ class ClockEngine:
             )
             processes = await rows(conn, "SELECT * FROM clock_processes WHERE run_id=%s", (ctx.id,))
             bars = {(p["owner_id"], p["kind"]): p["bar_s"] for p in processes}
+            # A call that was running at the stop has no saved effect yet. The bar already moved
+            # past it, so block from where it began, or a later event could commit before it.
+            unfinished = await rows(
+                conn,
+                "SELECT owner_id,start_s FROM clock_actions "
+                "WHERE run_id=%s AND process='agent' AND status='active'",
+                (ctx.id,),
+            )
             for job in jobs:
                 if job["output"] is None:
                     continue
@@ -381,13 +495,20 @@ class ClockEngine:
             if job["output"] is not None:
                 continue
             if job["kind"] == "agent":
-                self._start_agent(ctx, job, resume_bar=bars[(job["owner_id"], "agent")])
+                open_calls = [
+                    item["start_s"]
+                    for item in unfinished
+                    if item["owner_id"] == job["owner_id"] and item["start_s"] >= job["start_s"]
+                ]
+                bar = min([bars[(job["owner_id"], "agent")], *open_calls])
+                self._start_agent(ctx, job, resume_bar=bar)
             else:
                 self._start_actor(ctx, job)
 
     async def _drain(self) -> None:
         """Let paid model calls finish before stopping, within a real-time bound."""
         self._stopping = True
+        self._stop_signal.set()
         try:
             async with asyncio.timeout(self.drain_timeout_seconds):
                 while self.gate.blocking() and any(not t.done() for t in self._tasks.values()):
@@ -399,6 +520,7 @@ class ClockEngine:
     async def _stop_tasks(self) -> None:
         """Cancel parked and unfinished work. A later advance resumes it from checkpoints."""
         self._stopping = True
+        self._stop_signal.set()
         tasks = list(self._tasks.values())
         for task in tasks:
             task.cancel()
@@ -407,7 +529,9 @@ class ClockEngine:
         self._tasks.clear()
 
     async def _pause_for_budget(self, ctx: _Run) -> None:
+        """Pause for a budget refusal, a provider's refusal, or an outage. A resume continues."""
         await self._drain()
+        reason = {"reason": "budget", **(self._pause_reason or {})}
         async with self.pool.connection() as conn, conn.transaction():
             run = await row(
                 conn, "SELECT * FROM environment_runs WHERE id=%s FOR UPDATE", (ctx.id,)
@@ -417,15 +541,15 @@ class ClockEngine:
             state = await row(conn, "SELECT * FROM clock_state WHERE run_id=%s", (ctx.id,))
             await conn.execute(
                 "UPDATE environment_runs SET status='paused',result=%s WHERE id=%s",
-                (Jsonb({"reason": "budget", **(self._pause_reason or {})}), ctx.id),
+                (Jsonb(reason), ctx.id),
             )
             await emit(
                 conn,
                 ctx.id,
                 "run_paused",
                 run["current_window"],
-                {"reason": "budget", "sim_s": state["sim_s"], **(self._pause_reason or {})},
-                f"run_paused:budget:{state['pop_seq']}",
+                {"sim_s": state["sim_s"], **reason},
+                f"run_paused:{reason['reason']}:{state['pop_seq']}",
             )
 
     async def _commit_turn(self, ctx: _Run, due_s: int, process: str | None) -> int:
@@ -554,13 +678,64 @@ class ClockEngine:
             "run_end": self._on_run_end,
         }.get(kind)
         try:
-            if handler is None:
-                await self._simulator_error(ctx, {"reason": "unknown_clock_event", "kind": kind})
-            else:
-                await handler(ctx, event, now_s)
+            try:
+                if handler is None:
+                    await self._simulator_error(
+                        ctx, {"reason": "unknown_clock_event", "kind": kind}
+                    )
+                else:
+                    await handler(ctx, event, now_s)
+            except (_BudgetPause, _Interrupted, psycopg.OperationalError):
+                raise  # The event stays queued. A resume or a new conductor repeats it.
+            except Exception as error:
+                # A bad saved plan or a logic error would stop every resume at this event.
+                logger.exception("A clock event failed and is recorded: %s", kind)
+                await self._simulator_error(
+                    ctx,
+                    {
+                        "reason": "event_failed",
+                        "key": event["key"],
+                        "kind": kind,
+                        "failure": type(error).__name__,
+                        "detail": str(error).replace("\x00", "")[:300],
+                    },
+                    owner,
+                    f"event_failed:{event['key']}",
+                )
+                await self._free_after_failed_event(ctx, event, now_s)
             await self._mark_done(ctx, event)
         finally:
             await self._clear_turn(ctx)
+
+    async def _free_after_failed_event(self, ctx: _Run, event: dict, now_s: int) -> None:
+        """A failed wake or result must not leave its process stuck, or failing in a loop.
+
+        The process rests until the next daily wake. What it has not read stays undelivered.
+        """
+        kind, owner = event["kind"], event["owner_id"]
+        names = {
+            "actor_wake": "actor",
+            "agent_wake": "agent",
+            "actor_effect": "actor",
+            "agent_finish": "agent",
+        }
+        if kind not in names or owner is None:
+            return
+        until = next_daily_wake(now_s, ctx.config)
+        async with self.pool.connection() as conn, conn.transaction():
+            if "job_id" in event["payload"]:
+                await conn.execute(
+                    "UPDATE run_jobs SET status='failed',error='The result could not be applied.' "
+                    "WHERE id=%s AND status NOT IN ('completed','failed')",
+                    (event["payload"]["job_id"],),
+                )
+            await conn.execute(
+                """UPDATE clock_processes SET
+                   state=CASE WHEN state IN ('dead','offline') THEN state ELSE 'waiting' END,
+                   until_s=%s,wait_id=wait_id+1,wake_on=COALESCE(wake_on,'{}'::jsonb)||%s
+                   WHERE run_id=%s AND owner_id=%s AND kind=%s""",
+                (until, Jsonb({"quota_until": until}), ctx.id, owner, names[kind]),
+            )
 
     async def _mark_done(self, ctx: _Run, event: dict, conn=None) -> None:
         query = "UPDATE clock_events SET status='done' WHERE id=%s AND status='queued'"
@@ -673,13 +848,15 @@ class ClockEngine:
                         continue  # R9: frozen. Everything waits for action_end.
                     own_events = [e for e in actor_events if e["recipient"] == owner]
                     # Owner and assistant can thank each other forever. Once they have only
-                    # chatted a few times in a row, new messages wait until the owner next
-                    # surfaces by themselves: a cue, or the end of what they are doing.
-                    if action is not None and await self._chat_capped(conn, ctx, owner):
-                        own_events = [
-                            e for e in own_events if classify_actor_event(e, owner) == "cue"
-                        ]
+                    # chatted a few times in a row, new chat waits until the owner next
+                    # surfaces by themselves. Mail and other news still get through, and an
+                    # assistant that does something real starts the count again.
+                    if await self._chat_capped(conn, ctx, owner):
+                        own_events = [e for e in own_events if e["kind"] != "owner_message"]
                     desired = self._actor_due(ctx, process, now_s, own_events, action)
+                quota_until = (process["wake_on"] or {}).get("quota_until")
+                if quota_until is not None and quota_until > now_s:
+                    desired = quota_until  # R14: today's quota is spent. Nothing is lost.
                 if desired is None:
                     if kind == "agent" or action is None:
                         # R8: every yield has an until. A first wait takes the next morning.
@@ -708,7 +885,11 @@ class ClockEngine:
                     await retime(conn, ctx.id, existing["key"], desired)
 
     async def _chat_capped(self, conn, ctx: _Run, owner: str) -> bool:
-        """Have this owner and assistant only chatted since the assistant last did anything?"""
+        """Have this owner and assistant only chatted since something real last happened?
+
+        Only a plan or a world event starts the count again, or a tool that did something.
+        The end of an action does not, and neither does reading or a refused call.
+        """
         streak = await row(
             conn,
             """SELECT count(*) AS n FROM run_events e WHERE e.run_id=%s AND e.owner_id=%s
@@ -716,25 +897,38 @@ class ClockEngine:
                AND e.created_at > COALESCE((
                    SELECT max(t.created_at) FROM run_events t
                    WHERE t.run_id=%s AND t.owner_id=%s
-                   AND (t.kind='actor_cue' OR (t.kind='assistant_tool_call'
-                        AND t.payload->>'tool' NOT IN ('read_owner_messages','send_owner_message',
-                            'read_run_view','get_updates','acknowledge','list_mail','read_mail',
-                            'acknowledge_mail','read_resources','fetch_resource'))
-                   )), '-infinity'::timestamptz)""",
-            (ctx.id, owner, ctx.id, owner),
+                   AND ((t.kind='actor_cue' AND t.payload->>'action_key' IS NULL
+                         AND t.payload->>'quiet' IS NULL)
+                        OR (t.kind='assistant_tool_call'
+                            AND t.payload->>'tool' = ANY(%s)
+                            AND t.payload#>>'{result,ok}' = 'true'
+                            AND COALESCE(t.payload#>>'{arguments,action}','') <> ALL(%s)))
+                   ), '-infinity'::timestamptz)""",
+            (
+                ctx.id,
+                owner,
+                ctx.id,
+                owner,
+                sorted(EFFECTFUL_TOOLS),
+                sorted(READ_ONLY_FORM_ACTIONS),
+            ),
         )
         return streak["n"] >= CHAT_STREAK_LIMIT
 
     def _agent_due(self, ctx: _Run, process: dict, now_s: int, events: list) -> int | None:
         config = ctx.config
         due = []
-        agent_id = ctx.participants[process["owner_id"]]["agent_id"]
+        owner = process["owner_id"]
+        agent_id = ctx.participants[owner]["agent_id"]
+        # Two assistants can answer each other forever. After a few wakes caused only by each
+        # other, their messages wait as ambient news does, until the owner speaks again.
+        limited = (process["wake_on"] or {}).get("peer_streak", 0) >= PEER_WAKE_LIMIT
         ambient = []
         for event in events:
-            kind = classify_agent_event(event, process["owner_id"], agent_id)
+            kind = classify_agent_event(event, owner, agent_id)
             if kind is None or not self._can_wake(event, config):
                 continue
-            if kind == "direct":
+            if kind == "direct" and not (limited and is_peer_event(event, owner)):
                 due.append(now_s)
             else:
                 ambient.append(event_time_s(event["created_at"], config))
@@ -780,33 +974,67 @@ class ClockEngine:
             ):
                 return
             seq = process["activation_seq"] + 1
-            if seq > ctx.config.max_agent_activations:
-                await self._silence(conn, ctx, run, owner, "agent", seq)
+            if await self._quota_spent(conn, ctx, owner, "agent", now_s):
+                await self._rest_until_tomorrow(conn, ctx, run, owner, "agent", process, now_s)
                 return
-            job = await self._prepare_agent(conn, ctx, run, owner, seq, now_s, process)
+            before = (process["wake_on"] or {}).get("peer_streak", 0)
+            job, streak = await self._prepare_agent(conn, ctx, run, owner, seq, now_s, process)
             await conn.execute(
                 """UPDATE clock_processes SET state='active',bar_s=GREATEST(bar_s,%s),until_s=NULL,
-                   wait_id=wait_id+1,activation_seq=%s,last_wake_s=%s
+                   wait_id=wait_id+1,activation_seq=%s,last_wake_s=%s,
+                   wake_on=COALESCE(wake_on,'{}'::jsonb)||%s
                    WHERE run_id=%s AND owner_id=%s AND kind='agent'""",
-                (now_s, seq, now_s, ctx.id, owner),
+                (now_s, seq, now_s, Jsonb({"peer_streak": streak}), ctx.id, owner),
             )
+            if streak >= PEER_WAKE_LIMIT > before:
+                await emit(
+                    conn,
+                    ctx.id,
+                    "process_peer_limit",
+                    run["current_window"],
+                    {"activations": streak},
+                    f"process_peer_limit:{owner}:c{seq}",
+                    owner,
+                )
             await self._mark_done(ctx, event, conn)
         self._start_agent(ctx, job)
 
-    async def _silence(self, conn, ctx: _Run, run: dict, owner: str, kind: str, seq: int) -> None:
-        """R14: a limit stops waking one process and is logged. The run goes on."""
+    async def _quota_spent(self, conn, ctx: _Run, owner: str, kind: str, now_s: int) -> bool:
+        """R14: count this day's work from saved jobs, so a restart changes nothing."""
+        used = await row(
+            conn,
+            "SELECT count(*) AS n FROM run_jobs WHERE run_id=%s AND owner_id=%s AND kind=%s "
+            "AND start_s>=%s",
+            (ctx.id, owner, kind, ctx.config.day_start_s(now_s)),
+        )
+        return used["n"] >= ctx.config.daily_quota(kind)
+
+    async def _rest_until_tomorrow(
+        self, conn, ctx: _Run, run: dict, owner: str, kind: str, process: dict, now_s: int
+    ) -> None:
+        """R14: a quota stops one process until the next daily wake. It is saved and visible.
+
+        What arrives meanwhile stays undelivered, so the next activation carries it.
+        """
+        until = next_daily_wake(now_s, ctx.config)
         await conn.execute(
-            "UPDATE clock_processes SET state='offline',until_s=NULL "
-            "WHERE run_id=%s AND owner_id=%s AND kind=%s",
-            (ctx.id, owner, kind),
+            """UPDATE clock_processes SET state='waiting',until_s=%s,wait_id=wait_id+1,
+               wake_on=COALESCE(wake_on,'{}'::jsonb)||%s
+               WHERE run_id=%s AND owner_id=%s AND kind=%s""",
+            (until, Jsonb({"quota_until": until}), ctx.id, owner, kind),
         )
         await emit(
             conn,
             ctx.id,
             "process_limit_reached",
             run["current_window"],
-            {"process": kind, "activations": seq - 1},
-            f"process_limit:{kind}:{owner}",
+            {
+                "process": kind,
+                "activations": process["activation_seq"],
+                "daily_quota": ctx.config.daily_quota(kind),
+                "until_s": until,
+            },
+            f"process_limit:{kind}:{owner}:{until}",
             owner,
         )
 
@@ -826,7 +1054,10 @@ class ClockEngine:
     async def _prepare_agent(
         self, conn, ctx: _Run, run: dict, owner: str, seq: int, now_s: int, process: dict
     ) -> dict:
-        """Freeze one activation's input, like RunEngine._prepare for an agent."""
+        """Freeze one activation's input, like RunEngine._prepare for an agent.
+
+        Returns the job and the count of wakes caused only by other assistants.
+        """
         window = run["current_window"]
         participant = ctx.participants[owner]
         job_id = uuid5(ctx.id, f"agent:{owner}:c{seq}")
@@ -910,7 +1141,12 @@ class ClockEngine:
                 "INSERT INTO event_deliveries VALUES (%s,%s,%s,'agent',%s) ON CONFLICT DO NOTHING",
                 (ctx.id, event["id"], owner, job_id),
             )
-        return job
+        streak = (process["wake_on"] or {}).get("peer_streak", 0)
+        if owner_messages or not eligible:
+            streak = 0  # The owner spoke, or this is its own timer with nothing waiting.
+        elif any(is_peer_event(e, owner) for e in eligible):
+            streak += 1
+        return job, streak
 
     def _start_agent(self, ctx: _Run, job: dict, *, resume_bar: int | None = None) -> None:
         owner = job["owner_id"]
@@ -924,9 +1160,10 @@ class ClockEngine:
         owner = job["owner_id"]
         process = agent_process(owner)
         agent = self.agents[owner]
-        envelope = ActivationEnvelope.model_validate(job["input"])
         attempts = job["attempts"]
         try:
+            envelope = ActivationEnvelope.model_validate(job["input"])
+            bounded = await self._bounded_failures(job)
             while True:
                 try:
                     with budget_context(run_id=ctx.id, owner_id=owner):
@@ -948,27 +1185,112 @@ class ClockEngine:
                         return
                     failure = classify_failure(error)
                     await self._record_failure(ctx, job, attempts, failure)
-                    exhausted = attempts > ctx.spec.limits.recovery_attempts
-                    if exhausted or not _is_retryable(error):
-                        await self._abandon(ctx, job, agent, failure.kind, attempts)
+                    if self._outage_pause(failure, owner, "assistant"):
                         return
-                    if self._stopping:
-                        return
-                    await asyncio.sleep(self.retry_base_seconds * 2 ** (attempts - 1))
-                    if self._stopping:
+                    if not failure.holds:
+                        bounded += 1
+                        if bounded > ctx.spec.limits.recovery_attempts or not _is_retryable(error):
+                            await self._abandon(ctx, job, agent, failure.kind, attempts)
+                            return
+                    if not await self._wait_to_retry(attempts):
                         return
             await self._save_agent_result(ctx, job, agent, result)
         except asyncio.CancelledError:
             raise
+        except psycopg.OperationalError as error:
+            self._fatal = error
+        except Exception as error:
+            await self._close_after_save_failed(ctx, job, agent, attempts, error)
         except BaseException as error:
             self._fatal = error
         finally:
             self.gate.end(process)
 
-    def _request_budget_pause(self, owner: str, component: str) -> None:
+    async def _close_after_save_failed(self, ctx, job, agent, attempts, error) -> None:
+        """A result that cannot be saved would stop the conductor on every resume."""
+        logger.exception("An assistant result could not be saved.")
+        try:
+            await self._abandon(ctx, job, agent, classify_failure(error).kind, attempts)
+        except Exception as second:
+            self._fatal = second
+
+    async def _bounded_failures(self, job: dict) -> int:
+        """Failures that use up this job's limited retries. An outage uses up none of them."""
+        if not job["attempts"]:
+            return 0
+        async with self.pool.connection() as conn:
+            found = await row(
+                conn,
+                "SELECT count(*) AS n FROM run_events WHERE run_id=%s AND kind='job_failure' "
+                "AND payload->>'job_id'=%s AND COALESCE(payload->>'holding','false')='false'",
+                (job["run_id"], str(job["id"])),
+            )
+        return found["n"]
+
+    def _retry_delay(self, attempts: int) -> float:
+        """R14: capped exponential backoff, with a spread so that callers do not retry together.
+
+        It follows the run's failures too, so many callers failing together slow each other.
+        """
+        level = max(attempts, self._outage_failures, 1)
+        delay = self.retry_base_seconds * 2 ** min(level - 1, 30)
+        return min(self.retry_cap_seconds, delay) * random.uniform(0.85, 1.15)
+
+    async def _wait_to_retry(self, attempts: int) -> bool:
+        """Wait while the process keeps its place at the frontier. False: stop retrying."""
+        try:
+            async with asyncio.timeout(self._retry_delay(attempts)):
+                await self._stop_signal.wait()
+        except TimeoutError:
+            pass
+        return not (self._stopping or self._pause_reason is not None)
+
+    def _outage_pause(self, failure, owner: str | None, component: str) -> bool:
+        """Count an infrastructure failure. True when the run must pause because of it.
+
+        A provider's refusal of the key or the account pauses at once. Any failure of the
+        service opens the breaker when nothing has worked for long enough. Story time waits
+        meanwhile, because the process keeps its place at the frontier (R1, R14).
+        """
+        if self._pause_reason is not None:
+            return True
+        if failure.pauses:
+            self._request_pause("provider_rejected", owner, component, failure.kind)
+            return True
+        if not failure.counts_as_outage:
+            return False
+        if self.gate.successes != self._successes_seen:
+            self._successes_seen = self.gate.successes
+            self._outage_failures = 0
+            self._outage_since = None
+        now = time.monotonic()
+        self._outage_since = now if self._outage_since is None else self._outage_since
+        self._outage_failures += 1
+        if (
+            self._outage_failures >= self.breaker_failures
+            and now - self._outage_since >= self.breaker_seconds
+        ):
+            self._request_pause("provider_outage", owner, component, failure.kind)
+            return True
+        return False
+
+    def _outage_over(self) -> None:
+        self._outage_failures = 0
+        self._outage_since = None
+        self._successes_seen = self.gate.successes
+
+    def _request_pause(self, reason: str, owner: str | None, component: str, kind=None) -> None:
         if self._pause_reason is None:
-            self._pause_reason = {"component": component, "owner_id": owner}
+            self._pause_reason = {"reason": reason, "component": component}
+            if owner is not None:
+                self._pause_reason["owner_id"] = owner
+            if kind is not None:
+                self._pause_reason["failure_kind"] = kind
+        self._stop_signal.set()
         self.gate.notify()
+
+    def _request_budget_pause(self, owner: str, component: str) -> None:
+        self._request_pause("budget", owner, component)
 
     async def _record_failure(self, ctx: _Run, job: dict, attempts: int, failure) -> None:
         async with self.pool.connection() as conn, conn.transaction():
@@ -994,6 +1316,7 @@ class ClockEngine:
                     "attempt": attempts,
                     "failure_kind": failure.kind,
                     "retryable": failure.retryable,
+                    "holding": failure.holds or failure.pauses,
                 },
                 f"job_failure:{job['id']}:{attempts}",
                 job["owner_id"],
@@ -1009,7 +1332,7 @@ class ClockEngine:
             ctx.config,
             gated=self.gate.gated_names(agent.clock_process),
         ).end_s
-        output = result.model_dump(mode="json")
+        output = strip_nul(result.model_dump(mode="json"))
         owner, seq = job["owner_id"], job["clock_seq"]
         async with self.pool.connection() as conn, conn.transaction():
             await conn.execute(
@@ -1044,12 +1367,26 @@ class ClockEngine:
                 "WHERE run_id=%s AND owner_id=%s AND kind='agent'",
                 (ctx.id, owner),
             )
+            redelivered = await self._undo_delivery(conn, ctx, job, "agent")
+            # Calls of this activation that never finished will not run now.
+            await conn.execute(
+                "UPDATE clock_actions SET status='cancelled' WHERE run_id=%s AND owner_id=%s "
+                "AND process='agent' AND status='active'",
+                (ctx.id, owner),
+            )
             await conn.execute(
                 "UPDATE run_jobs SET output=%s,output_meta=%s,status='saved',end_s=%s,"
                 "failure_kind=%s WHERE id=%s",
                 (
                     Jsonb(output),
-                    Jsonb({"abandoned": True, "failure_kind": kind, "attempts": attempts}),
+                    Jsonb(
+                        {
+                            "abandoned": True,
+                            "failure_kind": kind,
+                            "attempts": attempts,
+                            "redelivered": redelivered,
+                        }
+                    ),
                     process["bar_s"],
                     kind,
                     job["id"],
@@ -1064,6 +1401,37 @@ class ClockEngine:
                 f"agent_finish:{owner}:c{seq}",
                 owner,
             )
+
+    async def _undo_delivery(self, conn, ctx: _Run, job: dict, recipient_kind: str) -> list[str]:
+        """A failed job must not lose what it was given. Each event gets one more chance.
+
+        Only messages from the owner side and cues come back. The job's output_meta names
+        them, so a failure that repeats cannot wake this process forever.
+        """
+        owner = job["owner_id"]
+        given = await rows(
+            conn,
+            """SELECT d.event_id FROM event_deliveries d JOIN run_events e ON e.id=d.event_id
+               WHERE d.run_id=%s AND d.owner_id=%s AND d.recipient_kind=%s AND d.job_id=%s
+               AND e.kind IN ('owner_message','actor_cue')""",
+            (ctx.id, owner, recipient_kind, job["id"]),
+        )
+        tried = await rows(
+            conn,
+            """SELECT jsonb_array_elements_text(output_meta->'redelivered') AS event_id
+               FROM run_jobs WHERE run_id=%s AND owner_id=%s AND kind=%s
+               AND jsonb_typeof(output_meta->'redelivered')='array'""",
+            (ctx.id, owner, job["kind"]),
+        )
+        earlier = {item["event_id"] for item in tried}
+        again = [item["event_id"] for item in given if str(item["event_id"]) not in earlier]
+        if again:
+            await conn.execute(
+                "DELETE FROM event_deliveries WHERE run_id=%s AND owner_id=%s "
+                "AND recipient_kind=%s AND job_id=%s AND event_id=ANY(%s)",
+                (ctx.id, owner, recipient_kind, job["id"], again),
+            )
+        return [str(item) for item in again]
 
     async def _on_agent_finish(self, ctx: _Run, event: dict, now_s: int) -> None:
         owner = event["owner_id"]
@@ -1105,7 +1473,8 @@ class ClockEngine:
                 await conn.execute(
                     """UPDATE clock_processes SET
                        state=CASE WHEN state IN ('dead','offline') THEN state ELSE 'waiting' END,
-                       bar_s=GREATEST(bar_s,%s),until_s=%s,wake_on=%s
+                       bar_s=GREATEST(bar_s,%s),until_s=%s,
+                       wake_on=COALESCE(wake_on,'{}'::jsonb)||%s
                        WHERE run_id=%s AND owner_id=%s AND kind='agent'""",
                     (
                         now_s,
@@ -1206,10 +1575,10 @@ class ClockEngine:
                 )
                 return
             seq = process["activation_seq"] + 1
-            if seq > ctx.config.max_actor_turns:
-                await self._silence(conn, ctx, run, owner, "actor", seq)
+            if await self._quota_spent(conn, ctx, owner, "actor", now_s):
+                await self._rest_until_tomorrow(conn, ctx, run, owner, "actor", process, now_s)
                 return
-            job = await self._prepare_actor(conn, ctx, run, owner, seq, now_s, action)
+            job = await self._prepare_actor(conn, ctx, run, owner, seq, now_s, action, process)
             await conn.execute(
                 """UPDATE clock_processes SET state='active',bar_s=GREATEST(bar_s,%s),until_s=NULL,
                    wait_id=wait_id+1,activation_seq=%s,last_wake_s=%s
@@ -1228,13 +1597,21 @@ class ClockEngine:
         )
 
     async def _prepare_actor(
-        self, conn, ctx: _Run, run: dict, owner: str, seq: int, now_s: int, action: dict | None
+        self,
+        conn,
+        ctx: _Run,
+        run: dict,
+        owner: str,
+        seq: int,
+        now_s: int,
+        action: dict | None,
+        process: dict,
     ) -> dict:
         """Freeze one owner's view at this moment. The board is never part of it (R13)."""
         window = run["current_window"]
         job_id = uuid5(ctx.id, f"actor:{owner}:c{seq}")
         events = await self._undelivered(conn, ctx, "actor", ACTOR_KINDS, owner)
-        cues = [e["payload"]["cue"] for e in events if e["kind"] == "actor_cue"]
+        cues = [e for e in events if e["kind"] == "actor_cue"]
         wakers = [e for e in events if classify_actor_event(e, owner) is not None]
         conversation = list(
             reversed(
@@ -1282,7 +1659,7 @@ class ClockEngine:
         view = build_actor_view(
             ctx.spec,
             owner,
-            self._cue_text(ctx, cues, wakers, now_s),
+            self._cue_text(ctx, cues, wakers, now_s, process["last_wake_s"]),
             conversation=[
                 {
                     "role": "assistant" if m["source"] == "agent" else "owner",
@@ -1321,9 +1698,33 @@ class ClockEngine:
         return job
 
     @staticmethod
-    def _cue_text(ctx: _Run, cues: list[str], wakers: list, now_s: int) -> str:
+    def _cue_text(
+        ctx: _Run, cues: list[dict], wakers: list, now_s: int, last_wake_s: int | None
+    ) -> str:
+        """Each cue with its own time. After a long freeze old plans are no longer news.
+
+        A plan cue says what the day holds, so only the newest one still matters. What actually
+        happened stays. One line says how much time went by.
+        """
         if cues:
-            return "\n".join(cues)[-CUE_CHARS:]
+            config = ctx.config
+            moments = [event_time_s(e["created_at"], config) for e in cues]
+            stamped = list(zip(moments, cues, strict=True))
+            head = ""
+            if any(now_s - moment >= FREEZE_S for moment in moments):
+                plans = [e for e in cues if e["payload"].get("source") == "timeline"]
+                stamped = [
+                    (moment, e)
+                    for moment, e in stamped
+                    if e["payload"].get("source") != "timeline" or e is plans[-1]
+                ]
+                since = last_wake_s if last_wake_s is not None else min(moments)
+                head = (
+                    f"{_how_long(now_s - since)} have gone by since you last had a moment "
+                    "to look at anything.\n"
+                )
+            lines = [f"{config.now_text(moment)}: {e['payload']['cue']}" for moment, e in stamped]
+            return head + "\n".join(lines)[-(CUE_CHARS - len(head)) :]
         if wakers:
             return NO_CUE
         return f"It's {ctx.config.now_text(now_s)}. You have a moment to think about your day."
@@ -1346,6 +1747,9 @@ class ClockEngine:
                 "minutes_left": max(0, left // 60),
                 "you_would_notice_messages": action["reachable"],
             }
+            after = (action["detail"] or {}).get("after")
+            if after:
+                current["after_this_you_will"] = after["description"]
         view = {
             "now": ctx.config.now_text(now_s),
             "today": ctx.config.today_text(now_s),
@@ -1355,6 +1759,17 @@ class ClockEngine:
         card = await wallet.limits(conn, ctx.id, owner)
         if card["allowance"] or card["approved"]:
             view["assistant_may_still_spend_online"] = card["remaining"]
+        older = await rows(
+            conn,
+            "SELECT content,created_at FROM owner_messages WHERE run_id=%s AND owner_id=%s "
+            "AND source='owner' AND created_at<COALESCE((SELECT min(created_at) FROM ("
+            "SELECT created_at FROM owner_messages WHERE run_id=%s AND owner_id=%s "
+            "ORDER BY created_at DESC,id DESC LIMIT %s) AS seen),'-infinity') "
+            "ORDER BY created_at DESC,id DESC LIMIT 200",
+            (ctx.id, owner, ctx.id, owner, ACTOR_VIEW_MESSAGES),
+        )
+        if decisions := earlier_decisions(older, ctx.config.time_text):
+            view["your_earlier_decisions"] = decisions
         return view
 
     def _start_actor(self, ctx: _Run, job: dict) -> None:
@@ -1366,16 +1781,18 @@ class ClockEngine:
         owner = job["owner_id"]
         process = actor_process(owner)
         actor = self.actors[owner]
-        view = ActorView.model_validate(job["input"])
         attempts = job["attempts"]
         failure_reason = None
         try:
+            view = ActorView.model_validate(job["input"])
+            bounded = await self._bounded_failures(job)
             while True:
                 try:
                     async with self.gate.think_slot():
                         with budget_context(run_id=ctx.id, owner_id=owner):
                             output = await actor.respond(view)
-                    output = validate_actor_output(view, output)
+                    output = _clean_output(validate_actor_output(view, output))
+                    self._outage_over()
                     break
                 except asyncio.CancelledError:
                     raise
@@ -1386,20 +1803,35 @@ class ClockEngine:
                         return
                     failure = classify_failure(error)
                     await self._record_failure(ctx, job, attempts, failure)
-                    exhausted = attempts > ctx.spec.limits.recovery_attempts
-                    if exhausted or isinstance(error, ActorContractError) or not failure.retryable:
-                        # R14 and the Actor contract: a simulator failure becomes a wait.
-                        failure_reason = failure.kind
-                        output = ActorOutput(kind="wait", source_event_id=view.source_event_id)
-                        break
-                    if self._stopping:
+                    if self._outage_pause(failure, owner, "actor"):
                         return
-                    await asyncio.sleep(self.retry_base_seconds * 2 ** (attempts - 1))
-                    if self._stopping:
+                    if not failure.holds:
+                        bounded += 1
+                        if (
+                            bounded > ctx.spec.limits.recovery_attempts
+                            or isinstance(error, ActorContractError)
+                            or not (failure.retryable or failure.kind == "provider_request_refused")
+                        ):
+                            # R14 and the Actor contract: a simulator failure becomes a wait.
+                            # An outage never does: it retries with the same ID and view.
+                            failure_reason = failure.kind
+                            output = ActorOutput(kind="wait", source_event_id=view.source_event_id)
+                            break
+                    if not await self._wait_to_retry(attempts):
                         return
             await self._save_actor_result(ctx, job, actor, output, failure_reason)
         except asyncio.CancelledError:
             raise
+        except psycopg.OperationalError as error:
+            self._fatal = error
+        except Exception as error:
+            logger.exception("An owner's words could not be saved.")
+            try:
+                source = job["input"].get("source_event_id") or f"clock:{owner}"
+                output = ActorOutput(kind="wait", source_event_id=source)
+                await self._save_actor_result(ctx, job, actor, output, classify_failure(error).kind)
+            except Exception as second:
+                self._fatal = second
         except BaseException as error:
             self._fatal = error
         finally:
@@ -1410,11 +1842,13 @@ class ClockEngine:
     ) -> None:
         chars = len(output.text) + sum(len(m.body) for m in output.mail_requests)
         end_s = job["start_s"] + price_actor(chars, ctx.config)
-        meta = {"attempts": getattr(actor, "last_attempts", [])}
+        meta = {"attempts": strip_nul(getattr(actor, "last_attempts", []))}
         if failure_reason:
             meta["simulator_failure"] = failure_reason
         owner, seq = job["owner_id"], job["clock_seq"]
         async with self.pool.connection() as conn, conn.transaction():
+            if failure_reason:
+                meta["redelivered"] = await self._undo_delivery(conn, ctx, job, "actor")
             await conn.execute(
                 "UPDATE run_jobs SET output=%s,output_meta=%s,status='saved',end_s=%s WHERE id=%s",
                 (Jsonb(output.model_dump(mode="json")), Jsonb(meta), end_s, job["id"]),
@@ -1576,17 +2010,39 @@ class ClockEngine:
 
             await self._attempt(conn, ctx, job, rejected, "record", index, record)
         if output.online_spend_approval is not None:
-
-            async def approve():
-                await wallet.approve(
+            card = await wallet.limits(conn, run_id, owner)
+            ignored = None
+            if job["clock_seq"] == 1:
+                # The allowance already covers what the owner's opening request states.
+                ignored = "opening_request"
+            elif card["remaining"] >= output.online_spend_approval:
+                ignored = "already_covered"
+            if ignored:
+                await emit(
                     conn,
                     run_id,
+                    "web_spend_approval_ignored",
+                    window,
+                    {
+                        "amount": output.online_spend_approval,
+                        "remaining": card["remaining"],
+                        "reason": ignored,
+                    },
+                    f"web_spend_approval_ignored:{job['id']}",
                     owner,
-                    output.online_spend_approval,
-                    f"online:{owner}:c{job['clock_seq']}",
                 )
+            else:
 
-            await self._attempt(conn, ctx, job, rejected, "online_approval", 0, approve)
+                async def approve():
+                    await wallet.approve(
+                        conn,
+                        run_id,
+                        owner,
+                        output.online_spend_approval,
+                        f"online:{owner}:c{job['clock_seq']}",
+                    )
+
+                await self._attempt(conn, ctx, job, rejected, "online_approval", 0, approve)
         for item in rejected:
             await emit(
                 conn,
@@ -1624,6 +2080,9 @@ class ClockEngine:
         wanted = output.next_action
         if wanted is not None:
             key = f"action:{owner}:{seq}"
+            if current is not None and (current["detail"] or {}).get("replaced_by_world"):
+                await self._save_for_after(conn, ctx, owner, current, wanted, key)
+                return
             if current is not None:
                 await self._retire_action(conn, ctx, current, "replaced", key)
             await self._begin_action(
@@ -1660,9 +2119,57 @@ class ClockEngine:
             draw=False,
         )
 
+    async def _save_for_after(self, conn, ctx, owner, current, wanted, key) -> None:
+        """R9: the world's action stands until it ends. What the owner asked for comes next."""
+        after = {
+            "key": key,
+            "description": wanted.description,
+            "duration_s": max(wanted.minutes, MIN_ACTION_MINUTES) * 60,
+            "reachable": wanted.reachable,
+            "category": wanted.category,
+            "seeks": wanted.seeks,
+        }
+        await conn.execute(
+            "UPDATE clock_actions SET detail=COALESCE(detail,'{}'::jsonb)||%s WHERE id=%s",
+            (Jsonb({"after": after}), current["id"]),
+        )
+        await conn.execute(
+            "UPDATE clock_processes SET state='busy' "
+            "WHERE run_id=%s AND owner_id=%s AND kind='actor'",
+            (ctx.id, owner),
+        )
+        run = await row(conn, "SELECT current_window FROM environment_runs WHERE id=%s", (ctx.id,))
+        # It is said at the owner's next moment. It does not make a moment by itself.
+        await emit(
+            conn,
+            ctx.id,
+            "actor_cue",
+            run["current_window"],
+            {
+                "cue": f"{wanted.description} will have to wait. This has to finish first: "
+                f"{current['label']}.",
+                "quiet": True,
+            },
+            f"action_waits:{key}",
+            owner,
+        )
+
     async def _begin_action(
-        self, conn, ctx, owner, key, description, duration_s, reachable, detail, now_s, *, draw
+        self,
+        conn,
+        ctx,
+        owner,
+        key,
+        description,
+        duration_s,
+        reachable,
+        detail,
+        now_s,
+        *,
+        draw,
+        job_open=False,
     ) -> None:
+        """job_open: an owner job may be running, so this must not let a second one start."""
         action_id = uuid5(ctx.id, f"clock_action:{key}")
         await conn.execute(
             """INSERT INTO clock_actions
@@ -1683,9 +2190,12 @@ class ClockEngine:
         )
         end_s = now_s + duration_s
         await conn.execute(
-            "UPDATE clock_processes SET state='busy',bar_s=GREATEST(bar_s,%s),until_s=%s "
-            "WHERE run_id=%s AND owner_id=%s AND kind='actor'",
-            (end_s, end_s, ctx.id, owner),
+            """UPDATE clock_processes SET
+               state=CASE WHEN state IN ('dead','offline') THEN state
+                          WHEN state='active' AND %s THEN 'active' ELSE 'busy' END,
+               bar_s=GREATEST(bar_s,%s),until_s=%s
+               WHERE run_id=%s AND owner_id=%s AND kind='actor'""",
+            (job_open, end_s, end_s, ctx.id, owner),
         )
         await schedule(
             conn, ctx.id, end_s, "action_end", {"action_key": key}, f"action_end:{key}", owner
@@ -1722,7 +2232,13 @@ class ClockEngine:
 
     async def _retire_action(self, conn, ctx: _Run, action: dict, status: str, new_key=None):
         await cancel(conn, ctx.id, f"action_end:{action['key']}")
-        await cancel(conn, ctx.id, f"perturb:{action['key']}")
+        # A perturbation that already fired, and may be the cause of this, is no longer queued
+        # work. It keeps its own record: only one that never happened is cancelled.
+        await conn.execute(
+            "UPDATE clock_events SET status='cancelled' WHERE run_id=%s AND key=%s "
+            "AND status='queued' AND popped_seq IS NULL",
+            (ctx.id, f"perturb:{action['key']}"),
+        )
         await conn.execute(
             "UPDATE clock_actions SET status=%s,replaced_by=%s WHERE id=%s",
             (status, uuid5(ctx.id, f"clock_action:{new_key}") if new_key else None, action["id"]),
@@ -1745,26 +2261,62 @@ class ClockEngine:
                 "UPDATE clock_actions SET status='done' WHERE id=%s AND status='active'",
                 (action["id"],),
             )
-        seeks = (action["detail"] or {}).get("seeks")
+        detail = action["detail"] or {}
+        seeks = detail.get("seeks")
         if seeks and self.brain is not None and ctx.spec.clock.director.enabled:
             run = await self.director.get_run(ctx.id)
             plan = await self._ask_brain(
-                self.brain.respond_to_request(run, owner, seeks, now_s), ctx
+                lambda: self.brain.respond_to_request(run, owner, seeks, now_s), ctx
             )
             await self._apply_plan(ctx, run, plan, now_s, f"seek:{key}")
         async with self.pool.connection() as conn, conn.transaction():
             run = await self._locked_run(conn, ctx)
+            process = await self._process(conn, ctx, owner, "actor")
+            if detail.get("default"):
+                # Nothing was planned, so nothing has finished and nothing is paid for. This
+                # person stays reachable until a message, something happening, or tomorrow.
+                if process["state"] == "busy":
+                    await conn.execute(
+                        "UPDATE clock_processes SET state='waiting',until_s=%s "
+                        "WHERE run_id=%s AND owner_id=%s AND kind='actor'",
+                        (next_daily_wake(now_s, ctx.config), ctx.id, owner),
+                    )
+                return
+            after = detail.get("after")
+            words = f"You've finished: {action['label']}."
+            if after:
+                words += f" Now for: {after['description']}."
             await emit(
                 conn,
                 ctx.id,
                 "actor_cue",
                 run["current_window"],
-                {"cue": f"You've finished: {action['label']}.", "action_key": key},
+                {"cue": words, "action_key": key},
                 f"action_over:{key}",
                 owner,
             )
-            process = await self._process(conn, ctx, owner, "actor")
-            if process["state"] == "busy":
+            # The answer to what this action sought can itself have changed their plans.
+            current = await self._current_action(conn, ctx, owner)
+            if after and current is not None:
+                await conn.execute(
+                    "UPDATE clock_actions SET detail=COALESCE(detail,'{}'::jsonb)||%s WHERE id=%s",
+                    (Jsonb({"after": after}), current["id"]),
+                )
+            elif after:
+                await self._begin_action(
+                    conn,
+                    ctx,
+                    owner,
+                    after["key"],
+                    after["description"],
+                    after["duration_s"],
+                    after["reachable"],
+                    {"category": after["category"], "seeks": after["seeks"]},
+                    now_s,
+                    draw=True,
+                    job_open=True,
+                )
+            elif current is None and process["state"] == "busy":
                 await conn.execute(
                     "UPDATE clock_processes SET state='waiting',until_s=NULL "
                     "WHERE run_id=%s AND owner_id=%s AND kind='actor'",
@@ -1773,21 +2325,75 @@ class ClockEngine:
 
     # The Director ------------------------------------------------------------------------
 
-    async def _ask_brain(self, call, ctx: _Run):
-        """One model call with no transaction open. A budget refusal pauses the world."""
-        try:
-            with budget_context(run_id=ctx.id):
-                return await call
-        except Exception as error:
-            if _is_budget(error):
-                self._pause_reason = {"component": "director"}
-                raise _BudgetPause from None
-            if isinstance(error, psycopg.OperationalError):
-                raise
-            await self._simulator_error(
-                ctx, {"reason": "director_failed", "failure": type(error).__name__}
+    async def _ask_brain(self, make_call, ctx: _Run):
+        """One decision with no transaction open. The story waits for the world's model.
+
+        A provider that does not answer gets the same retries as any other process, and no
+        canned plan stands in for it. A budget refusal or a provider's refusal pauses the world.
+        Anything else is a failed decision: it is recorded and the world says nothing.
+        """
+        attempts = 0
+        while True:
+            try:
+                with budget_context(run_id=ctx.id):
+                    plan = await make_call()
+                if attempts:
+                    self._outage_over()
+                return _clean_plan(plan)
+            except Exception as error:
+                if _is_budget(error):
+                    self._request_pause("budget", None, "director")
+                    raise _BudgetPause from None
+                if isinstance(error, psycopg.OperationalError):
+                    raise
+                failure = classify_failure(error)
+                if not isinstance(error, ModelGenerationError) or not (
+                    failure.pauses or failure.counts_as_outage
+                ):
+                    await self._simulator_error(
+                        ctx, {"reason": "director_failed", "failure": type(error).__name__}
+                    )
+                    return None
+                attempts += 1
+                await self._record_director_failure(ctx, attempts, failure)
+                if self._outage_pause(failure, None, "director"):
+                    raise _BudgetPause from None
+                if failure.holds:
+                    await self._wait_to_retry(attempts)
+                    if self._fatal is not None:
+                        raise self._fatal from None
+                    if self._pause_reason is not None:
+                        raise _BudgetPause from None
+                    current = await self.director.get_run(ctx.id)
+                    if self._stopping or current["status"] != "running":
+                        raise _Interrupted from None
+                    continue
+                # One request the provider refused. Another decision can still work.
+                await self._simulator_error(
+                    ctx, {"reason": "director_failed", "failure": failure.kind}
+                )
+                return None
+
+    async def _record_director_failure(self, ctx: _Run, attempts: int, failure) -> None:
+        async with self.pool.connection() as conn, conn.transaction():
+            state = await row(conn, "SELECT pop_seq FROM clock_state WHERE run_id=%s", (ctx.id,))
+            run = await row(
+                conn, "SELECT current_window FROM environment_runs WHERE id=%s", (ctx.id,)
             )
-            return None
+            await emit(
+                conn,
+                ctx.id,
+                "job_failure",
+                run["current_window"],
+                {
+                    "component": "director",
+                    "attempt": attempts,
+                    "failure_kind": failure.kind,
+                    "retryable": failure.retryable,
+                    "holding": failure.holds or failure.pauses,
+                },
+                f"job_failure:director:{state['pop_seq']}:{attempts}",
+            )
 
     async def _apply_plan(self, ctx: _Run, run: dict, plan, now_s: int, key: str) -> dict | None:
         """Apply once by key, record it as an action, and replace an action if asked (R11)."""
@@ -1804,6 +2410,21 @@ class ClockEngine:
                 raise _Interrupted from None
             await self._simulator_error(
                 ctx, {"reason": "plan_rejected", "detail": str(error)[:300]}
+            )
+            return None
+        except psycopg.OperationalError:
+            raise
+        except Exception as error:
+            # A plan that cannot be applied must not cost the owner what comes after it.
+            logger.exception("A plan could not be applied.")
+            await self._simulator_error(
+                ctx,
+                {
+                    "reason": "plan_failed",
+                    "key": key,
+                    "failure": type(error).__name__,
+                    "detail": str(error).replace("\x00", "")[:300],
+                },
             )
             return None
         async with self.pool.connection() as conn, conn.transaction():
@@ -1833,6 +2454,12 @@ class ClockEngine:
         key = f"replaced:{owner}:{cause}"
         if current is not None and current["key"] == key:
             return  # A resume repeated this event after the replacement was saved.
+        detail = {"category": spec.get("category"), "replaced_by_world": True}
+        # What the owner hoped to get, and what they meant to do next, survive the change.
+        for name in ("seeks", "after"):
+            carried = (current["detail"] or {}).get(name) if current is not None else None
+            if carried:
+                detail[name] = carried
         if current is not None:
             await self._retire_action(conn, ctx, current, "replaced", key)
         await self._begin_action(
@@ -1843,9 +2470,10 @@ class ClockEngine:
             spec["description"],
             spec["minutes"] * 60,
             spec["reachable"],
-            {"category": spec.get("category"), "replaced_by_world": True},
+            detail,
             now_s,
             draw=False,
+            job_open=True,
         )
         run = await row(conn, "SELECT current_window FROM environment_runs WHERE id=%s", (ctx.id,))
         await emit(
@@ -1865,7 +2493,7 @@ class ClockEngine:
             return
         run = await self.director.get_run(ctx.id)
         plan = await self._ask_brain(
-            self.brain.perturb(run, action, event["payload"]["severity"], now_s), ctx
+            lambda: self.brain.perturb(run, action, event["payload"]["severity"], now_s), ctx
         )
         await self._apply_plan(ctx, run, plan, now_s, f"perturb:{key}")
 
@@ -1879,7 +2507,9 @@ class ClockEngine:
             if self.brain is None or not ctx.spec.clock.director.enabled:
                 return
             plan = await self._ask_brain(
-                self.brain.respond_to_request(run, request["owner_id"], request["text"], now_s),
+                lambda: self.brain.respond_to_request(
+                    run, request["owner_id"], request["text"], now_s
+                ),
                 ctx,
             )
         else:
@@ -1904,7 +2534,7 @@ class ClockEngine:
             return
         run = await self.director.get_run(ctx.id)
         plan = await self._ask_brain(
-            self.brain.review(run, now_s, event["payload"].get("reason", "scheduled")), ctx
+            lambda: self.brain.review(run, now_s, event["payload"].get("reason", "scheduled")), ctx
         )
         await self._apply_plan(ctx, run, plan, now_s, event["key"])
 
@@ -1955,6 +2585,28 @@ class ClockEngine:
                         f"timeline_record:{item.id}:{index}",
                         effect.owner_id,
                     )
+            for index, change in enumerate(item.balance):
+                try:
+                    async with conn.transaction():
+                        await wallet.adjust(
+                            conn,
+                            ctx.id,
+                            change.owner_id,
+                            change.delta,
+                            change.memo,
+                            f"timeline-balance:{item.id}:{index}",
+                            "timeline",
+                        )
+                except ValueError as error:
+                    await emit(
+                        conn,
+                        ctx.id,
+                        "simulator_error",
+                        window,
+                        {"reason": "timeline_balance", "item": item.id, "detail": str(error)[:300]},
+                        f"timeline_balance:{item.id}:{index}",
+                        change.owner_id,
+                    )
             if item.cue is not None:
                 for owner in item.recipients:
                     await emit(
@@ -1985,8 +2637,20 @@ class ClockEngine:
         window = event["payload"]["window"]
         run = await self.director.get_run(ctx.id)
         if run["current_window"] == window:
-            await self._settle(ctx, window)
-            await self.director.fire_beats(ctx.id)
+            try:
+                await self._settle(ctx, window)
+                await self.director.fire_beats(ctx.id)
+            except (_Interrupted, psycopg.OperationalError):
+                raise
+            except Exception as error:
+                # Without the next boundary no later order would ever settle. Keep time going.
+                logger.exception("A settlement failed and is recorded.")
+                await self._simulator_error(
+                    ctx,
+                    {"reason": "settlement_failed", "failure": type(error).__name__},
+                    None,
+                    f"settlement_failed:{window}",
+                )
             async with self.pool.connection() as conn, conn.transaction():
                 run = await self._locked_run(conn, ctx)
                 if run["current_window"] == window:
@@ -2000,7 +2664,18 @@ class ClockEngine:
         following = window + 1
         if following >= ctx.spec.max_windows:
             return
-        await self.director.fire_beats(ctx.id)
+        try:
+            await self.director.fire_beats(ctx.id)
+        except psycopg.OperationalError:
+            raise
+        except Exception as error:
+            logger.exception("Scene items failed at a boundary and are recorded.")
+            await self._simulator_error(
+                ctx,
+                {"reason": "beats_failed", "failure": type(error).__name__},
+                None,
+                f"beats_failed:{following}",
+            )
         async with self.pool.connection() as conn, conn.transaction():
             await schedule(
                 conn,
@@ -2030,15 +2705,7 @@ class ClockEngine:
             return
         process = agent_process(owner)
         task = self._tasks.get(process)
-        job = None
         if task is not None and not task.done():
-            async with self.pool.connection() as conn:
-                job = await row(
-                    conn,
-                    "SELECT * FROM run_jobs WHERE run_id=%s AND owner_id=%s AND kind='agent' "
-                    "AND status NOT IN ('completed','failed') ORDER BY clock_seq DESC LIMIT 1",
-                    (ctx.id, owner),
-                )
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         async with self.pool.connection() as conn, conn.transaction():
@@ -2048,12 +2715,19 @@ class ClockEngine:
                 "WHERE run_id=%s AND owner_id=%s AND kind='agent'",
                 (ctx.id, owner),
             )
+            # What this assistant already wrote, and has not yet landed in story time, dies
+            # with it. How fast the model answered must not decide whether it speaks.
             await conn.execute(
                 "UPDATE clock_events SET status='cancelled' WHERE run_id=%s AND owner_id=%s "
-                "AND kind='agent_wake' AND status='queued'",
+                "AND kind IN ('agent_wake','agent_finish') AND status='queued'",
                 (ctx.id, owner),
             )
-            if job is not None:
+            for job in await rows(
+                conn,
+                "SELECT id FROM run_jobs WHERE run_id=%s AND owner_id=%s AND kind='agent' "
+                "AND status NOT IN ('completed','failed')",
+                (ctx.id, owner),
+            ):
                 await conn.execute(
                     "UPDATE agent_tasks SET status='completed',result=%s,"
                     "completed_at=clock_timestamp() WHERE session_key=%s AND task_id=%s "
@@ -2069,6 +2743,11 @@ class ClockEngine:
                     "WHERE id=%s",
                     (job["id"],),
                 )
+            await conn.execute(
+                "UPDATE clock_actions SET status='cancelled' WHERE run_id=%s AND owner_id=%s "
+                "AND process='agent' AND status='active'",
+                (ctx.id, owner),
+            )
             await emit(
                 conn,
                 ctx.id,
@@ -2112,7 +2791,18 @@ class ClockEngine:
     async def _on_run_end(self, ctx: _Run, event: dict, now_s: int) -> None:
         run = await self.director.get_run(ctx.id)
         if run["current_window"] < ctx.spec.max_windows:
-            await self._settle(ctx, run["current_window"])
+            try:
+                await self._settle(ctx, run["current_window"])
+            except (_Interrupted, psycopg.OperationalError):
+                raise
+            except Exception as error:
+                logger.exception("The last settlement failed and is recorded.")
+                await self._simulator_error(
+                    ctx,
+                    {"reason": "settlement_failed", "failure": type(error).__name__},
+                    None,
+                    "settlement_failed:end",
+                )
         await self._stop_tasks()
         async with self.pool.connection() as conn, conn.transaction():
             run = await self._locked_run(conn, ctx)

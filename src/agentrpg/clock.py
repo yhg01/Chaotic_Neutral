@@ -64,6 +64,43 @@ NOTICE_MIN_S = 240
 NOTICE_MAX_S = 2400
 # Chat-only exchanges allowed before an owner stops being woken by further messages.
 CHAT_STREAK_LIMIT = 2
+# Only these do something for the owner, so only these restart the count of chat-only messages.
+EFFECTFUL_TOOLS = frozenset(
+    {
+        "send_mail",
+        "submit_form",
+        "write_resource",
+        "create_resource",
+        "submit_world_action",
+        "submit_market_action",
+        "transfer_credits",
+        "post_thread",
+        "reply",
+        "direct_message",
+    }
+)
+# These submit_form actions only read a page, so they do not count as doing something.
+READ_ONLY_FORM_ACTIONS = frozenset(
+    {"search", "view_cart", "order_status", "view_listings", "view_bills"}
+)
+# Activations caused only by other assistants before their messages stop waking this one at
+# once. After that they wait, coalesced, as ambient news does (R8).
+PEER_WAKE_LIMIT = 3
+# The shortest wait an assistant can ask for, whatever the scenario's lower bound (R8).
+MIN_WAKE_S = 20 * 60
+
+# A drawn perturbation has fired when its event was popped: an owner who ends the action first
+# stops it, however late it would have been. It has an effect when its saved plan changed
+# something. Reports count drawn, fired and with-effect separately. Alias d, a, e, p.
+FIRED_DRAWS = """FROM clock_draws d
+    LEFT JOIN clock_actions a ON a.run_id=d.run_id AND a.id=d.action_id
+    LEFT JOIN clock_events e ON e.run_id=d.run_id AND e.key='perturb:'||a.key
+    LEFT JOIN run_events p
+      ON p.run_id=d.run_id AND p.operation_key='director_plan:perturb:'||a.key"""
+DRAW_HAS_EFFECT = """(p.payload#>>'{summary,replace_action}' IS NOT NULL OR EXISTS (
+    SELECT 1 FROM unnest(ARRAY['cues','mail','records','record_updates','balance','sites',
+        'site_updates','events','cancelled','retimed']) AS effect(name)
+    WHERE jsonb_array_length(p.payload#>ARRAY['summary',effect.name]) > 0))"""
 
 # Wake rules (R8). Direct events wake an Agent at once. Ambient events wake it after the
 # ambient delay, coalesced by the single queued wake. Own effects never wake it.
@@ -173,6 +210,13 @@ def format_date(value: datetime, tz: tzinfo | None = None) -> str:
     return f"{_DAY_NAMES[moment.weekday()]} {moment.day} {moment:%B}"
 
 
+def format_moment(value: datetime | str, tz: tzinfo | None = None) -> str:
+    """Plain speech with the date, such as "Friday 30 October, 19:40"."""
+    moment = datetime.fromisoformat(value) if isinstance(value, str) else value
+    moment = moment.astimezone(tz) if tz is not None else moment
+    return f"{format_date(moment)}, {moment:%H:%M}"
+
+
 @dataclass(frozen=True)
 class ClockConfig:
     """The frozen clock section of one run, in seconds."""
@@ -243,11 +287,28 @@ class ClockConfig:
     def tz(self) -> tzinfo:
         return self.start_at.tzinfo
 
+    def daily_quota(self, process_kind: str) -> int:
+        """R14: the run's limit shared over its days, so one busy day cannot end a process."""
+        total = self.max_agent_activations if process_kind == "agent" else self.max_actor_turns
+        days = max(1, math.ceil(self.duration_s / 86400))
+        return math.ceil(total / days)
+
+    def day_start_s(self, now_s: int) -> int:
+        """The daily wake that opened the current day. It can be before the run began."""
+        return next_daily_wake(now_s, self) - 86400
+
     def moment(self, sim_s: int) -> datetime:
         return self.start_at + timedelta(seconds=sim_s)
 
     def now_text(self, sim_s: int) -> str:
-        return format_time(self.moment(sim_s))
+        return format_moment(self.moment(sim_s))
+
+    def time_text(self, value: datetime | str) -> str:
+        """A saved row's time in plain speech. A row older than the start names its date."""
+        moment = datetime.fromisoformat(value) if isinstance(value, str) else value
+        if moment < self.start_at:
+            return format_moment(moment, self.tz)
+        return format_time(moment, self.tz)
 
     def today_text(self, sim_s: int) -> str:
         return format_date(self.moment(sim_s))
@@ -425,7 +486,8 @@ def until_after_yield(now_s: int, wake_in_minutes: int | None, config: ClockConf
     """R8: a yield always has an until. With no request, it is the next daily wake."""
     if wake_in_minutes is None:
         return next_daily_wake(now_s, config)
-    return now_s + clamp(config.until_min_s, config.until_max_s, wake_in_minutes * 60)
+    shortest = max(config.until_min_s, MIN_WAKE_S)
+    return now_s + clamp(shortest, config.until_max_s, wake_in_minutes * 60)
 
 
 def event_time_s(created_at: datetime, config: ClockConfig) -> int:
@@ -456,6 +518,17 @@ def classify_agent_event(event: Mapping, owner_id: str, agent_id: str | None = N
     return None
 
 
+def is_peer_event(event: Mapping, owner_id: str) -> bool:
+    """Did another owner or their assistant cause this message to this assistant?"""
+    kind, payload = event["kind"], event.get("payload") or {}
+    if kind == "board_posted":
+        return bool(payload.get("audience"))
+    if kind == "inbox_received":
+        sender = payload.get("sender_owner_id")
+        return sender is not None and sender != owner_id
+    return False
+
+
 def classify_actor_event(event: Mapping, owner_id: str) -> str | None:
     """Return cue, message, or None when this event cannot wake this owner (R8, R9, R13)."""
     if event.get("cause_process") == actor_process(owner_id):
@@ -464,7 +537,8 @@ def classify_actor_event(event: Mapping, owner_id: str) -> str | None:
         return None
     kind, payload = event["kind"], event.get("payload") or {}
     if kind in ACTOR_CUE_KINDS:
-        return "cue"
+        # A quiet cue is read at the owner's next moment. It does not make that moment.
+        return None if payload.get("quiet") else "cue"
     if kind == "owner_message":
         return "message" if payload.get("source") == "agent" else None
     if kind in {"market_settled", "reservation_settled"} and event.get("owner_id") != owner_id:
@@ -472,6 +546,17 @@ def classify_actor_event(event: Mapping, owner_id: str) -> str | None:
     if kind in ACTOR_MESSAGE_KINDS:
         return "message"
     return None
+
+
+def strip_nul(value: Any) -> Any:
+    """Remove NUL from model text. PostgreSQL text and JSON cannot hold it."""
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    if isinstance(value, Mapping):
+        return {strip_nul(key): strip_nul(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [strip_nul(item) for item in value]
+    return value
 
 
 def ordered(events: Iterable[Mapping]) -> list[Mapping]:
@@ -596,6 +681,16 @@ async def retime_event(
     await retime(conn, run_id, key, due_s)
 
 
+def _seed_post_time(start: datetime, post) -> datetime:
+    """A daytime moment for an old post, set by its ID, always early enough for its replies."""
+    digest = hashlib.sha256(f"seed-board:{post.id}".encode()).digest()
+    latest = start - timedelta(days=post.days_ago)
+    moment = latest.replace(hour=8 + digest[0] % 14, minute=digest[1] % 60, second=0, microsecond=0)
+    if moment >= latest:
+        moment -= timedelta(days=1)
+    return min(moment, start - timedelta(hours=7))
+
+
 async def seed_board(conn, run_id, cluster_id, clock, participants) -> None:
     """Save old board posts with their past times, as already read by every Agent who sees them.
 
@@ -606,7 +701,7 @@ async def seed_board(conn, run_id, cluster_id, clock, participants) -> None:
     start = parse_start(clock.start_at)
     rows = []
     for post in clock.seed_board:
-        root_at = start - timedelta(days=post.days_ago, hours=6)
+        root_at = _seed_post_time(start, post)
         root_id = uuid5(UUID(str(run_id)), f"seed-board:{post.id}")
         audience = (
             None

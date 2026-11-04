@@ -3,6 +3,11 @@
 Story time comes from saved outputs, never from real time. A manifest in .local/scenario-runs
 holds the credentials, so --resume continues the same run from its checkpoints. --scripted
 runs the same engine in process with no server and no provider calls.
+
+Exit codes tell an outer loop what to do. 0: the run is complete, an --advance-minutes bound
+was reached, or an operator paused it. 75: a provider refusal or an outage paused it, so try
+--resume after a delay. 3: the budget stopped it, and only a person can change that. 1: any
+other failure, including a crash. Saved work is kept, so --resume is safe after any of them.
 """
 
 import argparse
@@ -42,7 +47,7 @@ from agentrpg.clock import ClockConfig, agent_process  # noqa: E402
 from agentrpg.clock_engine import ClockEngine  # noqa: E402
 from agentrpg.clock_gate import ClockGate  # noqa: E402
 from agentrpg.deep_agent import AgentRuntime  # noqa: E402
-from agentrpg.director import Director, rows  # noqa: E402
+from agentrpg.director import Director, emit, rows  # noqa: E402
 from agentrpg.director_brain import DirectorBrain, ScriptedDirectorBrain  # noqa: E402
 from agentrpg.environment_tools import EnvironmentTools  # noqa: E402
 from agentrpg.scenario_schema import ScenarioSpec  # noqa: E402
@@ -52,6 +57,9 @@ from agentrpg.web_tools import WebTools  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "openai/gpt-4.1-mini"
 TIMEOUT_SECONDS = 240
+EXIT_BUDGET = 3
+EXIT_TRY_AGAIN = 75
+OUTAGE_REASONS = frozenset({"provider_rejected", "provider_outage"})
 
 
 def parse_args(argv=None):
@@ -63,8 +71,14 @@ def parse_args(argv=None):
     parser.add_argument("--model", help=f"Assistant model. Default: {DEFAULT_MODEL}.")
     parser.add_argument("--actor-model", help="Owner model. Default: the assistant model.")
     parser.add_argument("--director-model", help="World model. Default: the owner model.")
-    parser.add_argument("--campaign", type=UUID, help="An existing campaign with a USD ceiling.")
+    parser.add_argument("--seed", type=int, help="Override the scenario's seed in a new run.")
+    parser.add_argument("--campaign", type=UUID, help="The campaign that holds the USD ceiling.")
     parser.add_argument("--budget-usd", type=Decimal, help="The persistent ceiling of a campaign.")
+    parser.add_argument(
+        "--share-campaign",
+        action="store_true",
+        help="Allow this run to spend from a ceiling that another run already uses.",
+    )
     parser.add_argument("--advance-minutes", type=int, help="Stop after this much story time.")
     parser.add_argument("--progress-seconds", type=float, default=30.0)
     parser.add_argument("--base-url", type=loopback_url, help="Local API. Default: port 8000.")
@@ -104,14 +118,18 @@ class ScriptedDay:
         return await self.owner.respond(view)
 
 
-def load_scenario(path: Path, drama: str | None) -> ScenarioSpec:
+def load_scenario(path: Path, drama: str | None, seed: int | None = None) -> ScenarioSpec:
+    """Read one scenario. An override is part of the content, so the run's hash freezes it."""
     try:
         data = json.loads(path.read_text())
         spec = ScenarioSpec.model_validate(data)
         if spec.clock is None:
             raise ScenarioRunError("This scenario has no clock. Use scripts/run_scenario.py.")
-        if drama is not None:
-            data["clock"]["drama"] = drama
+        if drama is not None or seed is not None:
+            if drama is not None:
+                data["clock"]["drama"] = drama
+            if seed is not None:
+                data["seed"] = seed
             spec = ScenarioSpec.model_validate(data)
     except (OSError, ValueError):
         raise ScenarioRunError("The scenario file is invalid.") from None
@@ -137,6 +155,93 @@ def new_configuration(args, env, spec: ScenarioSpec) -> dict:
         "base_url": args.base_url or "http://127.0.0.1:8000",
         "scripted": bool(args.scripted),
     }
+
+
+async def run_usage(pool, run_id, usage=None) -> dict:
+    """Measured model use of this run from the ledger, so it survives restarts.
+
+    Held money is reserved for attempts whose cost is not known. The tracker counts tokens and
+    covers this process only, so those figures say so.
+    """
+    async with pool.connection() as conn:
+        by_role = await rows(
+            conn,
+            """SELECT role,count(*) AS attempts,
+               count(*) FILTER (WHERE status='reported') AS reported,
+               count(*) FILTER (WHERE status='reported' AND reported_usd=0) AS refused,
+               count(*) FILTER (WHERE status<>'reported') AS unconfirmed,
+               COALESCE(sum(reported_usd),0) AS reported_cost_usd,
+               COALESCE(sum(reserved_usd) FILTER (WHERE status<>'reported'),0) AS held_usd
+               FROM model_spend_attempts WHERE run_id=%s GROUP BY role ORDER BY role""",
+            (run_id,),
+        )
+    result = {
+        "by_role": {
+            item["role"]: {k: v for k, v in item.items() if k != "role"} for item in by_role
+        },
+        "requests": sum(item["attempts"] for item in by_role),
+        "reported_cost_usd": sum(item["reported_cost_usd"] for item in by_role),
+        "held_usd": sum(item["held_usd"] for item in by_role),
+    }
+    if usage is not None:
+        result["this_process"] = {
+            "requests": usage.requests,
+            "completed": usage.completed,
+            "failed": usage.failed,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "reported_cost_usd": usage.reported_cost_usd,
+            "peak_in_flight": usage.peak_in_flight,
+        }
+    return result
+
+
+async def bind_campaign(pool, run_id, budget: dict, *, share: bool) -> list[str]:
+    """Save which ceiling pays for this run. A second run must ask to share it.
+
+    The lock makes the check and the save one step, so of two runs that start together, one
+    is bound and the other is refused. A run that is already bound stays bound on resume.
+    """
+    campaign = budget["campaign_id"]
+    async with pool.connection() as conn, conn.transaction():
+        await conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (f"campaign:{campaign}",)
+        )
+        others = await rows(
+            conn,
+            """SELECT run_id FROM run_events WHERE kind='run_campaign_bound'
+               AND payload->>'campaign_id'=%s AND run_id<>%s
+               UNION SELECT run_id FROM model_spend_attempts
+               WHERE campaign_id=%s AND run_id IS NOT NULL AND run_id<>%s""",
+            (campaign, run_id, UUID(campaign), run_id),
+        )
+        others = [str(item["run_id"]) for item in others]
+        bound = await (
+            await conn.execute(
+                "SELECT 1 FROM run_events WHERE run_id=%s AND operation_key='run_campaign_bound'",
+                (run_id,),
+            )
+        ).fetchone()
+        if bound is None:
+            if others and not share:
+                raise ScenarioRunError(
+                    f"Campaign {campaign} already pays for {len(others)} other run(s). "
+                    "Use a separate campaign, or pass --share-campaign to share its ceiling."
+                )
+            run = await (
+                await conn.execute(
+                    "SELECT current_window FROM environment_runs WHERE id=%s", (run_id,)
+                )
+            ).fetchone()
+            await emit(
+                conn,
+                run_id,
+                "run_campaign_bound",
+                run["current_window"],
+                {"campaign_id": campaign, "limit_usd": budget["limit_usd"], "shared": bool(others)},
+                "run_campaign_bound",
+            )
+    return others
 
 
 async def clock_report(pool, run_id, config: ClockConfig) -> dict:
@@ -215,6 +320,8 @@ async def clock_report(pool, run_id, config: ClockConfig) -> dict:
                 "actor_effect_rejected",
                 "director_fallback",
                 "process_limit_reached",
+                "process_peer_limit",
+                "run_paused",
                 "assistant_expired",
             )
         },
@@ -298,6 +405,8 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 raise ScenarioRunError("Resume uses the run's saved models.")
         if args.drama is not None:
             raise ScenarioRunError("Resume uses the run's frozen drama level.")
+        if args.seed is not None:
+            raise ScenarioRunError("Resume uses the run's frozen seed.")
         scripted = config.get("scripted", False)
     else:
         scripted = args.scripted
@@ -305,11 +414,16 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
     required = (
         ("DATABASE_URL",) if scripted else ("DATABASE_URL", "ADMIN_TOKEN", "OPENROUTER_API_KEY")
     )
-    if manifest is None and not scripted and args.budget_usd is None:
-        raise ScenarioRunError("A paid run needs --budget-usd, with --campaign to reuse a ceiling.")
+    unbudgeted = manifest is None or not config.get("budget")
+    if not scripted and unbudgeted and (args.budget_usd is None or args.campaign is None):
+        raise ScenarioRunError(
+            "A paid run needs both --budget-usd and --campaign, so its ceiling is a stated choice."
+        )
     if any(not env.get(key) for key in required):
         raise ScenarioRunError(f"Set {', '.join(required)} locally.")
-    spec_file = None if manifest is not None else load_scenario(args.scenario, args.drama)
+    spec_file = (
+        None if manifest is not None else load_scenario(args.scenario, args.drama, args.seed)
+    )
     if config is None:
         config = new_configuration(args, env, spec_file)
     started = time.monotonic()
@@ -375,6 +489,16 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             raise ScenarioRunError(
                 "The API and Agent runtime must use the same database."
             ) from None
+        if binding is not None:
+            sharing = await bind_campaign(
+                runtime.pool, run_id, saved_budget, share=args.share_campaign
+            )
+            summary = await binding.ledger.summary(binding.campaign_id, recent_limit=0)
+            print(
+                f"Campaign {saved_budget['campaign_id']}: ceiling ${summary['limit_usd']}, "
+                f"committed ${summary['committed_usd']}, shared with {len(sharing)} other run(s).",
+                flush=True,
+            )
         if str(run["cluster_id"]) != manifest["cluster_id"]:
             raise ScenarioRunError("The API and saved run identities do not match.")
         spec = ScenarioSpec.model_validate(run["scenario"])
@@ -387,11 +511,14 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         if scripted:
             brain = ScriptedDirectorBrain()
         else:
+            # max_retries is 0: the engine retries with a growing wait, so a run of failures
+            # holds no extra reservation for each quick repeat.
             director_model = create_model(
                 env["OPENROUTER_API_KEY"],
                 config["director_model"],
                 max_tokens=3500,
                 temperature=0.8,
+                max_retries=0,
                 **({"budget": binding, "budget_role": "director"} if binding else {}),
             )
             stack.push_async_callback(director_model.aclose)
@@ -410,6 +537,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                     env["OPENROUTER_API_KEY"],
                     config["model"],
                     max_tokens=2000,
+                    max_retries=0,
                     **({"budget": binding, "budget_role": "assistant"} if binding else {}),
                 )
                 stack.push_async_callback(model.aclose)
@@ -417,6 +545,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                     env["OPENROUTER_API_KEY"],
                     config["actor_model"],
                     max_tokens=2000,
+                    max_retries=0,
                     temperature=config["actor_temperature"],
                     **({"budget": binding, "budget_role": "actor"} if binding else {}),
                 )
@@ -488,17 +617,10 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         report["stop_reason"] = "advance_limit" if bounded else report["status"]
         report["elapsed_seconds"] = round(time.monotonic() - started, 2)
         report["peak_model_calls_in_flight"] = gate.peak_calls_in_flight
-        report["usage"] = {
-            "requests": usage.requests,
-            "completed": usage.completed,
-            "failed": usage.failed,
-            "input_tokens": usage.input_tokens,
-            "output_tokens": usage.output_tokens,
-            "reported_cost_usd": usage.reported_cost_usd,
-            "peak_in_flight": usage.peak_in_flight,
-        }
+        report["usage"] = await run_usage(runtime.pool, run_id, usage)
         report["scripted"] = bool(scripted)
         if binding is not None:
+            # Campaign-wide, for every run it pays for. report["usage"] is this run alone.
             report["campaign_budget"] = await binding.ledger.summary(binding.campaign_id)
         save_private(credentials_path.parent / "report.json", report)
         await save_observer_report(runtime.pool, report)
@@ -521,10 +643,27 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         return report
 
 
+def exit_code(report: dict) -> int:
+    """What an outer loop should do next. See the module text."""
+    reason = (report.get("result") or {}).get("reason")
+    if report["status"] == "completed":
+        return 0
+    if report["status"] == "paused":
+        if reason == "budget":
+            return EXIT_BUDGET
+        return EXIT_TRY_AGAIN if reason in OUTAGE_REASONS else 0
+    return 1
+
+
 def main(argv=None):
     args = parse_args(argv)
     try:
-        asyncio.run(execute(args))
+        report = asyncio.run(execute(args))
+        code = exit_code(report)
+        if code:
+            result = report.get("result") or {}
+            print(f"Stopped: {report['status']}, {result.get('reason')}.", flush=True)
+            raise SystemExit(code)
     except KeyboardInterrupt:
         raise SystemExit("Run interrupted. Resume with the saved credentials.json file.") from None
     except ScenarioRunError as error:

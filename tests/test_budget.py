@@ -375,3 +375,110 @@ async def test_foreign_full_context_reservation_blocks_unfunded_request(pool, mo
             )
     report = await ledger.summary(campaign)
     assert report["attempts"] == 0 and report["remaining_usd"] == Decimal("0.01")
+
+
+@pytest.mark.parametrize("status", [400, 401, 402, 403, 404, 429])
+async def test_a_refused_request_costs_nothing_because_no_model_ran(pool, status):
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "1")
+    binding = BudgetBinding(ledger, campaign, {"openai/gpt-4.1": price()})
+    transport = BudgetTransport(
+        binding,
+        "assistant",
+        transport=httpx.MockTransport(lambda request: httpx.Response(status, json={"error": {}})),
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        response = await client.post("https://openrouter.ai/api/v1/chat/completions", json=body())
+    assert response.status_code == status
+    report = await ledger.summary(campaign)
+    assert report["attempts"] == 1
+    assert report["committed_usd"] == 0 and report["uncertain_usd"] == 0
+    assert report["recent_attempts"][0]["status"] == "reported"
+    assert report["recent_attempts"][0]["reported_usd"] == 0
+
+
+@pytest.mark.parametrize(
+    ("error", "kept"),
+    [
+        (httpx.ConnectError("refused"), False),
+        (httpx.ConnectTimeout("timed out"), False),
+        (httpx.ReadTimeout("no answer"), True),
+        (httpx.RemoteProtocolError("body lost"), True),
+    ],
+)
+async def test_only_a_request_that_never_left_is_released(pool, error, kept):
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "1")
+    binding = BudgetBinding(ledger, campaign, {"openai/gpt-4.1": price()})
+
+    def fail(request):
+        raise error
+
+    transport = BudgetTransport(binding, "assistant", transport=httpx.MockTransport(fail))
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(type(error)):
+            await client.post("https://openrouter.ai/api/v1/chat/completions", json=body())
+    report = await ledger.summary(campaign)
+    assert (report["uncertain_usd"] > 0) is kept
+    assert (report["committed_usd"] > 0) is kept
+
+
+@pytest.mark.parametrize("status", [500, 502, 503])
+async def test_a_server_error_keeps_its_reservation(pool, status):
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "1")
+    binding = BudgetBinding(ledger, campaign, {"openai/gpt-4.1": price()})
+    transport = BudgetTransport(
+        binding,
+        "assistant",
+        transport=httpx.MockTransport(lambda request: httpx.Response(status, json={"error": {}})),
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        await client.post("https://openrouter.ai/api/v1/chat/completions", json=body())
+    assert (await ledger.summary(campaign))["uncertain_usd"] > 0
+
+
+async def test_a_refusal_waits_for_attempts_in_flight_before_it_stands(pool, monkeypatch):
+    monkeypatch.setattr("agentrpg.budget.RESERVE_POLL_SECONDS", 0.01)
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "0.15")
+    unit = price(prompt=Decimal("0.01"), completion=Decimal(0))
+    running = await ledger.reserve(campaign, unit, 10, 1)
+    waiting = asyncio.create_task(ledger.reserve(campaign, unit, 10, 1, wait_seconds=30))
+    await asyncio.sleep(0.1)
+    assert not waiting.done()
+    # The call in flight cost almost nothing, which frees the room.
+    await ledger.finish(running, reported="0.0001")
+    await asyncio.wait_for(waiting, 10)
+    assert (await ledger.summary(campaign))["attempts"] == 2
+
+
+async def test_a_refusal_stands_once_nothing_is_in_flight_or_the_wait_ends(pool, monkeypatch):
+    monkeypatch.setattr("agentrpg.budget.RESERVE_POLL_SECONDS", 0.01)
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "0.1")
+    unit = price(prompt=Decimal("0.01"), completion=Decimal(0))
+    first = await ledger.reserve(campaign, unit, 10, 1)
+    # No wait was asked for, so a direct caller gets its answer at once.
+    with pytest.raises(BudgetExceeded):
+        await ledger.reserve(campaign, unit, 10, 1)
+    with pytest.raises(BudgetExceeded):
+        await ledger.reserve(campaign, unit, 10, 1, wait_seconds=0.05)
+    # An attempt with an unknown charge has finished. Waiting for it would never end.
+    await ledger.finish(first, reason="unknown")
+    with pytest.raises(BudgetExceeded):
+        await asyncio.wait_for(ledger.reserve(campaign, unit, 10, 1, wait_seconds=30), 5)
+    # A stopped process leaves a reservation that nothing will finish. It is not waited for.
+    stale = uuid4()
+    other = uuid4()
+    await ledger.ensure_campaign(other, "0.1")
+    async with pool.connection() as conn:
+        await conn.execute(
+            """INSERT INTO model_spend_attempts(id,campaign_id,model,reserved_usd,status,
+            prompt_token_bound,output_token_bound,price_snapshot,created_at,role)
+            VALUES(%s,%s,'openai/gpt-4.1',0.1,'reserved',1,1,'{}',
+                   clock_timestamp()-interval '1 hour','model')""",
+            (stale, other),
+        )
+    with pytest.raises(BudgetExceeded):
+        await asyncio.wait_for(ledger.reserve(other, unit, 10, 1, wait_seconds=30), 5)

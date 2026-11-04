@@ -400,6 +400,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             min_size=settings.pool_min_size,
             max_size=settings.pool_max_size,
             timeout=settings.pool_timeout,
+            # A lost connection must not reach a request after PostgreSQL restarts.
+            check=AsyncConnectionPool.check_connection,
             kwargs={"row_factory": dict_row},
             open=False,
         ) as pool:

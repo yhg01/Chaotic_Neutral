@@ -13,6 +13,7 @@ from psycopg_pool import PoolTimeout
 from pydantic import Field, StringConstraints, ValidationError
 
 from agentrpg import sim_web, wallet
+from agentrpg.actor import ModelGenerationError
 from agentrpg.agent_tools import _Arguments, _error
 from agentrpg.sim_web import SiteSpec
 from agentrpg.world import WorldError, _one
@@ -221,7 +222,16 @@ class WebTools:
             now_s = await wallet.sim_now(conn, self.run_id)
         if key is None:
             return []
-        plan = await self.director_brain.site_for_search(run, self.owner_id, query, now_s)
+        try:
+            plan = await self.director_brain.site_for_search(run, self.owner_id, query, now_s)
+        except ModelGenerationError:
+            async with self.pool.connection() as conn:
+                await sim_web.release_search_ask(conn, self.run_id, key)
+            raise
+        if getattr(plan, "_fell_back", False):
+            # No decision was made, so this is not an answer. The claim stays open, and a later
+            # search can ask again up to the attempt limit.
+            return []
         created = None
         async with self.pool.connection() as conn, conn.transaction():
             for spec in _proposed_sites(plan)[:1]:

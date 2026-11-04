@@ -117,12 +117,24 @@ async def add_action(conn, run_id, owner, process, label, start_s, duration_s, *
     return action_id
 
 
-async def add_draw(conn, run_id, action_id, outcome, fire_s, *, u=0.05, v=0.5, level="high"):
+async def add_draw(
+    conn, run_id, action_id, outcome, fire_s, *, u=0.05, v=0.5, level="high", fired=True
+):
     await conn.execute(
         """INSERT INTO clock_draws(run_id,action_id,level,u,v,outcome,fire_s)
         VALUES(%s,%s,%s,%s,%s,%s,%s)""",
         (run_id, action_id, level, u, v, outcome, fire_s),
     )
+    if fire_s is not None and fired:
+        action = await (
+            await conn.execute("SELECT key FROM clock_actions WHERE id=%s", (action_id,))
+        ).fetchone()
+        key = f"perturb:{action['key']}"
+        await schedule(conn, run_id, fire_s, "perturbation", {}, key)
+        await conn.execute(
+            "UPDATE clock_events SET status='done',popped_seq=1 WHERE run_id=%s AND key=%s",
+            (run_id, key),
+        )
 
 
 def bearer(token):
@@ -313,7 +325,7 @@ async def test_clock_view_reports_processes_queue_draws_sites_status_and_spend(c
         current = await add_action(
             conn, run_id, "owner-1", "actor", "Walk the dog", now - 60, 1800, status="active"
         )
-        await add_draw(conn, run_id, current, "extreme", now + 300, u=0.02, v=0.1)
+        await add_draw(conn, run_id, current, "extreme", now + 300, u=0.02, v=0.1, fired=False)
         done = await add_action(conn, run_id, "owner-2", "actor", "Lunch", HOUR, 1800)
         await add_draw(conn, run_id, done, "mild", HOUR + 900, u=0.1, v=0.9)
         for index in range(8):
@@ -395,7 +407,10 @@ async def test_clock_view_reports_processes_queue_draws_sites_status_and_spend(c
         "mild": 1,
         "extreme": 1,
         "interfered": 2,
+        "fired": 1,
+        "with_effect": 0,
         "rate": 0.2,
+        "fired_rate": 0.1,
         "target_rate": 0.13,
     }
     assert view["sites"][0]["url"] == f"/sim/{run_id}/agentcare/"

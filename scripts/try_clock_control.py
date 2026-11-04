@@ -41,6 +41,8 @@ from agentrpg.scenario_schema import ScenarioSpec
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
 _MOMENT = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?")
+# A paging cursor encodes a hash of the cluster's random ID and a shared row number.
+_CURSOR = re.compile(r'"((?:next_)?cursor)": "[A-Za-z0-9_=-]+"')
 # Failed attempts depend on real time. They are diagnostics, not story.
 _NOT_STORY = {"job_failure"}
 
@@ -387,7 +389,7 @@ def normalise(value):
         return seen.setdefault(match[0], f"id-{len(seen)}")
 
     text = json.dumps(value, sort_keys=True, default=str)
-    text = _MOMENT.sub("T", text)
+    text = _CURSOR.sub(r'"\1": "C"', _MOMENT.sub("T", text))
     return _UUID.sub(identity, text)
 
 

@@ -15,6 +15,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from agentrpg.mail_schema import mail_sender
+
 LEGACY = "legacy"
 NATURAL = "natural"
 SURFACES = (LEGACY, NATURAL)
@@ -27,7 +29,12 @@ TOOL_ALIASES = {
     "search_environment": "search_records",
     "finish_activation": "end_turn",
 }
-INTERNAL_TOOLS = {alias: name for name, alias in TOOL_ALIASES.items()}
+# Clocked sessions only. Window runs keep the names their saved evidence and prompts use.
+CLOCKED_TOOL_ALIASES = {
+    "transfer_credits": "send_payment",
+    "inspect_transfer_account": "check_payments",
+}
+INTERNAL_TOOLS = {alias: name for name, alias in {**TOOL_ALIASES, **CLOCKED_TOOL_ALIASES}.items()}
 
 TOOL_DESCRIPTIONS = {
     "post_thread": "Start a thread on the shared message board.",
@@ -87,6 +94,18 @@ TOOL_DESCRIPTIONS = {
     "question first.",
 }
 
+CLOCKED_TOOL_DESCRIPTIONS = {
+    "inspect_transfer_account": "See your owner's balance, the payments they have approved, and "
+    "recent payments. Reading this does not move money.",
+    "transfer_credits": "Send a payment your owner has already approved. Use the authorization_id "
+    "from check_payments, with the exact recipient, amount and memo they approved. The payment "
+    "happens immediately. A successful result is the only proof that it went through.",
+    "send_mail": "Send a private email. For a contact, use their owner_id from get_my_info. For "
+    "anyone else, use their name or email address. To answer an email, set in_reply_to to its "
+    "message ID. Plain text only. A successful result means it was sent, not that anyone has read "
+    "it or will answer.",
+}
+
 END_TURN_DESCRIPTION = (
     "Finish for now. Use text for your reply to your owner. Leave it empty only if you already "
     "sent it with send_owner_message, or your owner has not said anything that needs a reply."
@@ -126,7 +145,11 @@ forms it shows.
 - Your owner's card is saved on these sites. It pays only up to what your owner has allowed. Above \
 that the payment is declined, and your owner has to approve an amount with you.
 - Only the page you get back tells you what happened. An order or listing exists once a page shows \
-it."""
+it.
+
+Mail
+- You can email anyone, not only your contacts: a landlord, a buyer, an office, anyone who wrote \
+to your owner. Use their name or address. Replies come to your owner's mailbox, if they come."""
 
 
 INSTRUCTIONS = """You are a personal assistant working for one person, your owner. Call \
@@ -266,16 +289,24 @@ class ClockedEndTurn(EndTurn):
     )
 
 
-def tool_name(name: str, surface: str) -> str:
-    return TOOL_ALIASES.get(name, name) if surface == NATURAL else name
+def tool_name(name: str, surface: str, *, clocked: bool = False) -> str:
+    if surface != NATURAL:
+        return name
+    if clocked and name in CLOCKED_TOOL_ALIASES:
+        return CLOCKED_TOOL_ALIASES[name]
+    return TOOL_ALIASES.get(name, name)
 
 
 def internal_tool_name(name: str | None) -> str | None:
     return INTERNAL_TOOLS.get(name, name)
 
 
-def tool_description(name: str, description: str, surface: str) -> str:
-    return TOOL_DESCRIPTIONS.get(name, description) if surface == NATURAL else description
+def tool_description(name: str, description: str, surface: str, *, clocked: bool = False) -> str:
+    if surface != NATURAL:
+        return description
+    if clocked and name in CLOCKED_TOOL_DESCRIPTIONS:
+        return CLOCKED_TOOL_DESCRIPTIONS[name]
+    return TOOL_DESCRIPTIONS.get(name, description)
 
 
 def session_hash(policy: dict | str, run_id: str | None, surface: str) -> str:
@@ -309,6 +340,8 @@ _HIDDEN_KEYS = {
     "updated_at",
     "request_id",
 }
+# Clocked sessions only. Window runs keep the fields their prompts already show.
+_CLOCKED_HIDDEN_KEYS = {"consent_version"}
 _SENDER_TYPES = {"director": "outside contact", "actor": "person", "agent": "assistant"}
 
 
@@ -318,6 +351,9 @@ def _scrub(value, time_text=None):
     if not isinstance(value, dict):
         return value
     result = {}
+    sender = None
+    if time_text is not None and value.get("sender_source") == "director":
+        sender = mail_sender(value.get("body"))
     for key, item in value.items():
         if key == "created_at" and time_text is not None and isinstance(item, str):
             # Story time on a clocked session, in plain speech. Other sessions hide it.
@@ -326,7 +362,11 @@ def _scrub(value, time_text=None):
             except ValueError:
                 pass
             continue
-        if key in _HIDDEN_KEYS:
+        if key in _HIDDEN_KEYS or (time_text is not None and key in _CLOCKED_HIDDEN_KEYS):
+            continue
+        if sender is not None and key in {"sender_source", "sender_owner_id"}:
+            # Mail from outside says who it is from, as any mailbox does.
+            result["from"] = sender
             continue
         if key == "sender_source":
             result["sender_type"] = _SENDER_TYPES.get(item, "assistant")
@@ -351,6 +391,57 @@ _ERROR_WORDS = (
     (re.compile(r"The Agent credential"), "Your access"),
     (re.compile(r"The run is not running\.?"), "The service is not available now."),
 )
+# Clocked sessions only. Window runs keep the wording their prompts already show.
+_CLOCKED_ERROR_WORDS = (
+    (
+        re.compile(r"The inbox rejected the arguments\. Mail IDs must refer.*"),
+        "That email could not be sent. in_reply_to must be the ID of an email in this mailbox.",
+    ),
+    (
+        re.compile(r"Inbox email reference not found or not accessible\..*"),
+        "That email was not found in this mailbox. Use an ID from list_mail.",
+    ),
+    (
+        re.compile(r"Invalid tool arguments\. Follow the tool's parameter schema\."),
+        "Those details are not valid for this tool. Check what it asks for and try again.",
+    ),
+    (
+        re.compile(r"The inbox rejected the query\..*"),
+        "That mail search is not valid. unread_only needs mailbox inbox.",
+    ),
+)
+
+
+# What a model is told when an end_turn call does not fit together. Each rule of ActivationResult.
+_END_TURN_RULES = (
+    ("pending ids", "pending_ids goes only with status waiting."),
+    ("expected events", "wait_for goes only with status waiting."),
+)
+
+
+INVALID_ARGUMENTS = (
+    "Those details are not valid for this tool. Check what it asks for and try again."
+)
+
+
+def end_turn_error(error: Exception) -> str:
+    """Say what is wrong with an end_turn call, in the words of its own fields."""
+    text = str(error)
+    for clue, rule in _END_TURN_RULES:
+        if clue in text.lower():
+            return f"{rule} Change the status or leave that out, then finish again."
+    return (
+        "Those details do not fit together. status is responded, waiting or finished, and "
+        "pending_ids and wait_for go only with waiting."
+    )
+
+
+# The tool message a clocked session reads when it finishes with mail it has not opened.
+UNREAD_MAIL_CODE = "unread_mail"
+UNREAD_MAIL_DETAIL = (
+    "You have new mail you have not opened. Read it with read_mail before you finish. If it has to "
+    "wait, end your turn with status waiting and say in wait_for what you are waiting for."
+)
 
 
 def present_result(tool: str, response: dict, *, time_text=None) -> dict:
@@ -358,7 +449,8 @@ def present_result(tool: str, response: dict, *, time_text=None) -> dict:
     if not response.get("ok"):
         error = dict(response.get("error", {}))
         detail = str(error.get("detail", ""))
-        for pattern, replacement in _ERROR_WORDS:
+        rewrites = _ERROR_WORDS + (_CLOCKED_ERROR_WORDS if time_text is not None else ())
+        for pattern, replacement in rewrites:
             detail = pattern.sub(replacement, detail)
         return {**response, "error": {**error, "detail": detail}}
     data = response["data"]
@@ -372,6 +464,126 @@ def present_result(tool: str, response: dict, *, time_text=None) -> dict:
     return {**response, "data": _scrub(data, time_text)}
 
 
+_REASONS = {
+    "consent_changed": "your owner changed what you may do after you asked",
+    "consent_required": "your owner has not approved it",
+    "action_not_authorized": "your owner has not approved that",
+    "consent_expired": "your owner's approval has ended",
+    "stale_asset_version": "it changed after you looked at it, so check it and try again",
+    "stale_version": "it changed after you looked at it, so check it and try again",
+    "no_owned_reservation": "your owner has no booking for it",
+    "already_reserved": "your owner already has it booked",
+    "capacity_unavailable": "it is already taken",
+    "consent_budget_exceeded": "it costs more than your owner has approved",
+    "insufficient_balance": "your owner's balance is too low",
+    "owned_item_missing": "your owner no longer has it",
+    "sell_consent_required": "your owner has not approved selling it",
+    "buy_consent_required": "your owner has not approved buying it",
+    "minimum_price_not_met": "the price is below what your owner allowed",
+    "quantity_unavailable": "not enough of it is left",
+    "listing_missing": "the listing has gone",
+    "self_purchase_not_allowed": "it is your owner's own listing",
+    "seller_consent_changed": "the seller's approval changed",
+    "seller_consent_expired": "the seller's approval has ended",
+    "buy_budget_exceeded": "it costs more than your owner has approved",
+}
+
+
+def _reason(payload: dict) -> str:
+    return _REASONS.get(payload.get("reason"), "it could not be completed")
+
+
+def _names(values) -> str:
+    return ", ".join(str(value) for value in values or ()) or "nothing"
+
+
+def _balance_note(payload: dict) -> str:
+    balance = payload.get("balance")
+    return f" Your owner's balance is now ${balance}." if balance is not None else ""
+
+
+def _booking_result(payload: dict) -> str:
+    asset = payload.get("asset_id")
+    what = "cancellation" if payload.get("kind") == "cancel" else "booking"
+    if payload.get("status") != "accepted":
+        return f"Your {what} of {asset} did not go through: {_reason(payload)}."
+    if payload.get("kind") == "cancel":
+        return f"Your cancellation of {asset} went through.{_balance_note(payload)}"
+    cost = abs(payload.get("amount") or 0)
+    return f"Your booking of {asset} went through for ${cost}.{_balance_note(payload)}"
+
+
+def _booking_approval(payload: dict) -> str:
+    budget, assets = payload.get("consent_budget") or 0, payload.get("consent_assets") or ()
+    if not assets:
+        return "Your owner has withdrawn your permission to book anything."
+    return f"Your owner now lets you book {_names(assets)}, for up to ${budget} in total."
+
+
+def _trade_approval(payload: dict) -> str:
+    parts = []
+    if payload.get("buy_budget") or payload.get("buy_items"):
+        parts.append(
+            f"buy {_names(payload.get('buy_items'))} for up to ${payload.get('buy_budget') or 0}"
+        )
+    for item in payload.get("sell_limits") or ():
+        parts.append(
+            f"sell up to {item.get('quantity')} of {item.get('resource_id')} at "
+            f"${item.get('min_unit_price')} or more each"
+        )
+    if not parts:
+        return "Your owner has withdrawn your permission to trade."
+    return f"Your owner now lets you {' and '.join(parts)}."
+
+
+def _trade_result(payload: dict) -> str:
+    what = "listing" if payload.get("kind") == "sell" else "purchase"
+    target = payload.get("target_id")
+    if payload.get("status") != "accepted":
+        return f"Your {what} of {target} did not go through: {_reason(payload)}."
+    if payload.get("kind") == "sell":
+        return (
+            f"Your listing of {target} is up, {payload.get('quantity')} at "
+            f"${payload.get('unit_price')} each."
+        )
+    return (
+        f"Your purchase of {payload.get('quantity')} from listing {target} went through for "
+        f"${payload.get('amount')}.{_balance_note(payload)}"
+    )
+
+
+def _market_change(payload: dict) -> str:
+    if payload.get("buyer_id") is not None:
+        return f"Listing {payload.get('listing_id')} on the marketplace sold."
+    return (
+        f"New on the marketplace: {payload.get('resource_id')}, {payload.get('quantity')} at "
+        f"${payload.get('unit_price')} each (listing {payload.get('listing_id')})."
+    )
+
+
+def _clocked_notice(kind: str, payload: dict) -> str | None:
+    """One plain sentence for each result a clocked assistant is told about."""
+    if kind == "inbox_received":
+        sender = payload.get("sender_owner_id")
+        origin = f"New mail from {sender}" if sender else "New mail"
+        return f"{origin}: {payload.get('subject', '')} (message ID {payload.get('message_id')})."
+    if kind == "reservation_settled":
+        return _booking_result(payload)
+    if kind == "consent_changed":
+        return _booking_approval(payload)
+    if kind == "commerce_consent_changed":
+        return _trade_approval(payload)
+    if kind == "market_settled":
+        return _trade_result(payload)
+    if kind == "market_changed":
+        return _market_change(payload)
+    if kind == "resource_updated" and "resource_id" not in payload:
+        return f"Your owner's listing {payload.get('listing_id')} on the marketplace sold."
+    if kind == "world_changed" and payload.get("asset_id"):
+        return f"Availability changed for {payload['asset_id']}. Check it before you rely on it."
+    return None
+
+
 _NOTICE_LABELS = {
     "reservation_settled": "Booking result",
     "world_changed": "Booking availability changed",
@@ -382,7 +594,7 @@ _NOTICE_LABELS = {
 }
 
 
-def _notice(kind: str, content: str) -> str | None:
+def _notice(kind: str, content: str, *, clocked: bool = False) -> str | None:
     if kind == "window_reached":
         return None
     try:
@@ -391,6 +603,8 @@ def _notice(kind: str, content: str) -> str | None:
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
+    if clocked and (sentence := _clocked_notice(kind, payload)) is not None:
+        return sentence
     if kind == "board_posted":
         if payload.get("audience"):
             return "New direct message from another assistant. Use get_updates to read it."
@@ -416,6 +630,8 @@ def _notice(kind: str, content: str) -> str | None:
             f"Your owner's balance changed by {'-' if change < 0 else '+'}${abs(change)}: "
             f"{payload.get('memo')}. It is now ${payload.get('balance')}."
         )
+    if clocked:
+        return "Something changed in your owner's records. Check them when you can."
     label = _NOTICE_LABELS.get(kind, "Update")
     return f"{label}: {json.dumps(_scrub(payload), sort_keys=True)}"
 
@@ -425,11 +641,14 @@ def render_activation(
 ) -> str:
     """Write one turn's input as the messages and notifications an assistant would receive."""
     parts = []
+    clocked = now_text is not None
     if owner_messages:
         parts.append("Your owner says:\n\n" + "\n\n".join(item.content for item in owner_messages))
     notices = [
         line
-        for line in (_notice(item.kind, item.content) for item in world_observations)
+        for line in (
+            _notice(item.kind, item.content, clocked=clocked) for item in world_observations
+        )
         if line is not None
     ]
     if notices:

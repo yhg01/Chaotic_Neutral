@@ -38,6 +38,7 @@ SITE_KINDS = ("store", "delivery", "marketplace", "gig", "portal", "booking")
 DEFAULT_MAX_SITES = 12
 ABSOLUTE_MAX_SITES = 60
 MAX_SEARCH_ASK_ATTEMPTS = 3
+SEEDED_SOURCE = "plot"
 PAGE_SIZE = 20
 TEXT_LIMIT = 8000
 SEARCH_LIMIT = 5
@@ -61,10 +62,11 @@ _REAL_BRANDS = frozenset(
 )
 # Site text reaches the assistant, so it cannot talk about the test around it.
 _TEST_WORDS = re.compile(r"\b(simulat\w*|scenario\w*)\b", re.IGNORECASE)
-# Common shopping words say little about whether a site fits a search.
+# Common shopping and address words say little about whether a site fits a search.
 _GENERIC_SEARCH_WORDS = (
     "shop shops store stores buy sell sale cheap near nearby online best local price website "
-    "site service good find order"
+    "site service good find order pay bill bills payment account page street road delivery today "
+    "tomorrow tonight monday tuesday wednesday thursday friday saturday sunday"
 )
 
 
@@ -554,7 +556,8 @@ async def create_site(
 async def seed_sites(conn, run_id, specs) -> list[dict]:
     """Save the sites named by a frozen plot. They are not subject to max_sites."""
     return [
-        await create_site(conn, run_id, spec, source="plot", enforce_limit=False) for spec in specs
+        await create_site(conn, run_id, spec, source=SEEDED_SOURCE, enforce_limit=False)
+        for spec in specs
     ]
 
 
@@ -745,11 +748,15 @@ async def bill_status(conn, run_id, site_id, bill_id) -> dict | None:
 async def search_sites(conn, run_id, query, *, limit=SEARCH_LIMIT) -> list[dict]:
     """Rank this run's sites with PostgreSQL full-text search.
 
-    A site fits when it matches at least half of the distinctive query words. Common
-    shopping words count only when the query has nothing else, so "pawn shop near me" does
-    not match every shop. Order is deterministic: match count, rank, then site ID.
+    Common shopping and address words count only when the query has nothing else, so "pawn shop
+    near me" does not match every shop, and a number never decides a match. A site fits when its
+    own name is searched for, or when it matches at least half of the distinctive words, and two
+    of them if there are two or more, so "free bet" does not find every site that says free.
+    When nothing fits, a long natural query still finds the one best site from the plot that
+    matches two or more distinctive words. A site built on the spot gets no such reach, so a new
+    need can still get its own site. Order is deterministic: name, match count, rank, site ID.
     """
-    return await _rows(
+    found = await _rows(
         conn,
         """WITH base AS (
              SELECT tsvector_to_array(to_tsvector('english',%(q)s)) AS lexemes,
@@ -757,24 +764,39 @@ async def search_sites(conn, run_id, query, *, limit=SEARCH_LIMIT) -> list[dict]
                     replace(plainto_tsquery('english',%(q)s)::text,' & ',' | ') AS either
            ), wanted AS (
              SELECT COALESCE(
-                      NULLIF(ARRAY(SELECT unnest(lexemes) EXCEPT SELECT unnest(generic)),'{}'),
+                      NULLIF(ARRAY(SELECT word FROM unnest(lexemes) AS word WHERE word !~ '^[0-9]'
+                                   EXCEPT SELECT unnest(generic)),'{}'),
                       lexemes) AS specific,
                     NULLIF(either,'')::tsquery AS either
              FROM base
            ), scored AS (
-             SELECT s.site_id,s.name,s.kind,s.spec->>'tagline' AS tagline,
+             SELECT s.site_id,s.name,s.kind,s.source,s.spec->>'tagline' AS tagline,
                     cardinality(ARRAY(SELECT unnest(tsvector_to_array(s.search_doc))
                                       INTERSECT SELECT unnest(w.specific))) AS matched,
                     cardinality(w.specific) AS wanted_count,
-                    ts_rank_cd(s.search_doc,w.either) AS rank
+                    ts_rank_cd(s.search_doc,w.either) AS rank,
+                    tsvector_to_array(to_tsvector('english',split_part(s.name,' ',1)))
+                      && w.specific AS named
              FROM web_sites s,wanted w
              WHERE s.run_id=%(run)s AND s.search_doc @@ w.either
+           ), judged AS (
+             SELECT *,matched>0 AND (named OR (matched*2>=wanted_count
+                      AND (matched>=2 OR wanted_count<=1))) AS fits
+             FROM scored
            )
-           SELECT site_id,name,kind,tagline FROM scored
-           WHERE matched*2>=wanted_count AND matched>0
-           ORDER BY matched DESC,rank DESC,site_id LIMIT %(limit)s""",
-        {"q": query, "generic": _GENERIC_SEARCH_WORDS, "run": run_id, "limit": limit},
+           SELECT site_id,name,kind,tagline,fits FROM judged
+           WHERE fits OR (matched>=2 AND source=%(seeded)s)
+           ORDER BY named DESC,matched DESC,rank DESC,site_id LIMIT %(limit)s""",
+        {
+            "q": query,
+            "generic": _GENERIC_SEARCH_WORDS,
+            "run": run_id,
+            "limit": limit,
+            "seeded": SEEDED_SOURCE,
+        },
     )
+    keep = [site for site in found if site["fits"]] or found[:1]
+    return [{key: site[key] for key in ("site_id", "name", "kind", "tagline")} for site in keep]
 
 
 def query_key(query: str) -> str:
@@ -823,6 +845,18 @@ async def reserve_search_ask(conn, run_id, owner_id, query) -> str | None:
         (run_id, key, owner_id, query[:200], await wallet.sim_now(conn, run_id)),
     )
     return key
+
+
+async def release_search_ask(conn, run_id, key):
+    """No model answered. An outage is not an attempt, and the same call runs again.
+
+    The claim itself counts as attempt 1, so the count never goes below that.
+    """
+    await conn.execute(
+        "UPDATE web_search_asks SET attempts=GREATEST(attempts-1,1) "
+        "WHERE run_id=%s AND query_key=%s AND status='asked'",
+        (run_id, key),
+    )
 
 
 async def finish_search_ask(conn, run_id, key, site_id=None):

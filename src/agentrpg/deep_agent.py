@@ -38,6 +38,7 @@ from langchain_core.messages.utils import get_buffer_string
 from langchain_core.tools import InjectedToolCallId, StructuredTool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.errors import GraphRecursionError
+from psycopg import OperationalError
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from pydantic import ValidationError, create_model
@@ -53,11 +54,15 @@ from agentrpg.agent_model import ProviderCallError
 from agentrpg.agent_surface import (
     CLOCKED_END_TURN_DESCRIPTION,
     END_TURN_DESCRIPTION,
+    INVALID_ARGUMENTS,
     LEGACY,
     NATURAL,
     SURFACES,
+    UNREAD_MAIL_CODE,
+    UNREAD_MAIL_DETAIL,
     ClockedEndTurn,
     EndTurn,
+    end_turn_error,
     internal_tool_name,
     present_result,
     session_hash,
@@ -66,7 +71,7 @@ from agentrpg.agent_surface import (
 )
 from agentrpg.agent_tools import BoardTools
 from agentrpg.budget import BudgetError
-from agentrpg.clock import format_time
+from agentrpg.clock import strip_nul
 from agentrpg.environment_tools import EnvironmentTools
 from agentrpg.migrate import migrate
 from agentrpg.shop_browser import SHOP_BROWSER_TOOLS
@@ -119,6 +124,10 @@ class AgentRunStopped(AgentTransientError):
 
 class AgentProviderError(AgentRuntimeError):
     """A provider rejection or invalid response that needs operator review."""
+
+    def __init__(self, message: str, *, kind: str = "provider_rejected") -> None:
+        super().__init__(message)
+        self.kind = kind
 
 
 class AgentBusyError(AgentRuntimeError):
@@ -301,9 +310,13 @@ class _ActivationYield(AgentMiddleware):
                                     {
                                         "ok": False,
                                         "error": {
-                                            "code": "unobserved_inbox_notifications",
+                                            "code": UNREAD_MAIL_CODE
+                                            if self.agent.gate is not None
+                                            else "unobserved_inbox_notifications",
                                             "message_ids": missing,
-                                            "detail": _UNOBSERVED_MAIL_DETAIL,
+                                            "detail": UNREAD_MAIL_DETAIL
+                                            if self.agent.gate is not None
+                                            else _UNOBSERVED_MAIL_DETAIL,
                                         },
                                     }
                                 )
@@ -487,11 +500,13 @@ class _BoundedCalls(AgentMiddleware):
             return response
         except TimeoutError:
             if gate is not None:
+                await self.agent._release_model_call()
                 raise AgentTransientError() from None
             raise AgentRuntimeError(
                 "The model request failed. Retry with the same task ID."
             ) from None
         except BudgetError:
+            await self.agent._release_model_call()
             raise AgentBudgetError(
                 "The saved campaign cannot fund this model request. "
                 "The task and counters are retained."
@@ -499,10 +514,14 @@ class _BoundedCalls(AgentMiddleware):
         except AgentRuntimeError:
             raise
         except ProviderCallError as error:
+            await self.agent._release_model_call()
             if error.retryable:
                 raise AgentTransientError() from None
-            raise AgentProviderError("The model provider rejected the request.") from None
+            raise AgentProviderError(
+                "The model provider rejected the request.", kind=error.kind
+            ) from None
         except httpx.TransportError:
+            await self.agent._release_model_call()
             raise AgentTransientError() from None
         except Exception:
             # LangGraph persists node errors. Sanitize here, before checkpointing.
@@ -560,7 +579,14 @@ class _BoundedCalls(AgentMiddleware):
                     "The saved campaign cannot fund this request. "
                     "The task and counters are retained."
                 ) from None
-            if isinstance(error, (httpx.TransportError, TimeoutError)):
+            if isinstance(error, ModelGenerationError):
+                # The world's model did not answer inside this tool. The call runs again.
+                if error.kind in {"provider_rejected", "provider_request_refused"}:
+                    raise AgentProviderError(
+                        "The model provider rejected the request.", kind=error.kind
+                    ) from None
+                raise AgentTransientError(tool=True) from None
+            if isinstance(error, (httpx.TransportError, TimeoutError, OperationalError)):
                 raise AgentTransientError(tool=True) from None
             raise AgentRuntimeError(
                 "The tool request failed. Retry with the same task ID."
@@ -582,6 +608,8 @@ class AgentRuntime:
             max_size=pool_size,
             open=False,
             timeout=10,
+            # A lost connection must not reach a caller after PostgreSQL restarts.
+            check=AsyncConnectionPool.check_connection,
             kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},
         )
         # Long-lived session leases cannot consume the checkpoint pool. Even a
@@ -592,6 +620,7 @@ class AgentRuntime:
             max_size=15,
             open=False,
             timeout=10,
+            check=AsyncConnectionPool.check_connection,
             kwargs={"autocommit": True, "row_factory": dict_row},
         )
         self._open = False
@@ -605,7 +634,16 @@ class AgentRuntime:
             # Saver migrations use CREATE INDEX CONCURRENTLY. Hold a session
             # lock only during setup; do not wrap these migrations in a transaction.
             async with self.pool.connection() as connection:
-                await connection.execute("SELECT pg_advisory_lock(679132104258)")
+                # Wait with no statement running. CREATE INDEX CONCURRENTLY waits for every open
+                # transaction, so a blocked lock request here would deadlock with the holder.
+                while not (  # noqa: ASYNC110
+                    await (
+                        await connection.execute(
+                            "SELECT pg_try_advisory_lock(679132104258) AS acquired"
+                        )
+                    ).fetchone()
+                )["acquired"]:
+                    await asyncio.sleep(0.1)
                 try:
                     await AsyncPostgresSaver(connection).setup()
                 finally:
@@ -741,6 +779,7 @@ class PersonalAgent:
                 shop_browser=environment.shop_browser.bind(self._session_namespace)
                 if environment.shop_browser is not None
                 else None,
+                clocked=gate is not None,
             )
             if environment is not None
             else None
@@ -922,6 +961,17 @@ class PersonalAgent:
             if await cursor.fetchone() is None:
                 raise AgentLimitError("The task reached its model-call limit.")
 
+    async def _release_model_call(self) -> None:
+        """On a clocked session an outage does no work, so it cannot use up the task's calls."""
+        if self.gate is None:
+            return
+        async with self.runtime.pool.connection() as connection:
+            await connection.execute(
+                """UPDATE agent_tasks SET model_calls = GREATEST(model_calls - 1, 0)
+                   WHERE session_key = %s AND task_id = %s AND status = 'pending'""",
+                (self.session_key, self._active_task_id),
+            )
+
     async def _summarize(self, messages) -> str:
         # The default summarizer calls the model outside model middleware.
         # Supplying this public hook gives compaction the same durable budget.
@@ -941,12 +991,14 @@ class PersonalAgent:
             raise
         except TimeoutError:
             if self.gate is not None:
+                await self._release_model_call()
                 raise AgentTransientError() from None
             raise AgentRuntimeError(
                 "Conversation summarization failed. Retry with the same task ID."
             ) from None
         except BudgetError:
             if self.gate is not None:
+                await self._release_model_call()
                 raise AgentBudgetError(
                     "The saved campaign cannot fund this model request. "
                     "The task and counters are retained."
@@ -954,6 +1006,25 @@ class PersonalAgent:
             raise AgentRuntimeError(
                 "Conversation summarization failed. Retry with the same task ID."
             ) from None
+        except ProviderCallError as error:
+            # An outage, not a bad summary. It is treated as any other model call.
+            if self.gate is None:
+                raise AgentRuntimeError(
+                    "Conversation summarization failed. Retry with the same task ID."
+                ) from None
+            await self._release_model_call()
+            if error.retryable:
+                raise AgentTransientError() from None
+            raise AgentProviderError(
+                "The model provider rejected the request.", kind=error.kind
+            ) from None
+        except httpx.TransportError:
+            if self.gate is None:
+                raise AgentRuntimeError(
+                    "Conversation summarization failed. Retry with the same task ID."
+                ) from None
+            await self._release_model_call()
+            raise AgentTransientError() from None
         except Exception:
             raise AgentRuntimeError(
                 "Conversation summarization failed. Retry with the same task ID."
@@ -966,12 +1037,14 @@ class PersonalAgent:
             **(self.environment.tools if self.environment is not None else {}),
             **(self.web.tools if self.web is not None else {}),
         }
-        if self.gate is not None:
+        clocked = self.gate is not None
+        if clocked:
             self.gate.register_tools(
-                self.clock_process, [tool_name(name, self.surface) for name in available]
+                self.clock_process,
+                [tool_name(name, self.surface, clocked=True) for name in available],
             )
         for name, (arguments_model, description) in available.items():
-            visible_name = tool_name(name, self.surface)
+            visible_name = tool_name(name, self.surface, clocked=clocked)
             schema = create_model(
                 f"{visible_name.title().replace('_', '')}Call",
                 __base__=arguments_model,
@@ -983,6 +1056,8 @@ class PersonalAgent:
                     # UUID fields have been validated by LangChain; serialize
                     # them to the same JSON types used by the existing adapter.
                     plain = json.loads(json.dumps(arguments, default=str))
+                    if self.gate is not None:
+                        plain = strip_nul(plain)
                     if self.gate is not None and self.gate.is_replay(
                         self.clock_process, tool_call_id
                     ):
@@ -1043,10 +1118,12 @@ class PersonalAgent:
             result.append(
                 StructuredTool(
                     name=visible_name,
-                    description=tool_description(name, description, self.surface),
+                    description=tool_description(name, description, self.surface, clocked=clocked),
                     args_schema=schema,
                     coroutine=bind(name),
-                    handle_validation_error="Invalid tool arguments. Follow the tool schema.",
+                    handle_validation_error=INVALID_ARGUMENTS
+                    if clocked and self.surface == NATURAL
+                    else "Invalid tool arguments. Follow the tool schema.",
                 )
             )
         if self.environment is not None:
@@ -1079,7 +1156,9 @@ class PersonalAgent:
                     if self.surface == NATURAL
                     else self._result_model,
                     coroutine=finish_activation,
-                    handle_validation_error="Invalid activation result. Follow the tool schema.",
+                    handle_validation_error=end_turn_error
+                    if clocked and self.surface == NATURAL
+                    else "Invalid activation result. Follow the tool schema.",
                 )
             )
             if self.require_explicit_finish:
@@ -1126,8 +1205,7 @@ class PersonalAgent:
             return response
         if self.gate is None:
             return present_result(tool, response)
-        zone = self.gate.config.tz
-        return present_result(tool, response, time_text=lambda value: format_time(value, zone))
+        return present_result(tool, response, time_text=self.gate.config.time_text)
 
     async def _check_clocked_failure(self, response: dict) -> None:
         """An outage or a pause is not story. The same stamp and request ID run again."""
@@ -1159,35 +1237,50 @@ class PersonalAgent:
             ).fetchone()
         return saved["payload"] if saved else None
 
-    async def _verify_identity(self) -> None:
+    async def _identity_body(self, client, path: str):
+        """The body of a 200 response, or None. On a clocked session anything else is temporary.
+
+        An API that is down or restarting says nothing about identity. Only a real mismatch in
+        a 200 response is an identity error, and that is for the caller to decide.
+        """
         try:
-            response = await self.board.client.get("me", follow_redirects=False)
+            response = await client.get(path, follow_redirects=False)
+            if response.status_code != 200:
+                raise ValueError
             body = response.json()
+            if not isinstance(body, dict):
+                raise ValueError
+            return body
+        except (httpx.RequestError, ValueError):
+            if self.gate is not None:
+                raise AgentTransientError(tool=True) from None
+            return None
+
+    async def _verify_identity(self) -> None:
+        body = await self._identity_body(self.board.client, "me")
+        try:
             identity = body.get("agent", {})
             valid = (
-                response.status_code == 200
-                and body.get("role") == "agent"
+                body.get("role") == "agent"
                 and identity.get("id") == str(self.agent_id)
                 and identity.get("cluster_id") == self.board.cluster_id
             )
-        except (httpx.RequestError, ValueError, AttributeError):
+        except AttributeError:
             valid = False
         if not valid:
             raise AgentIdentityError("The board credential does not match this Agent session.")
         if self.environment is not None:
+            view = await self._identity_body(
+                self.environment.client, f"runs/{self.environment.run_id}/view"
+            )
             try:
-                response = await self.environment.client.get(
-                    f"runs/{self.environment.run_id}/view", follow_redirects=False
-                )
-                view = response.json()
                 valid = (
-                    response.status_code == 200
-                    and view.get("run_id") == self.environment.run_id
+                    view.get("run_id") == self.environment.run_id
                     and view.get("agent_id") == str(self.agent_id)
                     and view.get("cluster_id") == self.board.cluster_id
                     and view.get("session_id") == str(self.session_id)
                 )
-            except (httpx.RequestError, ValueError, AttributeError):
+            except AttributeError:
                 valid = False
             if not valid:
                 raise AgentIdentityError("The environment run does not match this Agent session.")
@@ -1304,6 +1397,10 @@ class PersonalAgent:
             raise AgentLimitError("The task reached its graph-step limit.") from None
         except AgentRuntimeError:
             raise
+        except OperationalError:
+            if self.gate is not None:
+                raise AgentTransientError(tool=True) from None
+            raise AgentRuntimeError("The Agent run failed. Retry with the same task ID.") from None
         except Exception:
             raise AgentRuntimeError("The Agent run failed. Retry with the same task ID.") from None
         finally:

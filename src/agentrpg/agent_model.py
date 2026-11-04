@@ -18,13 +18,26 @@ from pydantic import PrivateAttr
 
 from agentrpg.budget import BudgetBinding, BudgetError, BudgetTransport, NoSyncBudgetTransport
 
+# The provider refused this one request, or returned nothing usable (status 0). Any other
+# status that cannot be retried is about the key or the account.
+REQUEST_REFUSALS = frozenset({0, 400, 404, 413, 422})
+
 
 class ProviderCallError(RuntimeError):
     """A provider failure with no response body or credential in its message."""
 
-    def __init__(self, message: str, *, retryable: bool = False):
+    def __init__(self, message: str, *, retryable: bool = False, status: int | None = None):
         super().__init__(message)
         self.retryable = retryable
+        self.status = status
+
+    @property
+    def kind(self) -> str:
+        if self.retryable:
+            return "provider_transient"
+        if self.status in REQUEST_REFUSALS:
+            return "provider_request_refused"
+        return "provider_rejected"
 
 
 @contextmanager
@@ -55,7 +68,9 @@ class LocalChatOpenRouter(ChatOpenRouter):
                 retryable = status in {408, 429, 500, 502, 503, 504, 529}
                 if not retryable or attempt == self.max_retries:
                     raise ProviderCallError(
-                        f"Model provider returned HTTP {status}.", retryable=retryable
+                        f"Model provider returned HTTP {status}.",
+                        retryable=retryable,
+                        status=status,
                     ) from None
             except httpx.TransportError:
                 if attempt == self.max_retries:
@@ -63,7 +78,9 @@ class LocalChatOpenRouter(ChatOpenRouter):
                         "Model provider connection failed.", retryable=True
                     ) from None
             except Exception:
-                raise ProviderCallError("Model provider returned an invalid response.") from None
+                raise ProviderCallError(
+                    "Model provider returned an invalid response.", status=0
+                ) from None
             await asyncio.sleep(0.5 * 2**attempt)
         raise ProviderCallError("Model provider is unavailable.")
 

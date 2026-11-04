@@ -285,6 +285,10 @@ writing. Unread queries without a history cursor find unacknowledged late commit
 A history cursor is bound to the owner, run, mailbox, and search filters.
 
 A send and its recipient-specific `inbox_received` event commit together.
+On a clocked run an assistant can also send to anyone who is not in the run, by name or email-like
+text in `recipient_owner_id`, or reply to mail with no owner sender. The message stays in its sent
+mail and returns the usual receipt. A `site_message` event of kind `mail` takes the place of the
+notification, for the world's next review. Runs with no clock keep their 404 and 422 responses.
 Identical requests return the original message, including after pause or
 completion. Changed content with the same request ID returns 409. Cross-run
 recipients and inaccessible message IDs return 404. Invalid arguments return

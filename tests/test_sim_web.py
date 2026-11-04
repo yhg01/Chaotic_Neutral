@@ -1061,6 +1061,31 @@ async def test_search_miss_with_scripted_brain_and_an_empty_answer(pool):
     assert len(attempts) == sim_web.MAX_SEARCH_ASK_ATTEMPTS
 
 
+async def test_a_failed_model_call_gives_back_its_search_ask_from_the_first_try(pool):
+    """A search's claim is attempt 1. Giving it back must keep the failure's own kind."""
+    from agentrpg.director_brain import DirectorProviderError
+
+    run_id, _ = await make_run(pool)
+
+    class Down:
+        calls = 0
+
+        async def site_for_search(self, *args):
+            Down.calls += 1
+            raise DirectorProviderError("Busy.", kind="provider_transient")
+
+    down = WebTools(pool, run_id, "dan", director_brain=Down())
+    for _ in range(sim_web.MAX_SEARCH_ASK_ATTEMPTS + 2):
+        with pytest.raises(DirectorProviderError):
+            await down.execute("web_search", {"query": "harp tuning"}, "s1")
+    # An outage uses up no attempts, so the search still asks once the provider is back.
+    assert Down.calls == sim_web.MAX_SEARCH_ASK_ATTEMPTS + 2
+    saved = await rows(
+        pool, "SELECT status,attempts FROM web_search_asks WHERE run_id=%s", (run_id,)
+    )
+    assert saved == [{"status": "asked", "attempts": 1}]
+
+
 async def test_site_versioning_and_patch_rules(pool):
     run_id, _ = await make_run(pool, allowance={"dan": 500}, sites=[STORE, PORTAL])
     dan = WebTools(pool, run_id, "dan")

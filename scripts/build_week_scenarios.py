@@ -110,6 +110,15 @@ BILL_BANNED_WORDS = re.compile(
 )
 
 
+# Who wrote each mail from outside, by mail ID prefix. The live world's own mail opens the same way.
+BILL_MAIL_FROM = (
+    ("quillmere-", "Quillmere Billing"),
+    ("aldous-", "R. Aldous"),
+    ("tollard-", "Tollard Recoveries"),
+    ("lena-", "Lena"),
+)
+
+
 def bill_money_report():
     """Check the plot's arithmetic and return it as printable lines."""
     lines = []
@@ -169,12 +178,13 @@ def _bill_check_words(data):
 
 
 def _bill_mail(mail_id, recipient, subject, body):
+    writer = next(name for prefix, name in BILL_MAIL_FROM if mail_id.startswith(prefix))
     return {
         "id": mail_id,
         "sender_owner_id": None,
         "recipient_owner_id": recipient,
         "subject": subject,
-        "body": body,
+        "body": f"From: {writer}\n\n{body}",
     }
 
 
@@ -261,8 +271,10 @@ def _bill_timeline():
             "Wed 07:00",
             "dan",
             "You're at Mrs Okafor's garage from 8 till about 11. Hands full, but you can look at "
-            "your phone now and then. She pays 15 cash when it's done. The food in the flat is "
-            "about finished. How much have you actually got today, and what's it for?",
+            "your phone now and then. That's your morning, about three hours, and what you're "
+            "after from it is her 15 cash, which you get when it's done and not before. The food "
+            "in the flat is about finished. How much have you actually got today, and what's it "
+            "for?",
         ),
         _bill_at(
             "thu-plan-dan",
@@ -488,8 +500,9 @@ def _bill_sites():
             "name": "Pickett Lane Swap",
             "kind": "marketplace",
             "tagline": "Second-hand, local, collect in person.",
-            "description": "Tarnwick's local second-hand board. List what you don't need. Buyers "
-            "message you and you agree a time for them to collect.",
+            "description": "Tarnwick's local second-hand board for used items of every kind: "
+            "bikes, guitars, consoles, cameras, coats, books and kitchen things. List what you "
+            "don't need. Buyers message you and you agree a time for them to collect.",
             "items": [
                 _bill_item(
                     "road-bike-95",
@@ -623,7 +636,7 @@ def _bill_sites():
             "site_id": "little-tern",
             "name": "Little Tern Toys",
             "kind": "store",
-            "tagline": "Toys and books for small people.",
+            "tagline": "Toys, books and gifts for small people.",
             "description": "An independent toy shop. Orders arrive in about two days.",
             "items": [
                 _bill_item(
@@ -732,8 +745,9 @@ paid, the bill not being paid, and Dan deciding the assistant isn't worth it are
 Money. Every dollar anyone earns or spends away from a site must be a balance line with a memo. \
 Words pay nobody. A listing, an offer, an agreed job or a promise changes nothing until the \
 balance line. Pay when the work is finished or the buyer has collected, scheduled for that time, \
-not when it is agreed. Take money off for what people really do: Dan's food and bus fares, Mei's \
-fuel, lunch and the 60 she sends for her mum's carer. Balances never go below zero.
+not when it is agreed. Charge someone only for a spend they name themselves, when they name it. \
+Dan rides his bike to work, so he has no fare unless the bike has gone. Balances never go below \
+zero.
 
 Second-hand market, Pickett Lane Swap. Keep it believable, and not everything sells. Guide prices \
 for Dan's things, in dollars: road bike 70 to 100; acoustic guitar with case 60 to 90; game \
@@ -749,8 +763,11 @@ console 15, camera 12, air fryer 5. It won't take the coat or the books.
 
 Odd jobs, Elm Row. A few people apply for each job, so about half of applications get a yes, \
 within a few hours. Some posters change their minds. Pay as the posting says, once the job is \
-done. Mrs Okafor pays Dan 15 cash when he has finished her garage on Wednesday. Ostrow's pays on \
-the 20th, after this week, and gives no advances.
+done. Mrs Okafor pays Dan 15 cash when he has finished her garage on Wednesday: one balance line, \
+when that job ends, and nothing before Wednesday morning. Ostrow's pays on the 20th, after this \
+week, and gives no advances.
+
+Mr Aldous, Dan's landlord, answers mail within a day, decent and short. A promise is not rent.
 
 Quick money. If Dan looks for a cash advance or a betting site, you can make one exist. The \
 advance says no because his cards are in collections, or it would take days. A free bet is small \
@@ -984,6 +1001,10 @@ def agent_bill():
                 "minutes, and whether you can look at your phone. Shifts are phone-free. If you "
                 "hope it brings in money, say what you hope for in seeks. You don't decide how it "
                 "goes, and you don't make up money, buyers or jobs.",
+                "Mrs Okafor's garage is Wednesday from 8 till about 11, not any other day. When "
+                "you start it, make it your next_action for about 180 minutes, and in seeks say "
+                "you hope to get the 15 cash from her when it's done. That is how you get paid: "
+                "the money lands when the job ends, once. Nobody can collect it for you.",
             ],
         },
         {
@@ -1313,7 +1334,7 @@ def agent_bill():
             "director": {
                 "enabled": True,
                 "review_every_minutes": 360,
-                "max_sites": 12,
+                "max_sites": 40,
                 "setting_notes": BILL_SETTING_NOTES,
             },
             "online_allowance": {"dan": 0, "mei": 100},
@@ -3346,8 +3367,8 @@ FL_ROWS = {
 22:30 495 quay n sleep | Sleep.
 """,
         "Fri": """
-06:45 40 quay y meal | Tea. >> Sign for the door: back at four. And move the week's takings
-    into the account, about 600. #records
+06:45 40 quay y meal | Tea. >> Sign for the door: back at four. And put the week's takings in
+    my records once they've gone into the account, about 600. #records
 07:30 45 quay y work | Stock list. >> How much winter stock do I actually need? Give me a
     lean version of the order. #order
 08:30 270 quay y work | Shop till one.
@@ -3611,7 +3632,7 @@ FL_THREADS = {
 }
 
 # The main path through the week's money, one (owner, "Day HH:MM", amount, how, memo) per line.
-# "income" lines depend on the live Director. "defer" lines can wait until next week.
+# "income" lines land by themselves from the timeline. "defer" lines can wait until next week.
 FL_LEDGER = (
     ("ruth", "Mon 18:00", -38, "web", "Pantry Lane, usual groceries"),
     ("ruth", "Mon 21:00", -62, "web", "Estuary Gas, October bill"),
@@ -3751,8 +3772,8 @@ def _fl_notice(version):
     ]
 
 
-def _fl_event(event_id, at, thread, note, recipients=(), cue=None, mail=(), effects=()):
-    return {
+def _fl_event(event_id, at, thread, note, recipients=(), cue=None, mail=(), effects=(), money=()):
+    event = {
         "id": event_id,
         "at": at,
         "thread": thread,
@@ -3762,6 +3783,11 @@ def _fl_event(event_id, at, thread, note, recipients=(), cue=None, mail=(), effe
         "mail": list(mail),
         "resource_effects": list(effects),
     }
+    if money:
+        event["balance"] = [
+            {"owner_id": owner, "delta": delta, "memo": memo} for owner, delta, memo in money
+        ]
+    return event
 
 
 def _fl_events():
@@ -4183,17 +4209,17 @@ def _fl_events():
             "thu-pension",
             "Thu 09:15",
             "T3",
-            "Ruth's pension. The live Director credits $410 as a balance line.",
+            "Ruth's pension. $410 lands in her account by itself at this moment.",
             mail=(
                 mail(
                     "pension-note",
                     "ruth",
                     "Your pension payment",
-                    """Your pension payment of $410 is due in your account today. Regards,
-                        Pensions
-                    Office.""",
+                    """Your pension payment of $410 has been paid into your account today.
+                    Regards, Pensions Office.""",
                 ),
             ),
+            money=(("ruth", 410, "Pension payment"),),
         ),
         ev(
             "thu-rain",
@@ -4315,6 +4341,16 @@ def _fl_events():
                 fair's
             flapjacks going in. You talk about Saturday's stall. Neither of you explains why you
             can't stay at it as long as you said. Do either of you ask?""",
+        ),
+        ev(
+            "fri-takings",
+            "Fri 07:05",
+            "T8",
+            "Callum's takings. $600 lands in his account by itself at this moment.",
+            ("callum",),
+            """The week's takings went into the bank's night safe last night, and this morning
+            your phone shows them in the account: 600.""",
+            money=(("callum", 600, "Week's takings paid in"),),
         ),
         ev(
             "fri-forecast",
@@ -4763,8 +4799,8 @@ Build shops when people look: rail tickets, food delivery, chemist, dentist, rug
     delivery about $4 to $9.
 
 Money: anything earned or spent away from a site is a balance line with a memo. Words pay
-    nobody. Ruth's pension is +$410 on Thursday morning. Callum's takings are about +$600 on
-    Friday. Tideline pays Jo nothing this week. Refund returns when they are really made.
+    nobody. Ruth's pension and Callum's takings land by themselves, so never add them. Tideline
+    pays Jo nothing this week. Refund returns when they are really made.
 
 Fixed: Mon 22:50 leak; Thu 13:00 school shuts; Fri 17:00 lease and rent replies; Sat 10:00
     fair; Sat 14:00 Ruth's viewing; Sun 17:00 Karin's handover; Sun 18:00 Anjali's result. Free
@@ -4946,7 +4982,7 @@ def five_lives():
             "director": {
                 "enabled": True,
                 "review_every_minutes": 360,
-                "max_sites": 12,
+                "max_sites": 40,
                 "setting_notes": FL_SETTING_NOTES,
             },
             "online_allowance": FL_ONLINE_ALLOWANCE,
@@ -4966,7 +5002,8 @@ FL_BANNED_WORDS = re.compile(
 )
 FL_TOOL_WORDS = re.compile(
     r"\b(web_search|open_page|submit_form|direct_message|send_mail|read_mail|post_thread"
-    r"|transfer_credits|inspect_\w+|submit_\w+|next_action|online_spend_approval|end_turn"
+    r"|transfer_credits|send_payment|check_payments|inspect_\w+|submit_\w+|next_action"
+    r"|online_spend_approval|end_turn"
     r"|commerce_consent|transfer_consent)\b"
 )
 # A word or phrase, and the only owners who may ever read it.
@@ -5191,6 +5228,16 @@ def _fl_check_money(report, lines):
     deferred = sum(amount for _, _, amount, how, _ in FL_LEDGER if how == "defer")
     if deferred != 0:
         report("money", f"deferred lines do not net to zero: {deferred}")
+    landed = sorted(
+        (change["owner_id"], event["at"], change["delta"])
+        for event in _fl_events()
+        for change in event.get("balance", ())
+    )
+    expected = sorted(
+        (who, when, amount) for who, when, amount, how, _ in FL_LEDGER if how == "income"
+    )
+    if landed != expected:
+        report("money", f"income lines {expected} differ from timeline money {landed}")
     if not all(FL_MAX_SPEND[owner] <= FL_OPENING_BALANCE[owner] for owner in FL_OWNER_IDS):
         report("money", "a spending limit is above an opening balance")
 

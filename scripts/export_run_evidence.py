@@ -14,6 +14,7 @@ from uuid import UUID
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 
+from agentrpg.clock import DRAW_HAS_EFFECT, FIRED_DRAWS
 from agentrpg.config import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,7 +100,10 @@ async def export(run_id: UUID, out: Path) -> dict:
             (run_id,),
         )
         draws = await fetch(
-            conn, "SELECT * FROM clock_draws WHERE run_id=%s ORDER BY fire_s NULLS LAST", (run_id,)
+            conn,
+            f"""SELECT d.*,e.popped_seq IS NOT NULL AS fired,{DRAW_HAS_EFFECT} AS with_effect
+            {FIRED_DRAWS} WHERE d.run_id=%s ORDER BY d.fire_s NULLS LAST""",
+            (run_id,),
         )
         processes = await fetch(conn, "SELECT * FROM clock_processes WHERE run_id=%s", (run_id,))
         jobs = await fetch(
@@ -241,8 +245,14 @@ async def export(run_id: UUID, out: Path) -> dict:
             "actor_jobs": sum(1 for j in jobs if j["kind"] == "actor"),
             "actions": len(actions),
             "draws": len(draws),
-            "interventions": sum(1 for d in draws if d["outcome"] != "none"),
-            "extreme": sum(1 for d in draws if d["outcome"] == "extreme"),
+            "drawn_interventions": sum(1 for d in draws if d["outcome"] != "none"),
+            "drawn_extreme": sum(1 for d in draws if d["outcome"] == "extreme"),
+            # Fired means its event was popped. A drawn one can end with its action, unfired.
+            "interventions": sum(1 for d in draws if d["outcome"] != "none" and d["fired"]),
+            "extreme": sum(1 for d in draws if d["outcome"] == "extreme" and d["fired"]),
+            "interventions_with_effect": sum(
+                1 for d in draws if d["outcome"] != "none" and d["with_effect"]
+            ),
             "sites": len(sites),
             "orders": len(orders),
             "listings": len(listings),

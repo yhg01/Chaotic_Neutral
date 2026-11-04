@@ -284,7 +284,7 @@ def test_time_arithmetic_is_plain():
     assert format_time(datetime(2026, 11, 10, 14, 5, tzinfo=UTC)) == "Tuesday 14:05"
     assert format_time("2026-11-10T14:05:30.000123+00:00") == "Tuesday 14:05"
     clock = config()
-    assert clock.now_text(0) == "Monday 06:00"
+    assert clock.now_text(0) == "Monday 9 November, 06:00"
     assert clock.today_text(0) == "Monday 9 November"
     assert next_daily_wake(0, clock) == 7200
     assert next_daily_wake(7200, clock) == 7200 + 86400
@@ -293,7 +293,7 @@ def test_time_arithmetic_is_plain():
 
 def test_time_keeps_the_offset_of_the_start():
     clock = config(start_at="2026-11-09T06:00:00+02:00")
-    assert clock.now_text(3600) == "Monday 07:00"
+    assert clock.now_text(3600) == "Monday 9 November, 07:00"
     assert next_daily_wake(0, clock) == 7200
     assert format_time("2026-11-09T04:30:00+00:00", clock.tz) == "Monday 06:30"
 
@@ -301,7 +301,9 @@ def test_time_keeps_the_offset_of_the_start():
 def test_until_is_clamped_and_defaults_to_the_next_morning():
     clock = config()
     assert until_after_yield(0, None, clock) == 7200
-    assert until_after_yield(100, 1, clock) == 100 + 300
+    # However short the scenario's lower bound, an assistant cannot poll more often than this.
+    assert clock.until_min_s == 300
+    assert until_after_yield(100, 1, clock) == 100 + 1200
     assert until_after_yield(100, 30, clock) == 100 + 1800
     assert until_after_yield(100, 999_999, clock) == 100 + 2880 * 60
 
@@ -777,6 +779,36 @@ async def test_first_arrival_registers_a_resumed_batch_and_skips_saved_calls():
     parked = asyncio.create_task(gate.before_tool("agent:a", message.tool_calls[1], history))
     await asyncio.sleep(0)
     assert entry.arrived and not parked.done()
+    parked.cancel()
+    await asyncio.gather(parked, return_exceptions=True)
+
+
+async def test_a_reused_call_id_still_parks_a_resumed_call():
+    """An older result with the same ID must not let a resumed call skip its turn."""
+
+    async def saved(process, activation):
+        return set()
+
+    gate = _gate()
+    gate.saved_calls = saved
+    older = [
+        HumanMessage(content="before", id="earlier"),
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "read", "args": {}, "id": "call_0", "type": "tool_call"}],
+        ),
+        ToolMessage(content="{}", tool_call_id="call_0"),
+    ]
+    message = AIMessage(
+        content="",
+        tool_calls=[{"name": "read", "args": {}, "id": "call_0", "type": "tool_call"}],
+    )
+    history = [*older, *HISTORY, message]
+    gate.begin_activation("agent:a", "task", 2, 100, resume_bar=100)
+    parked = asyncio.create_task(gate.before_tool("agent:a", message.tool_calls[0], history))
+    await asyncio.sleep(0.01)
+    assert not parked.done()
+    assert gate.head() is not None and gate.head().call_id == "call_0"
     parked.cancel()
     await asyncio.gather(parked, return_exceptions=True)
 

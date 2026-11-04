@@ -8,7 +8,7 @@ import httpx
 from pydantic import Field, ValidationError, model_validator
 
 from agentrpg.agent_tools import Cursor, Identifier, Limit, _Arguments, _error
-from agentrpg.mail_schema import MailBody, MailOwner, MailSubject
+from agentrpg.mail_schema import MailAddress, MailBody, MailOwner, MailSubject
 
 
 class _ListMail(_Arguments):
@@ -37,6 +37,14 @@ class _SendMail(_Arguments):
     subject: MailSubject
     body: MailBody
     in_reply_to: Identifier | None = None
+
+
+class _ClockedSendMail(_SendMail):
+    """A clocked assistant can write to anyone, and the world decides what comes back."""
+
+    recipient_owner_id: MailAddress = Field(
+        description="A contact's owner_id, or anyone else's name or email address."
+    )
 
 
 class _AcknowledgeMail(_Arguments):
@@ -80,8 +88,11 @@ INBOX_TOOLS = {
 
 
 class InboxTools:
-    def __init__(self, client: httpx.AsyncClient, run_id, operation_namespace=None):
+    def __init__(
+        self, client: httpx.AsyncClient, run_id, operation_namespace=None, *, clocked=False
+    ):
         self.client = client
+        self.clocked = clocked
         self.run_id = str(UUID(str(run_id)))
         if operation_namespace is not None and not isinstance(operation_namespace, UUID):
             raise ValueError("The operation namespace must be a UUID.")
@@ -112,14 +123,11 @@ class InboxTools:
             return _error(422, "A valid tool call ID is required.")
         if not isinstance(arguments, dict):
             return _error(422, "Tool arguments must be an object.")
+        model = _ClockedSendMail if self.clocked and name == "send_mail" else INBOX_TOOLS[name][0]
         try:
-            payload = (
-                INBOX_TOOLS[name][0]
-                .model_validate(arguments)
-                .model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
+            payload = model.model_validate(arguments).model_dump(
+                mode="json",
+                exclude_none=True,
             )
         except ValidationError:
             if name == "list_mail" and arguments.get("unread_only") is True:
@@ -156,7 +164,9 @@ class InboxTools:
                             401: "The Agent credential was rejected.",
                             403: "This inbox operation is not permitted.",
                             404: (
-                                "Recipient not found. Use owner_id from "
+                                "The email you are replying to was not found in this mailbox."
+                                if self.clocked and name == "send_mail"
+                                else "Recipient not found. Use owner_id from "
                                 "read_run_view.participants, "
                                 "not a board Agent UUID."
                                 if name == "send_mail"
@@ -167,7 +177,11 @@ class InboxTools:
                             ),
                             409: "The operation conflicts with the saved mail or run state.",
                             422: (
-                                "The inbox rejected the query. unread_only requires mailbox="
+                                "That email could not be sent. A reply goes to the other person "
+                                "on the email it answers, and in_reply_to must be the ID of an "
+                                "email in this mailbox."
+                                if self.clocked and name == "send_mail"
+                                else "The inbox rejected the query. unread_only requires mailbox="
                                 "'inbox'; check mailbox, filter, limit and cursor arguments."
                                 if name == "list_mail"
                                 else "The inbox rejected the arguments. Mail IDs must refer "

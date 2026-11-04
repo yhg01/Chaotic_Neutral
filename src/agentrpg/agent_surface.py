@@ -106,6 +106,8 @@ def clock_instructions(batch_minutes: int) -> str:
     return f"""Time
 - Time passes for you as it does for everyone, and thinking and using tools take some of it. \
 Every update tells you the day and time.
+- If you tell your owner you will look something up or do something, do it now, in this turn, \
+before you finish. Nothing carries on working once you stop.
 - You are not always on. When you finish, you rest until someone writes to you, until something \
 you are waiting for happens, or until tomorrow morning. To check back sooner, set wake_in_minutes \
 when you end your turn. A message from your owner or new mail reaches you at once. News on the \

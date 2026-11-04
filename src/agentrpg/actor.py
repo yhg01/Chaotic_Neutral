@@ -387,6 +387,16 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
         __base__=ClockedActorCandidate if view.clock is not None else ActorCandidate,
         fact_ids=(annotation, field),
     )
+    if view.clock is not None and not view.clock.get("current_action"):
+        # Someone with nothing under way must say what they do next.
+        candidate = create_model(
+            "IdleActorCandidate",
+            __base__=candidate,
+            next_action=(
+                NextAction,
+                Field(description="Required now. What this person does next. See YOUR DAY."),
+            ),
+        )
     if preserve_shopping_consent and view.market.get("browser_shop_enabled") and not view.max_spend:
         candidate = create_model(
             "NoPurchaseBudgetCandidate",

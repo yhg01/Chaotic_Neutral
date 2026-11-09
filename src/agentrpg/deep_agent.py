@@ -96,6 +96,8 @@ _EMPTY_SCRATCH_DETAIL = (
 # At 20,000 and 6,000, an assistant lost track of its own orders within one task and bought again.
 CLOCKED_SUMMARY_TOKENS = 60_000
 CLOCKED_SUMMARY_KEEP_TOKENS = 20_000
+# About 100,000 tokens. Summaries read at most this much of the history they replace.
+CLOCKED_SUMMARY_INPUT_CHARS = 400_000
 
 
 class _ClockedSummarization(SummarizationMiddleware):
@@ -1035,9 +1037,12 @@ class PersonalAgent:
         # The default summarizer calls the model outside model middleware.
         # Supplying this public hook gives compaction the same durable budget.
         await self._reserve_model_call()
-        prompt = DEEPAGENTS_DEFAULT_SUMMARY_PROMPT.format(
-            messages=get_buffer_string(messages, format="xml")
-        )
+        history = get_buffer_string(messages, format="xml")
+        if self.gate is not None and len(history) > CLOCKED_SUMMARY_INPUT_CHARS:
+            # A history that grew while summaries failed can pass the model's limit, and then
+            # every later summary fails the same way. Its most recent part carries the work.
+            history = "[Earlier messages are left out.]\n" + history[-CLOCKED_SUMMARY_INPUT_CHARS:]
+        prompt = DEEPAGENTS_DEFAULT_SUMMARY_PROMPT.format(messages=history)
         if self.gate is not None:
             prompt += (
                 "\n\nKeep the whole summary under 800 words. Keep exactly: every order, booking, "

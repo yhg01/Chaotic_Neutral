@@ -1680,10 +1680,12 @@ class _LongSummaries(ScriptModel):
     summary_calls: int = 0
     empty_summaries: int = 0
     step: int = 0
+    summary_prompts: list = Field(default_factory=list)
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         if len(messages) == 1 and "under 800 words" in str(messages[0].content):
             self.summary_calls += 1
+            self.summary_prompts.append(str(messages[0].content))
             empty = self.summary_calls <= self.empty_summaries
             message = AIMessage(
                 content="" if empty else "Dan needs $39 more by Saturday.",
@@ -1844,3 +1846,35 @@ def test_listing_questions_point_to_the_website_on_clocked_runs():
     )
     assert "website's pages" in shown["error"]["detail"]
     assert "Listings on websites" in CLOCKED_TOOL_DESCRIPTIONS["inspect_market"]
+
+
+async def test_a_summary_reads_only_the_recent_part_of_a_very_long_history(
+    app, pool, test_database_url, monkeypatch
+):
+    import agentrpg.deep_agent as deep_agent
+
+    monkeypatch.setattr(deep_agent, "CLOCKED_SUMMARY_TOKENS", 400)
+    monkeypatch.setattr(deep_agent, "CLOCKED_SUMMARY_KEEP_TOKENS", 100)
+    monkeypatch.setattr(deep_agent, "CLOCKED_SUMMARY_INPUT_CHARS", 3000)
+    spec = scenario(("dan",), duration_minutes=180)
+    words = "A long message that fills the context of this assistant. " * 30
+    model = _LongSummaries(
+        script=[
+            calls(("send_owner_message", {"content": words})),
+            calls(("send_owner_message", {"content": words + "two"})),
+            calls(("send_owner_message", {"content": "All done here."})),
+            end_turn(),
+        ]
+    )
+    async with clocked_run(
+        app,
+        test_database_url,
+        spec,
+        {"dan": model},
+        {"dan": ScriptedOwner([{"kind": "reply", "text": "Morning."}])},
+    ) as (engine, created, _runtime, _agents):
+        await engine.run(created["run_id"])
+    assert model.summary_calls >= 1
+    assert any("[Earlier messages are left out.]" in text for text in model.summary_prompts)
+    longest = max(len(text) for text in model.summary_prompts)
+    assert longest < len(deep_agent.DEEPAGENTS_DEFAULT_SUMMARY_PROMPT) + 3000 + 600

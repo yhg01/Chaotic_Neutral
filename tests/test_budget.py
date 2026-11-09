@@ -574,3 +574,14 @@ async def test_a_refusal_stands_once_nothing_is_in_flight_or_the_wait_ends(pool,
         )
     with pytest.raises(BudgetExceeded):
         await asyncio.wait_for(ledger.reserve(other, unit, 10, 1, wait_seconds=30), 5)
+
+
+def test_a_long_history_of_short_messages_is_reserved_at_the_context_not_refused():
+    model = "deepseek/deepseek-v4.1-flash"
+    many = [{"role": "user", "content": "ok"}] * 1200
+    _, bound, output = prepare_request(
+        body(model=model, messages=many, max_tokens=4000), {model: _routed_price(model)}
+    )
+    assert bound + output == 1_000_000
+    with pytest.raises(BudgetError):
+        prepare_request(body(messages=many), {"openai/gpt-4.1": price(context_length=300_000)})

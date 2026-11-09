@@ -471,7 +471,14 @@ def prepare_request(body: dict, prices):
         if output > price.context_length:
             raise BudgetError("The output limit exceeds the model context limit.")
     elif bound + output > price.context_length:
-        raise BudgetError("The conservative request token bound exceeds the model context limit.")
+        if model not in ROUTED_MODELS:
+            raise BudgetError(
+                "The conservative request token bound exceeds the model context limit."
+            )
+        # The byte estimate adds 1,024 tokens for each message, so a long history of short tool
+        # results passed the context while the real prompt was a tenth of it. A real prompt
+        # cannot exceed the context, and a provider refuses one that does, at no cost.
+        bound = price.context_length - output
     body["provider"] = {
         "require_parameters": True,
         "allow_fallbacks": model in ROUTED_MODELS,

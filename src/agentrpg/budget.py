@@ -353,6 +353,30 @@ class CampaignLedger:
         if status == "breach":
             raise BudgetError("Provider cost exceeded its maximum. The campaign is halted.")
 
+    async def raise_ceiling(self, campaign_id, old_limit, new_limit) -> None:
+        """Raise one ceiling as an operator's stated choice. It never lowers one or clears a halt.
+
+        The spend history stays as it is, so nothing already counted is forgotten.
+        """
+        campaign_id = UUID(str(campaign_id))
+        old, new = amount(old_limit), amount(new_limit)
+        if new <= old:
+            raise BudgetError("A new ceiling must be higher than the saved one.")
+        async with self.pool.connection() as conn, conn.transaction():
+            row = await (
+                await conn.execute(
+                    "SELECT limit_usd,halted FROM model_campaigns WHERE id=%s FOR UPDATE",
+                    (campaign_id,),
+                )
+            ).fetchone()
+            if row is None or row["limit_usd"] != old:
+                raise BudgetError("The saved campaign ceiling differs from the expected one.")
+            if row["halted"]:
+                raise BudgetError("A halted campaign stays halted.")
+            await conn.execute(
+                "UPDATE model_campaigns SET limit_usd=%s WHERE id=%s", (new, campaign_id)
+            )
+
     async def summary(self, campaign_id, *, recent_limit=50):
         async with self.pool.connection() as conn:
             campaign = await (

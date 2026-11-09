@@ -585,3 +585,18 @@ def test_a_long_history_of_short_messages_is_reserved_at_the_context_not_refused
     assert bound + output == 1_000_000
     with pytest.raises(BudgetError):
         prepare_request(body(messages=many), {"openai/gpt-4.1": price(context_length=300_000)})
+
+
+async def test_a_ceiling_only_goes_up_and_keeps_the_spend_history(pool):
+    ledger = CampaignLedger(pool)
+    campaign = uuid4()
+    await ledger.ensure_campaign(campaign, Decimal("1"))
+    await ledger.reserve(campaign, price(), 1000, 100)
+    await ledger.raise_ceiling(campaign, Decimal("1"), Decimal("2"))
+    summary = await ledger.summary(campaign)
+    assert summary["limit_usd"] == Decimal("2") and summary["attempts"] == 1
+    with pytest.raises(BudgetError):
+        await ledger.raise_ceiling(campaign, Decimal("2"), Decimal("1"))
+    with pytest.raises(BudgetError):
+        await ledger.raise_ceiling(campaign, Decimal("1"), Decimal("3"))
+    await ledger.ensure_campaign(campaign, Decimal("2"))

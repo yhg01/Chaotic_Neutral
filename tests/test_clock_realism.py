@@ -1635,7 +1635,7 @@ class _CutOffOnce(ScriptModel):
         return await super()._agenerate(messages, stop, run_manager, **kwargs)
 
 
-async def test_a_reply_cut_off_at_its_limit_is_retried_and_the_task_finishes(
+async def test_a_reply_cut_off_at_its_limit_is_asked_again_shorter_and_the_task_finishes(
     app, pool, test_database_url
 ):
     spec = scenario(("dan",), duration_minutes=180)
@@ -1666,9 +1666,12 @@ async def test_a_reply_cut_off_at_its_limit_is_retried_and_the_task_finishes(
                 (UUID(created["run_id"]),),
             )
         ).fetchall()
-    assert [row["kind"] for row in rows] == ["job_failure"], rows
-    assert "incomplete" in rows[0]["payload"]["detail"]
+    # The shorter answer comes in the same step, so no task is lost and nothing is retried.
+    assert rows == [], rows
     assert "On it." in [row["content"] for row in said]
+    assert "too long to send" in str(models["dan"].all_seen[-1][-1].content) or any(
+        "too long to send" in str(seen[-1].content) for seen in models["dan"].all_seen
+    )
 
 
 class _LongSummaries(ScriptModel):

@@ -459,6 +459,20 @@ def _uuid(value: UUID | str) -> UUID:
     return value if isinstance(value, UUID) else UUID(value)
 
 
+CUT_OFF_NOTE = (
+    "Your last message was too long to send, so nothing went out. Send a shorter version now: "
+    "under 300 words, or one tool call with short arguments."
+)
+
+
+def _cut_off(response) -> bool:
+    return any(
+        isinstance(message, AIMessage)
+        and message.response_metadata.get("finish_reason") in {"length", "max_tokens"}
+        for message in response.result
+    )
+
+
 def _validate_model_message(message: AIMessage) -> None:
     if message.invalid_tool_calls:
         raise AgentRuntimeError("The model returned invalid tool calls. Retry the same task ID.")
@@ -520,6 +534,15 @@ class _BoundedCalls(AgentMiddleware):
                 # A per-call bound. A parked activation spends real time without working.
                 async with gate.think_slot(), asyncio.timeout(self.agent.timeout_seconds):
                     response = await handler(request)
+                if _cut_off(response):
+                    # The same request stops at the same place on every retry, and the task is
+                    # then lost. Ask once for a shorter answer. The note is not saved in history.
+                    await self.agent._reserve_model_call()
+                    shorter = request.override(
+                        messages=[*request.messages, HumanMessage(content=CUT_OFF_NOTE)]
+                    )
+                    async with gate.think_slot(), asyncio.timeout(self.agent.timeout_seconds):
+                        response = await handler(shorter)
             for message in response.result:
                 if isinstance(message, AIMessage):
                     _validate_model_message(message)

@@ -1878,3 +1878,36 @@ async def test_a_summary_reads_only_the_recent_part_of_a_very_long_history(
     assert any("[Earlier messages are left out.]" in text for text in model.summary_prompts)
     longest = max(len(text) for text in model.summary_prompts)
     assert longest < len(deep_agent.DEEPAGENTS_DEFAULT_SUMMARY_PROMPT) + 3000 + 600
+
+
+async def test_an_assistant_near_its_call_limit_is_told_to_wrap_up_and_reply(
+    app, pool, test_database_url
+):
+    spec = scenario(("dan",), duration_minutes=180, limits={"max_model_calls_per_activation": 4})
+    model = ScriptModel(
+        script=[
+            calls(("read_resources", {})),
+            calls(("read_resources", {})),
+            calls(("send_owner_message", {"content": "Here is where things stand."})),
+            end_turn(),
+        ]
+    )
+    async with clocked_run(
+        app,
+        test_database_url,
+        spec,
+        {"dan": model},
+        {"dan": ScriptedOwner([{"kind": "reply", "text": "Morning."}])},
+    ) as (engine, created, _runtime, _agents):
+        await engine.run(created["run_id"])
+    told = [seen for seen in model.all_seen if "one or two more steps" in str(seen[-1].content)]
+    assert told, "The last calls did not carry the wrap-up note."
+    async with pool.connection() as conn:
+        lost = await (
+            await conn.execute(
+                "SELECT count(*) AS n FROM run_events WHERE run_id=%s "
+                "AND kind='activation_abandoned'",
+                (UUID(created["run_id"]),),
+            )
+        ).fetchone()
+    assert lost["n"] == 0

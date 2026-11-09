@@ -461,6 +461,11 @@ def _uuid(value: UUID | str) -> UUID:
     return value if isinstance(value, UUID) else UUID(value)
 
 
+WRAP_UP_NOTE = (
+    "You have time for only one or two more steps now. Tell your owner what you have done and "
+    "what is still open, then end your turn."
+)
+
 CUT_OFF_NOTE = (
     "Your last message was too long to send, so nothing went out. Send a shorter version now: "
     "under 300 words, or one tool call with short arguments."
@@ -498,8 +503,14 @@ class _BoundedCalls(AgentMiddleware):
             # Also here for a resume that starts at the model node. Raw history, not the
             # summarized request, because stamps come from every saved message.
             gate.before_model(process, request.state.get("messages", []))
-        await self.agent._reserve_model_call()
+        used = await self.agent._reserve_model_call()
         try:
+            if gate is not None and used >= self.agent.max_model_calls - 2:
+                # Without this, an assistant that keeps browsing stops mid-task and its owner
+                # hears nothing. The note is not saved in history.
+                request = request.override(
+                    messages=[*request.messages, HumanMessage(content=WRAP_UP_NOTE)]
+                )
             if (
                 self.agent.include_previous_activation_context
                 and self.agent._activation_mode
@@ -1010,7 +1021,8 @@ class PersonalAgent:
             checkpointer=AsyncPostgresSaver(runtime.pool),
         )
 
-    async def _reserve_model_call(self) -> None:
+    async def _reserve_model_call(self) -> int:
+        """Count one model call and return how many this task has used."""
         async with self.runtime.pool.connection() as connection:
             cursor = await connection.execute(
                 """UPDATE agent_tasks SET model_calls = model_calls + 1
@@ -1019,8 +1031,10 @@ class PersonalAgent:
                    RETURNING model_calls""",
                 (self.session_key, self._active_task_id, self.max_model_calls),
             )
-            if await cursor.fetchone() is None:
+            row = await cursor.fetchone()
+            if row is None:
                 raise AgentLimitError("The task reached its model-call limit.")
+            return row["model_calls"]
 
     async def _release_model_call(self) -> None:
         """On a clocked session an outage does no work, so it cannot use up the task's calls."""

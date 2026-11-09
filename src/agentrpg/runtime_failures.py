@@ -46,11 +46,13 @@ class Failure:
 
 def failure_detail(error: Exception) -> str:
     """For the saved event: a class and a place, or a runtime error's fixed sentence."""
+    from agentrpg.actor import ModelGenerationError
     from agentrpg.deep_agent import AgentRuntimeError
 
     if detail := getattr(error, "detail", None):
         return str(detail)[:300]
-    if isinstance(error, AgentRuntimeError):
+    # Both hold fixed sentences and a status code, never model or provider text.
+    if isinstance(error, (AgentRuntimeError, ModelGenerationError)):
         return str(error)[:300]
     return type(error).__name__
 

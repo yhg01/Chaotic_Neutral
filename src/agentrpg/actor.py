@@ -1232,7 +1232,7 @@ async def generate_json(
         raise ModelGenerationError(str(error), kind="budget") from None
     except ProviderCallError as error:
         raise ModelGenerationError(
-            "Structured model provider call failed.", kind=error.kind
+            f"Structured model provider call failed (HTTP {error.status}).", kind=error.kind
         ) from None
     except Exception:
         raise ModelGenerationError("Structured model provider call failed.") from None

@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-10",
+  "scope": "Elapsed Clock runner; Actor and independent reviewer only",
+  "models": {
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1",
+    "personal": "deepseek/deepseek-v3.2"
+  },
+  "new_key_distinct_from_original": true,
+  "free_checks": {
+    "authentication_http_status": 200,
+    "credits_http_status": 200,
+    "account_credit_available": true,
+    "model_requests": 0,
+    "cost_usd": "0"
+  },
+  "local_focused_checks": 241,
+  "same_campaign_ceiling_usd": "20",
+  "old_key_and_personal_configuration_replaced": false,
+  "historical_costs_and_trajectories_retained": true,
+  "seven_day_experiment_started": true,
+  "private_billing_detail": ".local/clock-runtime/actor-api-verify-v14.json",
+  "raw_credentials_in_public_report": false,
+  "complete_local_regression": {
+    "tests": 1453,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+  "bounded_new_route_calibration_run": "6c62b8b9-9d2c-45f0-a428-50afa47c8f89",
+  "generation_component_verification": "actor-task-schema-results.json",
+  "full_corrected_world_retest_pending": false,
+  "latest_corrected_world_retest": "8ec4c09f-55c6-4c16-954c-ac7909fd71a9",
+  "latest_free_recheck": {
+    "authentication_http_status": 200,
+    "credits_http_status": 200,
+    "account_credit_available": true,
+    "model_requests": 0,
+    "private_receipt": ".local/clock-runtime/actor-api-verify-budget20.json"
+  },
+  "provider_service_limit": "Six spaced first-attempt reviews and the latest full-day rehearsal completed without a new provider error. This bounded sample is not a long-term availability guarantee. The earlier embedded502 failures and their uncertain reservations remain.",
+  "latest_corrected_world_retest_scope": "Two-person simplified daily-meeting-v3, not the older three-person four-cue calibration.",
+  "larger_four_cue_calibration_pending": true,
+  "reviewer_recovery_evidence": "reviewer-stability-2026-11-10.json",
+  "latest_authorized_seven_day_experiment": "30cf1245-2780-4f0e-aadf-be5a94721af0",
+  "latest_seven_day_report": "seven-day-simplified-results.json",
+  "latest_seven_day_http_attempts": 76,
+  "latest_seven_day_new_unknown_usd": "0",
+  "latest_seven_day_task_acceptance_passed": false,
+  "latest_cue_response_repair": "cue-response-repair-results.json",
+  "new_seven_day_rerun_started": false,
+  "api_files_unchanged_this_repair": true,
+  "current_cue_review_protocol": "independent-current-cue-v2-declared-response"
+}

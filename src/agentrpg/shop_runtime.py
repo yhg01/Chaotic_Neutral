@@ -16,6 +16,7 @@ from agentrpg.agent_tools import BoardTools
 from agentrpg.deep_agent import AgentRuntime
 from agentrpg.director import Director, row, rows
 from agentrpg.environment_tools import EnvironmentTools
+from agentrpg.personal_agent_config import PersonalAgentConfigError
 from agentrpg.run_engine import RunEngine
 from agentrpg.shop import ShopService, plain
 from agentrpg.shop_browser import ShopBrowser
@@ -58,10 +59,13 @@ async def make_engine(
     manifest,
     *,
     api_key=None,
+    assistant_api_key=None,
     binding=None,
     usage=None,
     inject=False,
 ):
+    if "personal_agent_api" in manifest["configuration"] and not assistant_api_key:
+        raise PersonalAgentConfigError("Set the selected personal Agent API key locally.")
     runtime = await stack.enter_async_context(AgentRuntime(database_url))
     run = manifest["run_id"]
     config = manifest["configuration"]
@@ -74,7 +78,7 @@ async def make_engine(
 
     def model_for(role, *, tokens, actor=False, model_name=None):
         model = create_model(
-            api_key,
+            api_key if actor else assistant_api_key or api_key,
             model_name or config.get("actor_model" if actor else "model", "openai/gpt-4.1-mini"),
             max_tokens=tokens,
             max_retries=0,
@@ -131,7 +135,10 @@ async def make_engine(
                 ),
                 shopping_stimulus_model=(
                     model_for(
-                        "browser-shop-stimulus", tokens=350, model_name=config.get("stimulus_model")
+                        "browser-shop-stimulus",
+                        tokens=350,
+                        actor=True,
+                        model_name=config.get("stimulus_model"),
                     )
                     if config.get("independent_shopping_stimulus_review")
                     else None
@@ -256,6 +263,7 @@ async def run_shop(
     manifest,
     *,
     api_key=None,
+    assistant_api_key=None,
     binding=None,
     restart_every=0,
     inject=False,
@@ -315,6 +323,7 @@ async def run_shop(
             origin,
             manifest,
             api_key=api_key,
+            assistant_api_key=assistant_api_key,
             binding=binding,
             usage=usage,
             inject=inject,
@@ -343,6 +352,7 @@ async def run_shop(
                     origin,
                     manifest,
                     api_key=api_key,
+                    assistant_api_key=assistant_api_key,
                     binding=binding,
                     usage=usage,
                     inject=inject and not fault_consumed,
@@ -396,6 +406,7 @@ async def run_shop(
                     origin,
                     manifest,
                     api_key=api_key,
+                    assistant_api_key=assistant_api_key,
                     binding=binding,
                     usage=usage,
                     inject=inject and not fault_consumed and not fault,

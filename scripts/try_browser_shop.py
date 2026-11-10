@@ -20,6 +20,7 @@ from agentrpg.config import Settings
 from agentrpg.console_execution import save_private
 from agentrpg.director import Director
 from agentrpg.migrate import migrate
+from agentrpg.personal_agent_config import load_personal_agent_api
 from agentrpg.shop import ShopService, plain
 from agentrpg.shop_demo import shopping_model_scenario, shopping_scenario
 from agentrpg.shop_model_roles import (
@@ -50,6 +51,17 @@ async def main(args):
         raise SystemExit(
             "Model runs need local OPENROUTER_API_KEY and the existing --campaign UUID."
         )
+    personal_api = (
+        load_personal_agent_api(
+            env,
+            root=ROOT,
+            configuration={"model": "openai/gpt-4.1-mini", **manifest["configuration"]}
+            if manifest
+            else None,
+        )
+        if uses_models
+        else None
+    )
     await migrate(database_url)
     async with AsyncConnectionPool(
         database_url, min_size=1, max_size=8, kwargs={"row_factory": dict_row}
@@ -66,7 +78,7 @@ async def main(args):
                 if manifest
                 else "openai/gpt-4.1"
             )
-            models = {"openai/gpt-4.1-mini"}
+            models = {personal_api.model}
             if mode == "model-actors":
                 models.add(actor_model)
             prices = await fetch_model_prices(models)
@@ -108,6 +120,10 @@ async def main(args):
                     stimulus_model="openai/gpt-4.1",
                     runtime_revision="typed-setup-model-browser-shop-v11",
                 )
+            if personal_api:
+                manifest["configuration"].update(
+                    model=personal_api.model, **personal_api.manifest_fields()
+                )
             await ShopService(pool).enable(UUID(manifest["run_id"]))
         elif uses_models and str(args.campaign) != manifest["configuration"]["campaign_id"]:
             raise SystemExit("Resume must use the original campaign.")
@@ -134,6 +150,7 @@ async def main(args):
             args.origin,
             manifest,
             api_key=api_key,
+            assistant_api_key=personal_api.api_key.get_secret_value() if personal_api else None,
             binding=binding,
             restart_every=args.restart_every,
             inject=args.inject_checkout_interruption,

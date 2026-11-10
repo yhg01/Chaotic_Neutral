@@ -1,0 +1,152 @@
+{
+  "date": "2026-11-08T18:06:22.646665+00:00",
+  "upstream_base": "098b14204b3215a1d77df3946f70d4681a838559",
+  "runtime_source_hash": "74f6186e4f47f05a7a30dedcb19aed20bd2d0f3c65d7ccbf6a68c97ff6af5717",
+  "personal_provider": "openrouter",
+  "personal_model": "deepseek/deepseek-v3.2",
+  "full_regression_before_final_missing_key_guard": {
+    "tests": 1224,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 99.247
+  },
+  "final_focused_including_missing_key_guard": {
+    "tests": 102,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 4.386
+  },
+  "initial_test_attempts": [
+    {
+      "name": "attempt-1-focused.xml",
+      "tests": 23,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 1.375
+    },
+    {
+      "name": "attempt-2-focused.xml",
+      "tests": 214,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 11.345
+    },
+    {
+      "name": "attempt-3-focused.xml",
+      "tests": 214,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 11.807
+    }
+  ],
+  "paid_provider_requests": 0,
+  "provider_responses_in_integration_test": "supplied fixtures through the actual pinned OpenRouter SDK",
+  "verified": [
+    "personal and simulator credential isolation",
+    "unchanged Actor fallback and explicit Actor options",
+    "missing personal key fails before provider work without fallback",
+    "frozen historical and new run routes",
+    "shopping buyer/seller versus Actor/review/stimulus credential selection",
+    "SDK serializes reasoning effort none",
+    "real local board write and PostgreSQL checkpoint/campaign accounting",
+    "completed task replay creates no extra request or write",
+    "existing budget checks for foreign tokenizer models"
+  ],
+  "public_model_metadata": {
+    "id": "deepseek/deepseek-v3.2",
+    "architecture": {
+      "modality": "text->text",
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "tokenizer": "DeepSeek",
+      "instruct_type": null
+    },
+    "context_length": 163840,
+    "supported_parameters": [
+      "frequency_penalty",
+      "include_reasoning",
+      "logit_bias",
+      "logprobs",
+      "max_tokens",
+      "min_p",
+      "presence_penalty",
+      "reasoning",
+      "repetition_penalty",
+      "response_format",
+      "seed",
+      "stop",
+      "structured_outputs",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_k",
+      "top_logprobs",
+      "top_p"
+    ],
+    "pricing": {
+      "prompt": "0.00000026",
+      "completion": "0.00000038",
+      "input_cache_read": "0.00000013"
+    }
+  },
+  "entrypoint_preflight": {
+    "selected_model": "deepseek/deepseek-v3.2",
+    "separate_personal_route": true,
+    "personal_key_present": false,
+    "scripts/run_agent.py": {
+      "exits_before_execution": true,
+      "safe_missing_key_message": true
+    },
+    "scripts/run_scenario.py": {
+      "exits_before_execution": true,
+      "safe_missing_key_message": true
+    }
+  },
+  "cleanup": {
+    "owned_test_instance_removed": true,
+    "development_database_touched": false,
+    "paid_requests": 0
+  },
+  "limitations": [
+    "At the implementation snapshot, the personal key was absent; the follow-up key check is recorded separately.",
+    "No real DeepSeek generation or model tool-use validation.",
+    "No historical run migration or seven-day simulation.",
+    "Existing campaign and its uncertain charges are unchanged.",
+    "Standalone tasks without scenario manifests need an explicit original model on an older unfinished resume."
+  ],
+  "follow_up_preflight": {
+    "checked_at": "2026-11-08T18:11:23.323752+00:00",
+    "personal_model": "deepseek/deepseek-v3.2",
+    "personal_key_saved": true,
+    "key_check_http_status": 200,
+    "key_accepted": true,
+    "model_generation_requests": 0,
+    "actor_or_review_requests": 0,
+    "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "campaign_limit_usd": "5.5",
+    "live_budget_verified": false,
+    "database_ready": false,
+    "status": "awaiting_original_database_or_backup",
+    "paid_provider_requests": 0,
+    "actor_models_changed": false,
+    "review_models_changed": false,
+    "historical_reports_preserved": true
+  },
+  "follow_up_real_probe": {
+    "results": "deepseek-personal-agent-smoke-results.json",
+    "passed_after_compatibility_repair": true,
+    "actual_provider_attempts": 3,
+    "new_confirmed_cost_usd": "0.0010495872",
+    "actor_and_reviewer_requests": 0,
+    "full_old_checkpoint_recovery": false
+  }
+}

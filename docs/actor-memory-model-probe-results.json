@@ -1,0 +1,189 @@
+{
+  "date": "2026-11-10",
+  "status": "bounded_real_actor_component_passed",
+  "run_id": "31c2cf02-98b5-419a-bd02-9aa8a6642961",
+  "source_hash": "0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8",
+  "source_snapshot": ".local/clock-runtime/source-v30",
+  "plan_hash": "b8a9f4d458a8ada3b8a86ebaf71825ced332e04ee07231a0af80101007b6c7e2",
+  "operator_files_sha256": {
+    "plan.py": "3f7ecef4b371ddc5832cb9491a44e6fe71b51df9809de2a35cbbd5534aeec02e",
+    "probe.py": "e03d06c6bdfe1a6694b06ec41dacc5769ef7267aefbe596d2ccd3f78a3033fe0",
+    "control_tests/test_component.py": "d0c97095804a653d7c6f308d0ba5e6e63c3a843b635fd8841db4a4b546ab72a4"
+  },
+  "scope": "One active GPT-4.1 Actor, its unchanged independent GPT-4.1 reviewer, three native Clock jobs. All personal Agents and Bob Actor are idle. Not a full Actor/Agent task or a seven-day experiment.",
+  "models": {
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1",
+    "personal_agent_configured_but_not_invoked": "deepseek/deepseek-v3.2"
+  },
+  "checks": {
+    "three_native_actor_jobs_applied": true,
+    "initial_private_agenda_1400_birch": true,
+    "new_event_replaces_agenda_with_1600_willow": true,
+    "recreated_store_and_actor_keep_1600_willow": true,
+    "original_notice_still_auditable_with_expiry_600": true,
+    "expired_original_notice_absent_in_later_retrieval": true,
+    "all_retrieved_memories_valid_and_own": true,
+    "recovered_current_agenda_and_own_thought_visible": true,
+    "all_three_agenda_versions_preserved": true,
+    "snapshots_hashes_match": true,
+    "independent_cue_and_candidate_reviews_accept_without_repair": true,
+    "exactly_nine_reported_provider_attempts": true,
+    "personal_agents_not_invoked": true,
+    "no_bookings_payments_mail_or_board_writes": true,
+    "unchanged_native_balances": true,
+    "clock_paused_at_component_end": true,
+    "no_uncertain_native_jobs": true,
+    "same_campaign_under_25": true,
+    "historical_uncertain_charges_retained": true,
+    "source_clock_models_and_api_files_unchanged": true,
+    "all_83_old_tables_rows_preserved": true,
+    "all_973_pre_probe_trajectories_unchanged": true,
+    "seven_day_experiment_not_started": true
+  },
+  "component_acceptance_passed": true,
+  "observations": [
+    {
+      "stage": 1,
+      "as_of_seconds": 0,
+      "native_applied_seconds": 48,
+      "owner_dialogue": "Please help me keep my private day plan up to date. I intend to attend the free neighborhood reading session today from 14:00 to 15:00 in the Birch Room. No bookings, payments, or messages to friends are needed. If my plans change, I will let you know.",
+      "private_agenda": [
+        {
+          "day": "2026-11-10",
+          "slots": [
+            {
+              "activity": "Attend neighborhood reading session in Birch Room",
+              "end_minute": 900,
+              "start_minute": 840
+            }
+          ]
+        }
+      ],
+      "retrieved_memory_count": 1,
+      "runtime_clients_recreated": false
+    },
+    {
+      "stage": 2,
+      "as_of_seconds": 1800,
+      "native_applied_seconds": 1858,
+      "owner_dialogue": "My plans have changed: the 14:00\u201315:00 Birch Room reading session has been cancelled. Please update my private daily agenda to remove that session and instead add the replacement free reading session today from 16:00 to 17:00 in the Willow Room. No bookings, payments, or messages to friends are needed. The old intention is now history.",
+      "private_agenda": [
+        {
+          "day": "2026-11-10",
+          "slots": [
+            {
+              "activity": "Attend neighborhood reading session in Willow Room",
+              "end_minute": 1020,
+              "start_minute": 960
+            }
+          ]
+        }
+      ],
+      "retrieved_memory_count": 2,
+      "runtime_clients_recreated": false
+    },
+    {
+      "stage": 3,
+      "as_of_seconds": 3600,
+      "native_applied_seconds": 3648,
+      "owner_dialogue": "My current afternoon intention is to attend the free neighborhood reading session today from 16:00 to 17:00 in the Willow Room. Please keep this intention in my private agenda. No bookings, payments, or messages to friends are needed.",
+      "private_agenda": [
+        {
+          "day": "2026-11-10",
+          "slots": [
+            {
+              "activity": "Attend neighborhood reading session in Willow Room",
+              "end_minute": 1020,
+              "start_minute": 960
+            }
+          ]
+        }
+      ],
+      "retrieved_memory_count": 3,
+      "runtime_clients_recreated": true
+    }
+  ],
+  "expiry_profile": {
+    "protocol": "actor-memory-agenda-v1",
+    "selection_limit": 8,
+    "context_chars": 6000,
+    "observation_ttl_seconds": 600,
+    "thought_ttl_limit_seconds": 86400,
+    "recency_half_life_seconds": 86400,
+    "max_memories_per_owner": 10000
+  },
+  "provider_usage": {
+    "actual_http_attempts": 9,
+    "roles": {
+      "actor-review": 6,
+      "actor": 3
+    },
+    "repair_generations": 0,
+    "reported_cost_usd": "0.084232000000",
+    "new_uncertain_cost_usd": "0",
+    "probe_additional_ceiling_usd": "1",
+    "probe_maximum_http_attempts": 18
+  },
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "cumulative_limit_usd": "25",
+    "occupied_before_usd": "19.940507899600",
+    "occupied_after_usd": "20.024739899600",
+    "remaining_after_usd": "4.975260100400",
+    "retained_uncertain_usd": "2.823346400000"
+  },
+  "free_precheck": {
+    "passed": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "paid_requests": 0,
+    "junit": ".local/cue-response-repair/1e1aefe197784aab846f3d3dbb0cf1a4/checks.xml",
+    "scope": "Exact three-turn native driver and per-run USD1/18-attempt guard in disposable PostgreSQL. This is not another full regression; the unchanged v30 full suite remains 1489 passes.",
+    "retained_operator_precheck_failures": [
+      ".local/cue-response-repair/94d27bb2c1a64b61aaba339c1af4e2d5/checks.xml",
+      ".local/cue-response-repair/b618c53a5eed4cc69149b01c8665c847/checks.xml",
+      ".local/cue-response-repair/f55487d38e8a4a27acc9c3dbde081dfe/checks.xml"
+    ],
+    "precheck_failures_scope": "Fixed private test-driver schema, standby and supplied-slot serialization errors before live generation; no runtime source changes and no paid attempts."
+  },
+  "preservation": {
+    "all_old_rows_unchanged": true,
+    "old_tables": 83,
+    "old_trajectories_unchanged": 973,
+    "api_clock_and_runtime_source_unchanged": true,
+    "native_memory_tables_added": 4,
+    "native_public_tables_after": 87,
+    "backup_before": {
+      "backup": "/Users/yuxuanwu/Library/Application Support/agentRPG/recovered-runtime-2026-11-08/backups/actor-memory-model-before-27b1677cdbd6430ea3abcf63c5225ed1.dump",
+      "sha256": "a9eb49d4eabe5dc681111970148960403b0ba5cf2a7fbeb116ad1ab6f9b68efc",
+      "public_tables": 83,
+      "all_tables_restored_and_hashed": true,
+      "temporary_owned_restore_database_removed": true
+    },
+    "backup_after": {
+      "backup": "/Users/yuxuanwu/Library/Application Support/agentRPG/recovered-runtime-2026-11-08/backups/actor-memory-model-after-dd5770eb915c46d0a4e53b5d8009410e.dump",
+      "sha256": "308070b62591c13cf0bc3c6525fefacf8ec7583d4563b89934581a6709f81509",
+      "public_tables": 87,
+      "all_tables_restored_and_hashed": true,
+      "temporary_owned_restore_database_removed": true
+    }
+  },
+  "evidence": {
+    "private_report": ".local/actor-memory-model/live/report.json",
+    "native_trajectory": ".local/actor-memory-model/live/final/trajectory.json",
+    "actor_memory": ".local/actor-memory-model/live/final/actor-memory.json",
+    "native_trajectory_sha256": "884ad3b03c1d80ff6afddb37484f1b0e14c172dfac690abf093f4e8a823da0e2"
+  },
+  "limitations": [
+    "Expiry is enforced by retrieval. The model was not shown expired records and asked to reject them itself.",
+    "The 600-second observation TTL is a declared compressed probe profile; default observation TTL remains seven days.",
+    "Recent native dialogue and the active agenda remain visible. This is not a causal memory-versus-no-memory ablation.",
+    "One Actor and three responses do not establish long-run reliability, reflection quality or naturalness.",
+    "Live recovery recreates the memory store and Actor/reviewer clients under identical bindings; it is not a live process-kill experiment.",
+    "The last owner message is pending for the intentionally idle personal Agent. No assistant execution or full task closure is claimed.",
+    "No automatic agenda wakeup, day transition, external activity completion or mixed medium-chaos model calibration is tested.",
+    "No new seven-day experiment is authorized or started."
+  ]
+}

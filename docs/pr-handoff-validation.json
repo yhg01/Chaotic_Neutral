@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-10",
+  "status": "fresh_free_full_regression_and_publication_checks_passed",
+  "upstream_base": "098b14204b3215a1d77df3946f70d4681a838559",
+  "review_branch": "codex/clock-memory-handoff",
+  "runtime_source_hash": "0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8",
+  "full_regression": {
+    "tests": 1489,
+    "passed": 1489,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "measured_seconds": 366.187,
+    "console_seconds": 366.2,
+    "actual_command": ".venv/bin/python .local/cue-response-repair/run_local.py tests",
+    "portable_entry_point": "uv run python scripts/test_local.py",
+    "infrastructure": "Owned disposable PostgreSQL instance and per-test schemas; provider environment variables removed.",
+    "junit_local_path": ".local/cue-response-repair/e0f78889aa694145b2b8181b9e1437f7/checks.xml",
+    "junit_sha256": "deee80ed96fc200c58c4616ee70830191f0b68c72351fede60e945213b57fe1e",
+    "cleanup": {
+      "owned_test_instance_removed": true,
+      "development_database_touched": false,
+      "paid_requests": 0
+    }
+  },
+  "lint": {
+    "command": ".venv/bin/ruff check src tests scripts",
+    "passed": true
+  },
+  "format": {
+    "command": ".venv/bin/ruff format --check src tests scripts",
+    "passed": true,
+    "files_already_formatted": 196
+  },
+  "publication": {
+    "scope": "All outstanding tracked/untracked source, migrations, tests, examples and public reports, plus English handoff and shareable protocols/transcript.",
+    "runtime_env_database_dumps_and_raw_archives_excluded": true,
+    "known_provider_secrets_found": 0,
+    "provider_token_patterns_found": 0,
+    "staged_whitespace_check_passed": true,
+    "shared_protocol_hashes_verified": true,
+    "handoff_link_check_passed": true
+  },
+  "preservation": {
+    "provider_env_files_unchanged": true,
+    "native_campaign_unchanged": true,
+    "new_paid_provider_calls": 0,
+    "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "25",
+    "occupied_usd": "20.152809779600",
+    "remaining_usd": "4.847190220400",
+    "retained_uncertain_usd": "2.823346400000"
+  },
+  "scope_limit": "Green infrastructure tests do not override the three real Actor/Agent planning fidelity findings. Strict live acceptance remains false. No new experiment or seven-day start is authorized."
+}

@@ -1,0 +1,625 @@
+{
+  "date": "2026-11-10",
+  "status": "protocol_frozen_free_mixed_controls_passed_no_paid_experiment_started",
+  "source": {
+    "source_hash": "bfab7060600ae7e4ff0000809c0e704764d1ac349dbbc15dbd8a08e32feff3e7",
+    "snapshot": ".local/clock-runtime/source-v29",
+    "file_count": 152,
+    "scope": "mixed protocol preparation and free structured evidence audit only",
+    "new_paid_experiments_authorized": false
+  },
+  "definition_hash": "76f3a6d51fd8d4811c7efd3da1e9f9b74aa78d4eb0483bebeda2028d27601105",
+  "acceptance_hash": "5d971d82774f5c8b2028123e7d71828ff262af2557ce6b04538d3fb918577c64",
+  "participant_pairs": 3,
+  "event_types": [
+    "plan_change",
+    "unclear_repayment",
+    "payment_followup",
+    "social_invitation"
+  ],
+  "requests_per_world": 14,
+  "derived_deadlines_per_world": 14,
+  "protocol_frozen": true,
+  "medium_intensity_empirically_calibrated": false,
+  "new_paid_experiments_started": 0,
+  "new_development_worlds": 0,
+  "provider_generation_calls": 0,
+  "additional_cost_usd": "0",
+  "models_and_api_files_unchanged": true,
+  "models": {
+    "personal": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "accounting": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "name": "Recovered campaign; historical opening balance",
+    "limit_usd": "25",
+    "halted": false,
+    "created_at": "2026-11-08 18:26:53.912725+00:00",
+    "attempts": 4116,
+    "reported_usd": "17.1171614996",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "19.940507899600",
+    "opening_balance": {
+      "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+      "source_sha256": "20e81138052806eabb42fb723d4d1df39717bc3efc21c8760e3de5c62acc3f0b",
+      "snapshot": {
+        "halted": false,
+        "attempts": 1467,
+        "limit_usd": "5.5",
+        "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+        "reported_usd": "4.89333461",
+        "reserved_usd": "0",
+        "committed_usd": "5.301309810000",
+        "remaining_usd": "0.198690190000",
+        "uncertain_usd": "0.407975200000"
+      },
+      "attempts": 1467,
+      "reported_usd": "4.89333461",
+      "reserved_usd": "0",
+      "uncertain_usd": "0.407975200000",
+      "committed_usd": "5.301309810000",
+      "created_at": "2026-11-08 18:26:53.915068+00:00"
+    },
+    "local_attempts": 2649,
+    "remaining_usd": "5.059492100400",
+    "recent_attempts": [],
+    "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+  },
+  "regression": {
+    "tests": 1473,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": "310.492",
+    "junit": ".local/cue-response-repair/2a24b2c4086648d6abbaf11c6370a8c1/checks.xml",
+    "real_isolated_postgresql": true,
+    "cleanup": {
+      "owned_test_instance_removed": true,
+      "development_database_touched": false,
+      "paid_requests": 0
+    }
+  },
+  "cases": [
+    {
+      "case": "mixed-restart",
+      "run_id": "0fc60b97-792d-4700-a83c-2480048a55ce",
+      "passed": true,
+      "simulated_seconds": 604800,
+      "events_checked": 14,
+      "outcomes": {
+        "accepted": 8,
+        "paid": 6
+      },
+      "native_payments": 2,
+      "balances": {
+        "alice": 90,
+        "bob": 118,
+        "charlie": 92
+      },
+      "native_agent_mail": 28,
+      "native_board_threads": 8,
+      "native_board_messages": 16,
+      "ordered_event_delivery": true,
+      "source_hash": "bfab7060600ae7e4ff0000809c0e704764d1ac349dbbc15dbd8a08e32feff3e7",
+      "definition_hash": "76f3a6d51fd8d4811c7efd3da1e9f9b74aa78d4eb0483bebeda2028d27601105",
+      "fixture_scene_hash": "906da539845c3dfc04a8fd0eebf375025d8e033a8546254578e357b7dcd5176d",
+      "paid_provider_calls": 0,
+      "raw_trajectory": ".local/cue-response-repair/2a24b2c4086648d6abbaf11c6370a8c1/traces/mixed-restart/0fc60b97-792d-4700-a83c-2480048a55ce/trajectory.json",
+      "trajectory_sha256": "485ae163f6edaebaafb880ba3c7be402c587101c9136fb7953dc951a098d3e35",
+      "acceptance": {
+        "passed": true,
+        "issues": [],
+        "events": [
+          {
+            "task_key": "MC-01",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "7acf2e16-c432-5b3f-978b-8b55a932d2f4",
+            "owner_report_id": "56f4e291-7c29-5eb6-98ee-843b30830e06",
+            "report_seconds": 18047
+          },
+          {
+            "task_key": "MC-02",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "aed3fe53-313c-5751-b868-79141ce7524a",
+            "owner_report_id": "4265e1f5-65bb-55a3-b576-7cc4ac7b54e9",
+            "report_seconds": 18070
+          },
+          {
+            "task_key": "MC-03",
+            "kind": "payment_followup",
+            "status": "paid",
+            "owner_request_id": "e145ffce-9da9-583d-8c2d-c495ac02a05d",
+            "owner_report_id": "4a7ec6e2-0771-58c1-b5db-0f076eec159b",
+            "report_seconds": 104411
+          },
+          {
+            "task_key": "MC-04",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "6643f3b4-b190-5055-a9a5-31b456a73ac7",
+            "owner_report_id": "cd996249-2a6d-54de-86b4-3a78add5b0eb",
+            "report_seconds": 104440
+          },
+          {
+            "task_key": "MC-05",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "aeab5534-182f-5f03-9f3c-3741aec0ce0d",
+            "owner_report_id": "acad2b38-72c5-5afc-8f59-237c7b77549b",
+            "report_seconds": 190843
+          },
+          {
+            "task_key": "MC-06",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "51a2a4f8-845c-5cfe-bf7f-73a60e7881fe",
+            "owner_report_id": "c4bfdac9-0a3b-5da2-a8f0-4ab9b3d4eefa",
+            "report_seconds": 190808
+          },
+          {
+            "task_key": "MC-07",
+            "kind": "payment_followup",
+            "status": "paid",
+            "owner_request_id": "cb731a11-d6d2-527e-830b-c8e5e28d0702",
+            "owner_report_id": "48ba493c-ab72-578e-908e-6660e95cb933",
+            "report_seconds": 277209
+          },
+          {
+            "task_key": "MC-08",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "4cafdd0f-4330-5999-8a25-14d49a69ba27",
+            "owner_report_id": "91ee1990-79cb-51f8-9ebb-972a37fb50e3",
+            "report_seconds": 277245
+          },
+          {
+            "task_key": "MC-09",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "305177ad-1712-51f1-a85c-c2d750ae403f",
+            "owner_report_id": "57c5b675-a43c-54bd-896d-f7f18e84a934",
+            "report_seconds": 363644
+          },
+          {
+            "task_key": "MC-10",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "23db7d47-e196-5f31-a250-ccdf92b3638f",
+            "owner_report_id": "5a2ef74f-559a-5d68-9d11-bbf893cc8d38",
+            "report_seconds": 363614
+          },
+          {
+            "task_key": "MC-11",
+            "kind": "payment_followup",
+            "status": "paid",
+            "owner_request_id": "f58243e1-e41f-5f50-979f-1de6e64dc7bd",
+            "owner_report_id": "de998268-67c6-5819-be18-8c9656a60e20",
+            "report_seconds": 450010
+          },
+          {
+            "task_key": "MC-12",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "144aaaa7-517b-5859-b764-4f2b2988ff9b",
+            "owner_report_id": "dab8859e-fb3a-52ee-8ab1-3070dae3fab9",
+            "report_seconds": 450044
+          },
+          {
+            "task_key": "MC-13",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "299cbbae-3513-551d-aa66-e665196cd00f",
+            "owner_report_id": "1f9e09ee-cd9e-56aa-973a-39ff57407f27",
+            "report_seconds": 536449
+          },
+          {
+            "task_key": "MC-14",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "cd279d07-c288-5567-903b-25e789d54d23",
+            "owner_report_id": "2504d07d-15c7-5f23-87ea-b6222c81525f",
+            "report_seconds": 536445
+          }
+        ],
+        "event_count": 14,
+        "native_payments": 2,
+        "balances": {
+          "alice": 90,
+          "bob": 118,
+          "charlie": 92
+        },
+        "evidence_scope": "supplied choices, native graph/PostgreSQL effects; not real-model calibration"
+      },
+      "negative_evidence_controls": {
+        "missing-owner": [
+          "MC-01: actual bob owner decision",
+          "MC-01: exact bob owner question",
+          "MC-01: faithful reply",
+          "MC-01: actual charlie owner decision",
+          "MC-01: exact charlie owner question",
+          "MC-01: faithful reply",
+          "Snack: quote, approval and actual grant must match"
+        ],
+        "unread-reply": [
+          "MC-01: peer must read and acknowledge exact proposal",
+          "MC-01: requester must read and acknowledge actual reply",
+          "MC-01: peer must read and acknowledge exact proposal",
+          "MC-01: requester must read and acknowledge actual reply",
+          "MC-04: peer must read and acknowledge exact proposal",
+          "MC-04: requester must read and acknowledge actual reply",
+          "MC-05: peer must read and acknowledge exact proposal",
+          "MC-05: requester must read and acknowledge actual reply",
+          "MC-05: peer must read and acknowledge exact proposal",
+          "MC-05: requester must read and acknowledge actual reply",
+          "MC-08: peer must read and acknowledge exact proposal",
+          "MC-08: requester must read and acknowledge actual reply",
+          "MC-09: peer must read and acknowledge exact proposal",
+          "MC-09: requester must read and acknowledge actual reply",
+          "MC-09: peer must read and acknowledge exact proposal",
+          "MC-09: requester must read and acknowledge actual reply",
+          "MC-12: peer must read and acknowledge exact proposal",
+          "MC-12: requester must read and acknowledge actual reply",
+          "MC-13: peer must read and acknowledge exact proposal",
+          "MC-13: requester must read and acknowledge actual reply",
+          "MC-13: peer must read and acknowledge exact proposal",
+          "MC-13: requester must read and acknowledge actual reply",
+          "MC-14: peer must read and acknowledge exact proposal",
+          "MC-14: requester must read and acknowledge actual reply",
+          "Snack: real scoped quote/read before exact owner approval required"
+        ],
+        "wrong-receipt": [
+          "MC-03: paid requires exact committed receipt",
+          "MC-07: paid requires exact committed receipt",
+          "MC-11: paid requires exact committed receipt",
+          "alice: payment notice/report/task closure",
+          "Private expense note must match actual receipt/status"
+        ],
+        "duplicate-payment": [
+          "alice: duplicate or wrong payment",
+          "Balances must match real receipts and conserve credits"
+        ],
+        "wrong-note": [
+          "Private expense note must match actual receipt/status"
+        ],
+        "private-leak": [
+          "MC-01: one grounded native board outcome",
+          "Private balances/notes must not leak to shared board"
+        ]
+      }
+    },
+    {
+      "case": "refusal-timeout",
+      "run_id": "e814ac15-ce8c-4e1c-a2fd-d154de611aa3",
+      "passed": true,
+      "simulated_seconds": 604800,
+      "events_checked": 14,
+      "outcomes": {
+        "rejected": 1,
+        "paid": 6,
+        "timeout": 1,
+        "accepted": 6
+      },
+      "native_payments": 2,
+      "balances": {
+        "alice": 90,
+        "bob": 118,
+        "charlie": 92
+      },
+      "native_agent_mail": 26,
+      "native_board_threads": 8,
+      "native_board_messages": 16,
+      "ordered_event_delivery": true,
+      "source_hash": "bfab7060600ae7e4ff0000809c0e704764d1ac349dbbc15dbd8a08e32feff3e7",
+      "definition_hash": "76f3a6d51fd8d4811c7efd3da1e9f9b74aa78d4eb0483bebeda2028d27601105",
+      "fixture_scene_hash": "906da539845c3dfc04a8fd0eebf375025d8e033a8546254578e357b7dcd5176d",
+      "paid_provider_calls": 0,
+      "raw_trajectory": ".local/cue-response-repair/2a24b2c4086648d6abbaf11c6370a8c1/traces/refusal-timeout/e814ac15-ce8c-4e1c-a2fd-d154de611aa3/trajectory.json",
+      "trajectory_sha256": "c21e7a23695679ab541a5e215106bf2e43683686b252ce55feeeabb71dda9c42",
+      "acceptance": {
+        "passed": true,
+        "issues": [],
+        "events": [
+          {
+            "task_key": "MC-01",
+            "kind": "plan_change",
+            "status": "rejected",
+            "owner_request_id": "0514a64f-cae4-5d70-ad5f-4fad7088ccaa",
+            "owner_report_id": "5afd16c2-a0ef-598c-8157-457c8e5a7ddc",
+            "report_seconds": 25208
+          },
+          {
+            "task_key": "MC-02",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "671900f0-cd1e-5259-b5cc-06e4bba9f052",
+            "owner_report_id": "7417d449-da81-5981-b223-2da1a59cc704",
+            "report_seconds": 18074
+          },
+          {
+            "task_key": "MC-03",
+            "kind": "payment_followup",
+            "status": "paid",
+            "owner_request_id": "efc3b58a-6d60-57a0-99bf-46da680d12b3",
+            "owner_report_id": "c8f0f75c-3ee3-5cb9-8ed3-1d3efda3d47f",
+            "report_seconds": 104411
+          },
+          {
+            "task_key": "MC-04",
+            "kind": "social_invitation",
+            "status": "timeout",
+            "owner_request_id": "45c667d4-3d23-5ac6-b4d6-e5776c5ca335",
+            "owner_report_id": "c005fe2b-f3a2-5be8-b948-f29ca0eeaa42",
+            "report_seconds": 111609
+          },
+          {
+            "task_key": "MC-05",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "36343eb2-9abc-5d51-9b65-c59f09fd5fec",
+            "owner_report_id": "4d4b00f8-f885-5caf-a31e-959f4582b4b4",
+            "report_seconds": 190843
+          },
+          {
+            "task_key": "MC-06",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "f0180111-81f2-5790-9b65-18178885fca5",
+            "owner_report_id": "70a9d2fb-109b-5b47-8d3c-8f247fc897eb",
+            "report_seconds": 190808
+          },
+          {
+            "task_key": "MC-07",
+            "kind": "payment_followup",
+            "status": "paid",
+            "owner_request_id": "1e3c636a-9474-57d9-a9e3-0eeef74233e1",
+            "owner_report_id": "4d2a1055-6391-5f52-a35d-09e14eeaef09",
+            "report_seconds": 277209
+          },
+          {
+            "task_key": "MC-08",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "3a149586-1c75-5398-8ce6-de1e88c05782",
+            "owner_report_id": "91f78495-357b-5193-97fc-28ddceb4137f",
+            "report_seconds": 277245
+          },
+          {
+            "task_key": "MC-09",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "e1db7eda-f24c-5648-a0dd-438f8cc16b36",
+            "owner_report_id": "1e9269c2-6042-5138-bad8-a99d5c150e61",
+            "report_seconds": 363644
+          },
+          {
+            "task_key": "MC-10",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "cd302831-72d9-502f-9e7b-137512f0dd87",
+            "owner_report_id": "a7dfc66a-af8a-5c12-859d-97bb555049c4",
+            "report_seconds": 363614
+          },
+          {
+            "task_key": "MC-11",
+            "kind": "payment_followup",
+            "status": "paid",
+            "owner_request_id": "13d26e73-5a02-57f4-acb3-0c62a017a330",
+            "owner_report_id": "2768b6fa-b201-58fd-9434-c2f0c516eb61",
+            "report_seconds": 450010
+          },
+          {
+            "task_key": "MC-12",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "dbb8ebf0-a08b-50bd-a40c-8503adddada0",
+            "owner_report_id": "d50a8159-f304-53ab-8903-1567404b218f",
+            "report_seconds": 450044
+          },
+          {
+            "task_key": "MC-13",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "51010d08-2328-56d8-ab61-fe0672e1cea6",
+            "owner_report_id": "55bc97cf-40a5-5981-b126-90e0928f652c",
+            "report_seconds": 536449
+          },
+          {
+            "task_key": "MC-14",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "24080c0f-3d75-5ea6-95e8-865afc57bec3",
+            "owner_report_id": "511a2ada-0632-593c-a4d0-61af17c7bf2b",
+            "report_seconds": 536445
+          }
+        ],
+        "event_count": 14,
+        "native_payments": 2,
+        "balances": {
+          "alice": 90,
+          "bob": 118,
+          "charlie": 92
+        },
+        "evidence_scope": "supplied choices, native graph/PostgreSQL effects; not real-model calibration"
+      }
+    },
+    {
+      "case": "insufficient-funds",
+      "run_id": "1192f3b4-3bb9-49de-9861-d1ed1f6118c8",
+      "passed": true,
+      "simulated_seconds": 604800,
+      "events_checked": 14,
+      "outcomes": {
+        "accepted": 8,
+        "paid": 3,
+        "failed": 3
+      },
+      "native_payments": 1,
+      "balances": {
+        "alice": 5,
+        "bob": 108,
+        "charlie": 92
+      },
+      "native_agent_mail": 27,
+      "native_board_threads": 8,
+      "native_board_messages": 16,
+      "ordered_event_delivery": true,
+      "source_hash": "bfab7060600ae7e4ff0000809c0e704764d1ac349dbbc15dbd8a08e32feff3e7",
+      "definition_hash": "bd8febccc0a3bab7f72cc68f4c7e35a36bcba5ee0fae6e17f5e4acefb4664292",
+      "fixture_scene_hash": "89a27c853738d6c70574fece96a99b168fe43109d753e096b0b522f6381ff233",
+      "paid_provider_calls": 0,
+      "raw_trajectory": ".local/cue-response-repair/2a24b2c4086648d6abbaf11c6370a8c1/traces/insufficient-funds/1192f3b4-3bb9-49de-9861-d1ed1f6118c8/trajectory.json",
+      "trajectory_sha256": "97bb817e079064ecf70b32e88dcb4be3b9bb7fb457c27663586d3e14047147a4",
+      "acceptance": {
+        "passed": true,
+        "issues": [],
+        "events": [
+          {
+            "task_key": "MC-01",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "435d74c3-b3ac-5731-bc05-184eef6c3421",
+            "owner_report_id": "a5fce777-30e3-5f9d-ae78-02a73394b376",
+            "report_seconds": 18047
+          },
+          {
+            "task_key": "MC-02",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "3bf1d9f4-7ea8-5d7b-b8cb-e8a13cf01a3c",
+            "owner_report_id": "b3b3eaba-5377-5cbf-9608-2ef7ab7124de",
+            "report_seconds": 18070
+          },
+          {
+            "task_key": "MC-03",
+            "kind": "payment_followup",
+            "status": "failed",
+            "owner_request_id": "f8718a16-576d-530d-ad2a-8a0d5ffbf292",
+            "owner_report_id": "c2d387f0-5c6f-5ff4-b5ad-93346ab33112",
+            "report_seconds": 104411
+          },
+          {
+            "task_key": "MC-04",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "3bb84b35-73ac-50fd-80ce-58de1d6b2c5a",
+            "owner_report_id": "930c8d36-6260-508f-9f4d-9596bcd95f8d",
+            "report_seconds": 104440
+          },
+          {
+            "task_key": "MC-05",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "edbf6112-3c18-56fa-b35d-8600a4fce648",
+            "owner_report_id": "b4c6055c-3de0-5bbd-8a8c-a610a4bf414a",
+            "report_seconds": 190843
+          },
+          {
+            "task_key": "MC-06",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "44350b59-5ec9-5bcf-a67e-c0619d3a651d",
+            "owner_report_id": "851ca1c5-e4ae-521f-b17b-d125eb09bff5",
+            "report_seconds": 190808
+          },
+          {
+            "task_key": "MC-07",
+            "kind": "payment_followup",
+            "status": "failed",
+            "owner_request_id": "25df0879-5711-5360-8560-2b74347d35ab",
+            "owner_report_id": "d1fc3030-2949-5dce-a73b-5192551e6adb",
+            "report_seconds": 277209
+          },
+          {
+            "task_key": "MC-08",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "690327c3-c2d4-5703-a459-13b41bc14eaf",
+            "owner_report_id": "1dcd16b3-903a-5e15-9def-d62439fb95d1",
+            "report_seconds": 277245
+          },
+          {
+            "task_key": "MC-09",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "e0c8e39f-15ff-5250-89f2-fc1b36372754",
+            "owner_report_id": "04a4dd0a-06d1-5d64-94ed-966cbea238de",
+            "report_seconds": 363644
+          },
+          {
+            "task_key": "MC-10",
+            "kind": "unclear_repayment",
+            "status": "paid",
+            "owner_request_id": "8bf1cf30-5aab-5511-90f0-5d355653d16d",
+            "owner_report_id": "330aafe6-3f8a-5db5-b33a-19996984bf4b",
+            "report_seconds": 363614
+          },
+          {
+            "task_key": "MC-11",
+            "kind": "payment_followup",
+            "status": "failed",
+            "owner_request_id": "801eb2b1-f90e-527d-ba4a-6903978ca940",
+            "owner_report_id": "8e54a406-3833-566f-b5dd-30af89a8b05b",
+            "report_seconds": 450010
+          },
+          {
+            "task_key": "MC-12",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "35f8b609-06d8-515a-9d54-49ab93a10018",
+            "owner_report_id": "06360ef7-8bea-5792-927c-0bd200915da1",
+            "report_seconds": 450044
+          },
+          {
+            "task_key": "MC-13",
+            "kind": "plan_change",
+            "status": "accepted",
+            "owner_request_id": "d181eea3-06e4-5afa-aabb-6931268b86f8",
+            "owner_report_id": "84621c7e-42ab-53bc-9ae4-4746a920c4f9",
+            "report_seconds": 536449
+          },
+          {
+            "task_key": "MC-14",
+            "kind": "social_invitation",
+            "status": "accepted",
+            "owner_request_id": "f049b81a-2919-5d20-8649-10f3c4fc6d5b",
+            "owner_report_id": "b3c56ce9-1248-50db-9301-d0ee30312243",
+            "report_seconds": 536445
+          }
+        ],
+        "event_count": 14,
+        "native_payments": 1,
+        "balances": {
+          "alice": 5,
+          "bob": 108,
+          "charlie": 92
+        },
+        "evidence_scope": "supplied choices, native graph/PostgreSQL effects; not real-model calibration"
+      }
+    }
+  ],
+  "events_audited": 42,
+  "negative_evidence_controls_rejected": 6,
+  "preservation": {
+    "same_ledger_all_fields_unchanged": true,
+    "development_database_tables_unchanged": 83,
+    "all_three_api_files_unchanged": true,
+    "old_trajectory_files_unchanged": 902,
+    "old_archive_unchanged": true,
+    "previous_archive_sha256": "833bed0502994bd0c7c18437a5631040c358dea9e2409adc375f4311536f3be2"
+  },
+  "limitations": [
+    "Supplied Actor/Agent choices are not real-model autonomy, naturalness or semantic review evidence.",
+    "Medium is a frozen operating label, not an empirically calibrated chaos intensity.",
+    "The auditor understands structured free-fixture correspondence, not arbitrary natural-language consent.",
+    "The mixed control replays a committed task response and replaces the Clock controller; it does not claim a new process-kill test.",
+    "The expense note is a private durable Agent virtual file, not a native Resource or host file.",
+    "The paid runner has no selector for this new exact protocol yet; the older community candidate is distinct.",
+    "Mixed-profile all-role cost forecasting, semantic calibration and a separately authorized model experiment remain open."
+  ],
+  "next_paid_action_authorized": false
+}

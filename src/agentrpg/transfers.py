@@ -44,6 +44,7 @@ class TransferService:
         *,
         connection=None,
         task_key=None,
+        clock_job_id=None,
     ):
         """Trusted owner-input path only. No Agent HTTP endpoint exposes this method.
 
@@ -53,7 +54,16 @@ class TransferService:
         payload = arguments.model_dump(mode="json")
         async with self._connection(connection) as conn:
             run = await self.world._run(conn, run_id)
-            self.world._active(run)
+            if clock_job_id is None:
+                self.world._active(run)
+            else:
+                if connection is None or run["status"] != "paused":
+                    raise WorldError("Timed authority requires a Director transaction.", 403)
+                from agentrpg.clock_transfers import grant_context
+
+                await grant_context(
+                    conn, run_id, owner_id, owner_message_id, arguments, clock_job_id
+                )
             message = await row(
                 conn, "SELECT * FROM owner_messages WHERE id=%s", (owner_message_id,)
             )
@@ -134,14 +144,33 @@ class TransferService:
                 )
             return result
 
-    async def transfer(self, run_id, owner_id, request_id, arguments: TransferArguments):
+    async def transfer(
+        self,
+        run_id,
+        owner_id,
+        request_id,
+        arguments: TransferArguments,
+        *,
+        connection=None,
+        clock_operation_id=None,
+    ):
         payload = {"kind": "credit_transfer", **arguments.model_dump(mode="json")}
-        async with self.pool.connection() as conn, conn.transaction():
+        async with self._connection(connection) as conn:
             run = await self.world._run(conn, run_id)
             account = await self.world._account(conn, run_id, owner_id)
             if prior := await self.world._prior(conn, run_id, owner_id, request_id, payload):
                 return prior
-            self.world._active(run)
+            timed = None
+            if clock_operation_id is None:
+                self.world._active(run)
+            else:
+                if connection is None or run["status"] != "paused":
+                    raise WorldError("Timed payment requires a Director transaction.", 403)
+                from agentrpg.clock_transfers import payment_context
+
+                timed = await payment_context(
+                    conn, run_id, owner_id, request_id, arguments, clock_operation_id
+                )
             grant = await row(
                 conn,
                 "SELECT * FROM transfer_grants WHERE run_id=%s AND owner_id=%s "
@@ -196,6 +225,10 @@ class TransferService:
                 "amount": arguments.amount,
                 "memo": arguments.memo,
             }
+            if timed is not None:
+                receipt.update(
+                    simulated_seconds=timed["now_seconds"], clock_operation_id=str(timed["id"])
+                )
             await self.world._request(conn, run_id, owner_id, request_id, payload, receipt)
             await conn.execute(
                 "INSERT INTO credit_transfers "
@@ -233,6 +266,7 @@ class TransferService:
                 uuid5(UUID(str(request_id)), "transfer-notification"),
                 source="director",
                 connection=conn,
+                clock_operation_id=clock_operation_id,
             )
             await TransferTaskService(self.pool).paid(
                 conn, run_id, owner_id, arguments.authorization_id, request_id

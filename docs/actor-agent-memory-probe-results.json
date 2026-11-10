@@ -1,0 +1,201 @@
+{
+  "date": "2026-11-10",
+  "status": "native_actor_agent_workflow_closed_with_fidelity_gaps",
+  "run_id": "e4340fc6-dd9b-4ea2-bc59-9019629a2baa",
+  "source_hash": "0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8",
+  "source_snapshot": ".local/clock-runtime/source-v30",
+  "plan_hash": "c41c5c59f7c5a8372954a322a319f878d5c411ed0b002d2174a85d89d5f7bc70",
+  "operator_files_sha256": {
+    "plan.py": "42b7320043ed8f5f1654c0a9a34b61ed84f69be85857672c47ad2107f7983fcf",
+    "probe.py": "684486d810b339c0426f0d8f029be7702c55a5bf81b57958b4e110466ca884a7",
+    "control_tests/test_workflow.py": "53e13464ee4b19b844e40a603ad35ac87abc483c750a2225e8b3d1845f22ee14"
+  },
+  "scope": "One active Alice Actor/personal Agent pair. Bob pair is configured but idle. Two private planning requests; not the mixed social setting or a seven-day experiment.",
+  "models": {
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1",
+    "personal_agent": "deepseek/deepseek-v3.2"
+  },
+  "functional_checks": {
+    "two_requests_closed_in_the_same_native_run": true,
+    "both_owner_messages_delivered_exactly_once_to_agent": true,
+    "initial_real_file_write": true,
+    "initial_readback_matches_1400_birch": true,
+    "new_actor_agenda_1600_willow_saved": true,
+    "new_request_contains_correct_time_room_and_same_path": true,
+    "real_edit_applied_to_same_persistent_file": true,
+    "readback_after_change_matches_1600_willow": true,
+    "file_identity_created_at_preserved": true,
+    "both_actual_agent_reports_consumed_by_actor": true,
+    "pair_quiet_all_activations_done": true,
+    "no_uncertain_native_jobs": true,
+    "no_payment_booking_mail_or_board_post": true,
+    "same_campaign_all_new_fees_reported": true,
+    "under_same_25_dollar_and_additional_2_dollar_caps": true,
+    "historical_uncertainty_and_opening_balance_retained": true,
+    "models_api_clock_and_source_unchanged": true,
+    "all_old_rows_and_trajectories_preserved": true,
+    "no_new_seven_day_experiment": true
+  },
+  "functional_workflow_closed": true,
+  "fidelity_checks": {
+    "initial_requested_structured_private_agenda_present": false,
+    "private_actor_planning_instruction_not_delegated_to_agent": false,
+    "no_unverified_agent_claim_about_own_cognition_agenda": false
+  },
+  "strict_acceptance_passed": false,
+  "issues": [
+    {
+      "id": "initial-agenda-omission",
+      "component": "Actor generation and review",
+      "observation": "The initial cue requested a private 14:00-15:00 Birch cognition agenda. Accepted output contains no cognition, and no initial agenda is promoted.",
+      "job_id": "3d0e583f-4736-501e-8b28-88ac797bdd57",
+      "review_missed": true
+    },
+    {
+      "id": "private-planning-instruction-delegated",
+      "component": "Actor cue framing, generation and review",
+      "observation": "Both owner utterances tell the assistant to maintain its own cognition agenda, although cognition is the Actor-private interface.",
+      "message_ids": [
+        "dcf887d5-8154-550a-95eb-86a13bdc8ce0",
+        "5be970d1-83f4-5285-b614-3e8b7d2a168c"
+      ],
+      "review_missed": true
+    },
+    {
+      "id": "unsupported-agent-cognition-claim",
+      "component": "Personal Agent reporting",
+      "observation": "Both Agent reports add a claim about its own cognition agenda. The file operations are real, but no corresponding Agent cognition-agenda tool or persisted record verifies that extra claim.",
+      "message_ids": [
+        "400c0dcd-60e3-5e0e-8381-712114240ae6",
+        "b71c217d-7589-57b7-bcfa-17d6a2ae3eb2"
+      ]
+    }
+  ],
+  "native": {
+    "simulated_seconds": 1941,
+    "clock_status": "paused",
+    "director_jobs": 15,
+    "graph_nodes": 18,
+    "uncertain_jobs": 0,
+    "native_payments": 0,
+    "native_board_messages": 0,
+    "native_agent_mail": 0
+  },
+  "actor_decisions": 4,
+  "agent_activations": 2,
+  "agent_tool_counts": {
+    "read_file": 3,
+    "read_owner_messages": 2,
+    "finish_activation": 2,
+    "write_file": 1,
+    "edit_file": 1
+  },
+  "request_cycles": [
+    {
+      "stage": 1,
+      "closed_at_seconds": 124,
+      "file_path": "/plans/afternoon.md",
+      "saved_file_text": "# Afternoon Plan - 10 November 2026\n\n**Date:** 10 November 2026  \n**Time:** 14:00\u201315:00 UTC  \n**Room:** Birch Room  \n**Activity:** Free neighborhood reading session  \n**Status:** Current intention  \n\n*Note: This is my current intention. If plans change, I will revise this file.*",
+      "agent_report_ids": [
+        "b71c217d-7589-57b7-bcfa-17d6a2ae3eb2"
+      ],
+      "actor_read_report_job_ids": [
+        "60cbec98-e5f4-5a64-97d4-73e8ce733da6"
+      ]
+    },
+    {
+      "stage": 2,
+      "closed_at_seconds": 1941,
+      "file_path": "/plans/afternoon.md",
+      "saved_file_text": "# Afternoon Plan - 10 November 2026\n\n**Date:** 10 November 2026  \n**Time:** 16:00\u201317:00 UTC  \n**Room:** Willow Room  \n**Activity:** Replacement free reading session (original Birch Room session cancelled)  \n**Status:** Current intention  \n\n*Note: This is my current intention. If plans change, I will revise this file.*",
+      "agent_report_ids": [
+        "400c0dcd-60e3-5e0e-8381-712114240ae6"
+      ],
+      "actor_read_report_job_ids": [
+        "4b9f425d-a7ca-5bd4-8767-3fa762b22c79"
+      ]
+    }
+  ],
+  "provider_usage": {
+    "actual_http_attempts": 19,
+    "roles": {
+      "actor-review": 6,
+      "actor": 4,
+      "assistant": 9
+    },
+    "reported_cost_usd": "0.128069880000",
+    "new_uncertain_cost_usd": "0",
+    "repair_generations": 0,
+    "extra_probe_cap_usd": "2",
+    "maximum_http_attempts": 36
+  },
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "25",
+    "occupied_before_usd": "20.024739899600",
+    "occupied_after_usd": "20.152809779600",
+    "remaining_usd": "4.847190220400",
+    "retained_uncertain_usd": "2.823346400000"
+  },
+  "free_precheck": {
+    "passed": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "paid_requests": 0,
+    "junit": ".local/cue-response-repair/b17d1ea8321f424489f169018ea7a1a6/checks.xml",
+    "checks": [
+      "Same native full workflow with supplied choices",
+      "Same-campaign USD2/36-attempt guard",
+      "A false update claim with unchanged file cannot pass; final horizon evidence is saved"
+    ],
+    "scope": "Private operator controls. Unchanged source-v30 full regression remains 1489 passes; no new full suite claim.",
+    "retained_precheck_failures": [
+      ".local/cue-response-repair/b8a3cd27fc8b4772bc8ef2437ea51844/checks.xml",
+      ".local/cue-response-repair/d4b70e6229dd454c987d4e8b992a0cbc/checks.xml"
+    ],
+    "precheck_failure_scope": "Native-job query and test-only exported-file assertion errors were corrected before paid calls. Original evidence remains."
+  },
+  "preservation": {
+    "all_old_rows_unchanged": true,
+    "old_tables": 87,
+    "old_trajectories_unchanged": 985,
+    "api_clock_and_runtime_source_unchanged": true,
+    "schema_changed": false,
+    "public_tables": 87,
+    "verified_backup_before": {
+      "backup": "/Users/yuxuanwu/Library/Application Support/agentRPG/recovered-runtime-2026-11-08/backups/actor-agent-memory-model-before-87c1797c23554f43b4f09b39412e5c00.dump",
+      "sha256": "dab32f3eddbb9409e8c44c86090a500d0e9515ff23c81762db5ca6956b1fad34",
+      "public_tables": 87,
+      "all_tables_restored_and_hashed": true,
+      "temporary_owned_restore_database_removed": true
+    },
+    "verified_backup_after": {
+      "backup": "/Users/yuxuanwu/Library/Application Support/agentRPG/recovered-runtime-2026-11-08/backups/actor-agent-memory-model-after-aa80937f4d2b4f04b9ae2d0f30aa3f07.dump",
+      "sha256": "27e43709a751f1de9ccdcb06c7614330d70d1e0d8664142ee9e6ebacb6aeaeab",
+      "public_tables": 87,
+      "all_tables_restored_and_hashed": true,
+      "temporary_owned_restore_database_removed": true
+    }
+  },
+  "evidence": {
+    "native_trajectory": ".local/actor-agent-memory-model/live/final/trajectory.json",
+    "actor_memory": ".local/actor-agent-memory-model/live/final/actor-memory.json",
+    "delivery_receipts": ".local/actor-agent-memory-model/live/native-owner-delivery-receipts.json",
+    "private_report": ".local/actor-agent-memory-model/live/report.json",
+    "native_trajectory_sha256": "2f371b012b661efbe46cbc7d8b4a09edee57c273f23260ef17893d777998a8d9"
+  },
+  "next_local_work": [
+    "Separate Actor-private metadata requirements from owner-to-assistant speech in cue framing.",
+    "Review actual structured cognition when a cue explicitly requests it; do not accept delegation as satisfaction.",
+    "Reject or qualify assistant claims about state not supported by its available tools or saved records."
+  ],
+  "limits": [
+    "A real file update is verified; private planning fidelity has not passed.",
+    "The file is a persistent virtual assistant workspace record, not an external calendar or actual reading attendance.",
+    "One pair and two requests do not establish long-run stability, naturalness or mixed medium-chaos performance.",
+    "Expiry filtering remains system-enforced; this is not a memory-versus-no-memory ablation.",
+    "No model, API or Clock source change, additional paid repair test or seven-day run was made."
+  ]
+}

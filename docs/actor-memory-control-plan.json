@@ -1,0 +1,22 @@
+{
+  "kind": "free_actor_memory_control_not_paid_execution_authorization",
+  "base_medium_definition_hash": "76f3a6d51fd8d4811c7efd3da1e9f9b74aa78d4eb0483bebeda2028d27601105",
+  "actor_memory_profile": {
+    "protocol": "actor-memory-agenda-v1",
+    "selection_limit": 8,
+    "context_chars": 6000,
+    "observation_ttl_seconds": 604800,
+    "thought_ttl_limit_seconds": 86400,
+    "recency_half_life_seconds": 86400,
+    "max_memories_per_owner": 10000
+  },
+  "actor_memory_profile_hash": "4316f49f3483154aef7e4190c1e6a23b44af7e09c26b3e466d85bb1609ec1629",
+  "source_hash": "0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8",
+  "clock_contract_unchanged": true,
+  "configured_models_unchanged": {
+    "personal": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "paid_execution_authorized": false
+}

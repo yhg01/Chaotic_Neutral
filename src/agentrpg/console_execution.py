@@ -213,7 +213,7 @@ async def checked_manifest(conn, root, run):
 async def campaign_totals(conn, campaign_id):
     # Keep the full uncertain reservation. A breach also retains whichever
     # amount is larger, consistent with the provider reservation ledger.
-    return await row(
+    totals = await row(
         conn,
         """SELECT COALESCE(sum(reported_usd),0) AS spent,
         COALESCE(sum(CASE WHEN status='reported' THEN 0
@@ -221,6 +221,16 @@ async def campaign_totals(conn, campaign_id):
         FROM model_spend_attempts WHERE campaign_id=%s""",
         (campaign_id,),
     )
+    opening = await row(
+        conn,
+        "SELECT reported_usd,reserved_usd,uncertain_usd FROM model_campaign_opening_balances "
+        "WHERE campaign_id=%s",
+        (campaign_id,),
+    )
+    if opening:
+        totals["spent"] += opening["reported_usd"]
+        totals["reserved"] += opening["reserved_usd"] + opening["uncertain_usd"]
+    return totals
 
 
 async def next_intervention_window(conn, run):

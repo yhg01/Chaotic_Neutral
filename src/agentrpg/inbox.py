@@ -92,6 +92,9 @@ class InboxService:
         in_reply_to=None,
         connection=None,
         allow_pending=False,
+        clock_operation_id=None,
+        clock_job_id=None,
+        confirmation_task_id=None,
     ):
         try:
             payload = MailRequest(
@@ -114,6 +117,9 @@ class InboxService:
         message_id = uuid5(run_id, f"mail:{sender_key}:{request_id}")
         payload_hash = fingerprint(payload.model_dump(mode="json"))
         async with self._connection(connection) as conn:
+            from agentrpg.clock_runtime import lock_profile, notify, tool_context
+
+            elapsed = await lock_profile(conn, run_id) if source == "agent" else None
             run = await row(
                 conn,
                 "SELECT status,current_window FROM environment_runs WHERE id=%s FOR SHARE",
@@ -128,7 +134,67 @@ class InboxService:
                 if existing["payload_hash"] != payload_hash:
                     raise InboxError("The mail request ID has different content.")
                 return _public(existing)
-            if run["status"] != "running" and not (allow_pending and run["status"] == "pending"):
+            if clock_operation_id is not None:
+                if connection is None or source != "director" or run["status"] != "paused":
+                    raise InboxError("Timed bank notices require a Director transaction.", 403)
+                from agentrpg.clock_transfers import bank_context
+
+                await bank_context(
+                    conn,
+                    run_id,
+                    payload.recipient_owner_id,
+                    payload.subject,
+                    payload.body,
+                    request_id,
+                    clock_operation_id,
+                )
+            elif clock_job_id is not None:
+                if connection is None or source != "actor" or run["status"] != "paused":
+                    raise InboxError("Timed Actor mail requires its Director transaction.", 403)
+                from agentrpg.clock_runtime import actor_mail_context
+
+                await actor_mail_context(
+                    conn,
+                    run_id,
+                    sender_owner_id,
+                    request_id,
+                    payload.model_dump(mode="json", exclude_none=True),
+                    clock_job_id,
+                )
+            elif elapsed and confirmation_task_id is not None:
+                from agentrpg.confirmations import mail_context
+
+                await mail_context(
+                    conn,
+                    run_id,
+                    confirmation_task_id,
+                    sender_owner_id,
+                    payload.recipient_owner_id,
+                    payload.subject,
+                    payload.body,
+                    payload.in_reply_to,
+                    request_id,
+                )
+            elif elapsed:
+                try:
+                    from agentrpg.confirmations import guard_mail
+
+                    await guard_mail(conn, run_id, sender_owner_id, payload.recipient_owner_id)
+                    await tool_context(
+                        conn,
+                        run_id,
+                        sender_owner_id,
+                        "send_mail",
+                        payload.model_dump(mode="json", exclude_none=True),
+                        request_id,
+                    )
+                except Exception as error:
+                    from agentrpg.director import DirectorError
+
+                    if not isinstance(error, DirectorError):
+                        raise
+                    raise InboxError(str(error), 403) from None
+            elif run["status"] != "running" and not (allow_pending and run["status"] == "pending"):
                 raise InboxError("The run is not running.")
             await self._owner(conn, run_id, payload.recipient_owner_id)
             if payload.in_reply_to is not None:
@@ -172,6 +238,16 @@ class InboxService:
             existing = await row(conn, "SELECT * FROM inbox_messages WHERE id=%s", (message_id,))
             if existing["payload_hash"] != payload_hash:
                 raise InboxError("The mail request ID has different content.")
+            if elapsed:
+                await notify(
+                    conn,
+                    self.pool,
+                    run_id,
+                    payload.recipient_owner_id,
+                    "inbox_received",
+                    message_id,
+                    {"message_id": str(message_id)},
+                )
             await emit(
                 conn,
                 run_id,
@@ -282,6 +358,11 @@ class InboxService:
             )
             if message is None:
                 await self._missing_reference(conn, run_id, owner_id, [UUID(str(message_id))])
+            await conn.execute(
+                "UPDATE confirmation_tasks SET reply_body_read=true WHERE run_id=%s AND "
+                "owner_id=%s AND reply_mail_id=%s",
+                (run_id, owner_id, message_id),
+            )
             return _public(message)
 
     async def acknowledge(self, run_id, owner_id, message_ids):

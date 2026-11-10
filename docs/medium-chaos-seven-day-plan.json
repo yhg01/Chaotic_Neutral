@@ -1,0 +1,74 @@
+{
+  "date": "2026-11-10",
+  "kind": "executed_simplified_exploration_clock_complete_task_acceptance_failed",
+  "candidate_version": "friends-community-daily-meeting-v3",
+  "participant_pairs": 2,
+  "requested_horizon": {
+    "simulated_days": 7,
+    "simulated_seconds": 604800
+  },
+  "source_hash": "106f20080b6c1a2abd262fbb7bac17e63b9f8d71e602a243d246f027dc95dd5f",
+  "execution_configuration_hash": "b2d99c9c6f042676498f8acb2ab5e34bb8802a70ef0266d4abdc17f602489bfd",
+  "plan_hash": "d2b18a0a3a0e9394702d9c07a57c48868b19c8fc9bfbb924a7ded2e5952940bd",
+  "scenario_hash": "0b5575b608773e947dcd63bdd82c08d3baaa63357dcfac1e8db098ee321efeca",
+  "event_count": 7,
+  "events_per_day": 1,
+  "event_kinds": [
+    "plan_change"
+  ],
+  "epoch": "2026-11-10T09:00:00Z",
+  "initial_meeting_date": "2026-11-24",
+  "initial_time_utc": "14:00",
+  "requested_times_alternate_utc": [
+    "16:00",
+    "14:00"
+  ],
+  "approval_policy": "An Actor expresses exact conditional social permission; every peer reply and all environment effects remain model/tool-generated.",
+  "models": {
+    "personal": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3674,
+    "reported_usd": "14.4260473996",
+    "uncertain_usd": "2.823346400000",
+    "reserved_usd": "0",
+    "committed_usd": "17.249393799600",
+    "remaining_usd": "2.750606200400"
+  },
+  "estimated_future_run_usd": "2.09",
+  "forecast": "daily-meeting-rehearsal-results.json",
+  "technical_ready": false,
+  "execution_started": true,
+  "operator_start_authorized": true,
+  "readiness_file": "medium-chaos-readiness.json",
+  "larger_medium_candidate_reference": "friends-community-medium-candidate.json",
+  "limitations": [
+    "Not calibrated medium-chaos intensity or long-term reliability.",
+    "No BOLD OS, solicitor/HMRC or competing-bakery implementation.",
+    "Refresh current prices, context limits, API health and remaining same-campaign headroom before an explicitly authorized launch."
+  ],
+  "prepare_only_command": "uv run python scripts/run_clock_actors.py --prepare .local/simple-meeting/seven-day-plan-v3-two-pairs-prepared-only.json --event-profile daily-meeting --pairs 2 --days 7",
+  "run_id": "30cf1245-2780-4f0e-aadf-be5a94721af0",
+  "execution_completed_clock_horizon": true,
+  "task_acceptance_passed": false,
+  "campaign_after": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3750,
+    "reported_usd": "14.7755277196",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "17.598874119600",
+    "remaining_usd": "2.401125880400",
+    "halted": false
+  },
+  "result": "seven-day-simplified-results.json",
+  "historical_executed_plan_not_current_authorization": true,
+  "current_cue_repair": "cue-response-repair-results.json",
+  "seven_day_rerun_authorized": false,
+  "new_seven_day_rerun_started": false
+}

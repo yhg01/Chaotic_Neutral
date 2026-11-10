@@ -89,12 +89,30 @@ async def run_view(run_id: UUID, request: Request, principal: AUTH):
     member = await identity(request, run_id, principal)
     run = await director(request).get_run(run_id)
     owner = next(o for o in run["scenario"]["owners"] if o["id"] == member["owner_id"])
+    async with request.app.state.pool.connection() as conn:
+        clock = await row(
+            conn,
+            "SELECT now_seconds,status,contract FROM simulation_clocks WHERE manager_run_id=%s",
+            (run_id,),
+        )
     return {
         **member,
         "cluster_id": run["cluster_id"],
         "status": run["status"],
         "current_window": run["current_window"],
         "owner_name": owner["name"],
+        **(
+            {
+                "elapsed_clock": {
+                    "status": clock["status"],
+                    "simulated_seconds": clock["now_seconds"],
+                    "epoch": clock["contract"]["epoch"],
+                    "horizon_seconds": clock["contract"]["horizon_seconds"],
+                }
+            }
+            if clock
+            else {}
+        ),
         "participants": [
             {"owner_id": item["id"], "name": item["name"]} for item in run["scenario"]["owners"]
         ],
@@ -117,6 +135,12 @@ async def send_owner_message(
             run_id, member["owner_id"], payload.content, payload.request_id
         )
     except DirectorError as error:
+        from agentrpg.confirmations import ConfirmationError
+
+        if isinstance(error, ConfirmationError):
+            raise HTTPException(
+                409, {"code": "confirmation_protocol", "detail": str(error)}
+            ) from None
         raise HTTPException(409, str(error)) from None
 
 

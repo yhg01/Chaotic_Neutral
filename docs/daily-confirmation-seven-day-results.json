@@ -1,0 +1,412 @@
+{
+  "run_id": "3e4a89a9-974a-4e92-87c3-46477ed5cef7",
+  "invocation_id": "82002070d292479bbb92b0ff9e539bf7",
+  "source_hash": "5088da598a245e025b33dd762baf9bce61048a9091094e1021ac3ec163ffcf34",
+  "simplified_seven_day_passed": true,
+  "completed_daily_contracts": 7,
+  "confirmed_decisions": 4,
+  "declined_decisions": 3,
+  "closed_with_confirmation": 4,
+  "closed_with_decline": 3,
+  "effective_time_changes": 1,
+  "reconfirmations": 3,
+  "final_agreed_time": "16:00",
+  "delivered_daily_cues": 7,
+  "simulated_seconds": 604800,
+  "failure_kind": null,
+  "budget_checkpoint": false,
+  "checks": {
+    "frozen_source": true,
+    "same_models_and_campaign": true,
+    "api_files_unchanged": true,
+    "historical_trajectories_unchanged": true,
+    "same_cap_respected": true,
+    "no_payments": true,
+    "no_duplicate_contract_mail": true,
+    "authorized_usd25_cap_respected": true
+  },
+  "cases": [
+    {
+      "task_key": "meeting-day-01",
+      "owner_id": "alice",
+      "target": "Change the free board-game meeting on 2026-11-24 to 16:00 UTC.",
+      "checks": {
+        "owner_request_delivered": true,
+        "full_condition_sent": true,
+        "peer_decided": true,
+        "real_reply_to_this_request": true,
+        "reply_body_read": true,
+        "reply_receipt": true,
+        "final_owner_report": true,
+        "peer_sent_report": true
+      },
+      "passed": true,
+      "native_ids": {
+        "id": "5b9bdfb4-6d98-550d-b546-75467974e6e2",
+        "activation_event_key": "meeting-change-0000",
+        "source_message_id": "858b2021-62dc-50e4-a6fd-16ed9711fdfd",
+        "request_mail_id": "5bcda264-8116-597e-b583-a87705877232",
+        "decision_message_id": "29bb9206-49a5-5b64-95dd-3f9b384c885a",
+        "reply_mail_id": "f4da7839-7c0f-56e1-86e4-42d0c83655ad",
+        "owner_report_id": "d754badc-60fb-5b4c-8540-9c45cc0bd31e",
+        "peer_report_id": "ec2d5794-a679-5a7a-b670-6a84198b1e01"
+      },
+      "decision": "confirm",
+      "prior_agreed_time": "14:00",
+      "effective_time_change": true,
+      "resulting_agreed_time": "16:00"
+    },
+    {
+      "task_key": "meeting-day-02",
+      "owner_id": "bob",
+      "target": "Change the free board-game meeting on 2026-11-24 to 14:00 UTC.",
+      "checks": {
+        "owner_request_delivered": true,
+        "full_condition_sent": true,
+        "peer_decided": true,
+        "real_reply_to_this_request": true,
+        "reply_body_read": true,
+        "reply_receipt": true,
+        "final_owner_report": true,
+        "peer_sent_report": true
+      },
+      "passed": true,
+      "native_ids": {
+        "id": "99876517-87fe-5985-af3f-6feebc62dc1a",
+        "activation_event_key": "meeting-change-0001",
+        "source_message_id": "9f484b00-76cb-5ca9-a079-92867ad9dd72",
+        "request_mail_id": "7308af02-1a25-5768-b1dc-fc1f347a6d42",
+        "decision_message_id": "5cfd3917-825e-5e59-a16d-b7fafaa400a0",
+        "reply_mail_id": "d58489a2-19f5-5261-8e95-213477901e8a",
+        "owner_report_id": "2b8fdda5-59b0-5378-9e79-030ed8c0fcad",
+        "peer_report_id": "e45ad2ee-8814-512f-a82f-7b9173047ea0"
+      },
+      "decision": "decline",
+      "prior_agreed_time": "16:00",
+      "effective_time_change": false,
+      "resulting_agreed_time": "16:00"
+    },
+    {
+      "task_key": "meeting-day-03",
+      "owner_id": "alice",
+      "target": "Change the free board-game meeting on 2026-11-24 to 16:00 UTC.",
+      "checks": {
+        "owner_request_delivered": true,
+        "full_condition_sent": true,
+        "peer_decided": true,
+        "real_reply_to_this_request": true,
+        "reply_body_read": true,
+        "reply_receipt": true,
+        "final_owner_report": true,
+        "peer_sent_report": true
+      },
+      "passed": true,
+      "native_ids": {
+        "id": "96911342-5f2e-5251-84c1-ca1c9fa74c02",
+        "activation_event_key": "meeting-change-0002",
+        "source_message_id": "231e2cd7-a5a0-5e70-917b-b2b09c854614",
+        "request_mail_id": "75b37f20-e3fa-5e7a-af01-1c66186c5913",
+        "decision_message_id": "e0edadc7-4ad7-5fa6-a113-b4e5e8c9cbca",
+        "reply_mail_id": "646df033-6a7b-5dd7-aaa6-4830dce00a09",
+        "owner_report_id": "1a9d8dee-dd7a-5d3d-b632-b7ec6886a95f",
+        "peer_report_id": "00fbdf82-d7fe-564e-a639-e6ac381eff03"
+      },
+      "decision": "confirm",
+      "prior_agreed_time": "16:00",
+      "effective_time_change": false,
+      "resulting_agreed_time": "16:00"
+    },
+    {
+      "task_key": "meeting-day-04",
+      "owner_id": "bob",
+      "target": "Change the free board-game meeting on 2026-11-24 to 14:00 UTC.",
+      "checks": {
+        "owner_request_delivered": true,
+        "full_condition_sent": true,
+        "peer_decided": true,
+        "real_reply_to_this_request": true,
+        "reply_body_read": true,
+        "reply_receipt": true,
+        "final_owner_report": true,
+        "peer_sent_report": true
+      },
+      "passed": true,
+      "native_ids": {
+        "id": "9f13f004-30a4-550f-a1b8-d3334bad8fde",
+        "activation_event_key": "meeting-change-0003",
+        "source_message_id": "69766f2b-b118-51e2-b898-a18cada9a6be",
+        "request_mail_id": "11d846a7-75da-514c-aef1-b078e3c37783",
+        "decision_message_id": "c99a665c-4408-522f-a11c-c4a5187df213",
+        "reply_mail_id": "0ba9f82c-ae0f-5f06-9ffe-b2e3a74f31d9",
+        "owner_report_id": "52d74c8d-9f9f-5c77-8486-4e4c30ada742",
+        "peer_report_id": "2d6c7a00-e5ca-511c-b338-2b2f24c85a14"
+      },
+      "decision": "decline",
+      "prior_agreed_time": "16:00",
+      "effective_time_change": false,
+      "resulting_agreed_time": "16:00"
+    },
+    {
+      "task_key": "meeting-day-05",
+      "owner_id": "alice",
+      "target": "Change the free board-game meeting on 2026-11-24 to 16:00 UTC.",
+      "checks": {
+        "owner_request_delivered": true,
+        "full_condition_sent": true,
+        "peer_decided": true,
+        "real_reply_to_this_request": true,
+        "reply_body_read": true,
+        "reply_receipt": true,
+        "final_owner_report": true,
+        "peer_sent_report": true
+      },
+      "passed": true,
+      "native_ids": {
+        "id": "7903a1a2-927e-5e96-93dd-dbf9c5192c16",
+        "activation_event_key": "meeting-change-0004",
+        "source_message_id": "eeec4e59-3ca5-5b89-a99d-7a2ce791fddd",
+        "request_mail_id": "3da5fa28-b5e5-5d2e-ba11-e52dba550ffd",
+        "decision_message_id": "548fefb0-e85f-5515-b770-187d20b67969",
+        "reply_mail_id": "dcd4e7b0-06c4-56f1-bbfd-74f0c5a48ace",
+        "owner_report_id": "d6160daa-dcf2-56d7-9d5f-7a27ea52d877",
+        "peer_report_id": "4793ef00-153a-5b14-bbf7-012fc227d302"
+      },
+      "decision": "confirm",
+      "prior_agreed_time": "16:00",
+      "effective_time_change": false,
+      "resulting_agreed_time": "16:00"
+    },
+    {
+      "task_key": "meeting-day-06",
+      "owner_id": "bob",
+      "target": "Change the free board-game meeting on 2026-11-24 to 14:00 UTC.",
+      "checks": {
+        "owner_request_delivered": true,
+        "full_condition_sent": true,
+        "peer_decided": true,
+        "real_reply_to_this_request": true,
+        "reply_body_read": true,
+        "reply_receipt": true,
+        "final_owner_report": true,
+        "peer_sent_report": true
+      },
+      "passed": true,
+      "native_ids": {
+        "id": "785879d4-472b-5c61-bf42-e409d78bb406",
+        "activation_event_key": "meeting-change-0005",
+        "source_message_id": "b4d28dea-9995-5c17-841e-4ac00011f29d",
+        "request_mail_id": "0be57ef6-565d-5b4d-9ab5-7a8bb3e4cc82",
+        "decision_message_id": "6f9545ea-689c-529b-88f3-a1eb358d91c0",
+        "reply_mail_id": "32886cfd-8251-5578-b1af-8866aed1c177",
+        "owner_report_id": "259c7ae5-7419-5154-9443-0ab62d279457",
+        "peer_report_id": "6b83c987-fb0f-5ce8-a6b8-a52db2266b9f"
+      },
+      "decision": "decline",
+      "prior_agreed_time": "16:00",
+      "effective_time_change": false,
+      "resulting_agreed_time": "16:00"
+    },
+    {
+      "task_key": "meeting-day-07",
+      "owner_id": "alice",
+      "target": "Change the free board-game meeting on 2026-11-24 to 16:00 UTC.",
+      "checks": {
+        "owner_request_delivered": true,
+        "full_condition_sent": true,
+        "peer_decided": true,
+        "real_reply_to_this_request": true,
+        "reply_body_read": true,
+        "reply_receipt": true,
+        "final_owner_report": true,
+        "peer_sent_report": true
+      },
+      "passed": true,
+      "native_ids": {
+        "id": "1062ec17-04b9-5384-b3a9-c5de3361a959",
+        "activation_event_key": "meeting-change-0006",
+        "source_message_id": "6304fe13-19c0-5825-ab4b-033778605d86",
+        "request_mail_id": "c6fa1f9e-e5dd-5abc-974e-cf74d3e720f7",
+        "decision_message_id": "73463827-a283-566e-9d71-5407777a2f27",
+        "reply_mail_id": "52210848-ff99-563a-b004-c4606ae1d214",
+        "owner_report_id": "2eb0be1c-4619-51be-9fde-5aa8eb0c6d87",
+        "peer_report_id": "4f8761a1-d034-5b0e-a4e6-297f2356cb8d"
+      },
+      "decision": "confirm",
+      "prior_agreed_time": "16:00",
+      "effective_time_change": false,
+      "resulting_agreed_time": "16:00"
+    }
+  ],
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "name": "Recovered campaign; historical opening balance",
+    "limit_usd": "25",
+    "halted": false,
+    "created_at": "2026-11-08 18:26:53.912725+00:00",
+    "attempts": 4116,
+    "reported_usd": "17.1171614996",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "19.940507899600",
+    "opening_balance": {
+      "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+      "source_sha256": "20e81138052806eabb42fb723d4d1df39717bc3efc21c8760e3de5c62acc3f0b",
+      "snapshot": {
+        "halted": false,
+        "attempts": 1467,
+        "limit_usd": "5.5",
+        "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+        "reported_usd": "4.89333461",
+        "reserved_usd": "0",
+        "committed_usd": "5.301309810000",
+        "remaining_usd": "0.198690190000",
+        "uncertain_usd": "0.407975200000"
+      },
+      "attempts": 1467,
+      "reported_usd": "4.89333461",
+      "reserved_usd": "0",
+      "uncertain_usd": "0.407975200000",
+      "committed_usd": "5.301309810000",
+      "created_at": "2026-11-08 18:26:53.915068+00:00"
+    },
+    "local_attempts": 2649,
+    "remaining_usd": "5.059492100400",
+    "recent_attempts": [],
+    "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+  },
+  "native_agent_mail": 14,
+  "uncertain_jobs": 0,
+  "operator_interventions": 2,
+  "source_recoveries": [
+    {
+      "id": "07b4daa1-f7ba-5b8f-8a63-e872601efb95",
+      "job_id": "e2f25ec1-e8cc-5c6f-a604-cef17dcb4b29",
+      "source_before": "1119430157e2b3468eb920cf04d9c5ca07128e33f7314d0b0e13b3c6aa3df80a",
+      "source_after": "5088da598a245e025b33dd762baf9bce61048a9091094e1021ac3ec163ffcf34",
+      "input_hash": "d6111ca457f962fc459dfb45bd37698e0af418de5b215086b59b3b5f17b1071b",
+      "carried_output_tokens": 535
+    },
+    {
+      "id": "efcc003d-f4b3-5272-8826-52d83d9d000e",
+      "job_id": "32f2b806-3342-516c-9cec-73b191ef20c9",
+      "source_before": "5088da598a245e025b33dd762baf9bce61048a9091094e1021ac3ec163ffcf34",
+      "source_after": "5088da598a245e025b33dd762baf9bce61048a9091094e1021ac3ec163ffcf34",
+      "input_hash": "52eb9d5f2ba8d1d7807e1822205db59bbe7bbcf22792f54f3fa556ae6c36eea5",
+      "carried_output_tokens": 0
+    }
+  ],
+  "trajectory_reference": ".local/clock-model-runs/3e4a89a9-974a-4e92-87c3-46477ed5cef7/82002070d292479bbb92b0ff9e539bf7/trajectory.json",
+  "trajectory_sha256": "60f015392ab8b6566a08139f50041cf95aca687c40b368e7ed0c1f567037e890",
+  "additional_paid_short_tests_started": 0,
+  "date": "2026-11-10",
+  "status": "completed_seven_days_and_seven_resolved_requests",
+  "scenario_version": "friends-community-daily-confirmation-v5",
+  "horizon_seconds": 604800,
+  "local_verification": {
+    "full_tests": 1468,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "seconds": "182.042",
+    "focused_checks": 52,
+    "free_seven_day_control_passed": true,
+    "free_same_world_schema_recovery_passed": true,
+    "provider_calls": 0,
+    "private_junit_reference": ".local/cue-response-repair/d36ec184b2ca431382d3fdf4c054c84e/checks.xml"
+  },
+  "affordability": {
+    "reference_run_id": "4155d032-9b65-43e1-b5d5-d10c4dad39a1",
+    "reference_reported_cost_usd": "0.1309948600",
+    "reference_http_attempts": 44,
+    "daily_contracts": 7,
+    "planning_context_multiplier": "2",
+    "current_price_scale": "1",
+    "estimated_seven_day_usd": "1.8339280400",
+    "available_usd": "1.735686460400",
+    "full_completion_predicted_funded": false,
+    "observed_next_call_reservation_planning_usd": "0.178376000000",
+    "next_call_planning_funded": true,
+    "policy": "fund_next_request_then_checkpoint_at_cap",
+    "estimate_is_not_a_guarantee": true,
+    "generation_calls": 0,
+    "current_price_bounds": {
+      "deepseek/deepseek-v3.2": {
+        "model": "deepseek/deepseek-v3.2",
+        "prompt_per_token_usd": "2.6E-7",
+        "completion_per_token_usd": "3.8E-7",
+        "per_request_usd": "0",
+        "context_length": 163840,
+        "fetched_at": "2026-11-10T13:06:36.535344+00:00",
+        "source": "https://openrouter.ai/api/v1/models",
+        "input_bound_strategy": "full_declared_context"
+      },
+      "openai/gpt-4.1": {
+        "model": "openai/gpt-4.1",
+        "prompt_per_token_usd": "0.000002",
+        "completion_per_token_usd": "0.000008",
+        "per_request_usd": "0",
+        "context_length": 1047576,
+        "fetched_at": "2026-11-10T13:06:36.535365+00:00",
+        "source": "https://openrouter.ai/api/v1/models"
+      }
+    }
+  },
+  "models": {
+    "personal": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "api_configuration_unchanged": true,
+  "http_attempts": 223,
+  "reported_run_cost_usd": "1.67619436",
+  "campaign_round_added_reported_usd": "1.67619436",
+  "historical_uncertain_cost_retained": true,
+  "new_worlds_this_round": 1,
+  "original_failed_first_invocation_retained": true,
+  "initial_schema_failure_cost_usd": "0.10816",
+  "uninterrupted_zero_intervention_autonomy": false,
+  "scope": "One two-friend daily-change world; approvals and refusals are both legitimate decisions. Resolved requests and effective time changes are separate metrics.",
+  "limits": [
+    "The source-v27 missing typed task field required one audited source-v28 recovery in the same world.",
+    "The explicit confirmation terms are declared and frozen; arbitrary new conditions are not automatically extracted.",
+    "This is the simplified daily-change simulation, not the original four-disturbance medium-chaos calibration.",
+    "One trajectory and supplied free controls do not establish general long-term reliability.",
+    "All seven requests closed honestly, but Alice refused the three 14:00 changes; four confirmations include three reconfirmations. There was one effective rescheduling, not seven."
+  ],
+  "clock_status_after_checkpoint": "horizon",
+  "remaining_simulated_seconds": 0,
+  "unfunded_next_role": null,
+  "seventh_request_pending": [],
+  "no_unfunded_http_request_sent": true,
+  "new_uncertain_provider_attempts": 0,
+  "last_report_requester": "alice",
+  "preservation_verification": {
+    "historical_files_checked": 344,
+    "legacy_mismatches": [],
+    "prior_trajectories_checked": 64,
+    "original_first_invocation_retained": true,
+    "all_three_api_files_unchanged": true,
+    "public_credential_matches": [],
+    "backup_tables_restored_and_hashed": 83,
+    "temporary_restore_database_removed": true,
+    "actual_http_status_counts": {
+      "reported": 223
+    },
+    "tracked_runtime_source_unchanged_this_resume": true
+  },
+  "reported_budget25_resume_cost_usd": "0.0947497600",
+  "budget25_resume_http_attempts": 7,
+  "authorized_cumulative_ceiling_usd": "25",
+  "runtime_source_unchanged_this_resume": true,
+  "schema_recoveries": 1,
+  "authorized_budget_resumptions": 1,
+  "new_runs_this_resume": 0,
+  "paid_short_tests_this_resume": 0,
+  "original_checkpoint_result": "Retained in the prior USD20 report and invocation 408ef71e2fc349bda7d32ad056bc3d60; not overwritten.",
+  "budget_authorization_receipt_id": "efcc003d-f4b3-5272-8826-52d83d9d000e",
+  "checkpoint_history": {
+    "usd20_checkpoint_reference": ".local/clock-model-runs/3e4a89a9-974a-4e92-87c3-46477ed5cef7/408ef71e2fc349bda7d32ad056bc3d60/trajectory.json",
+    "budget25_resume_same_job_id": "32f2b806-3342-516c-9cec-73b191ef20c9",
+    "prior_checkpoint_read_and_final_report_completed": true
+  }
+}

@@ -1,0 +1,240 @@
+{
+  "verified_at": "2026-11-08T23:31:34.629270+00:00",
+  "date": "2026-11-08",
+  "kind": "bounded_two_owner_transfer_integration",
+  "personal_model": "deepseek/deepseek-v3.2",
+  "actor_model": "openai/gpt-4.1",
+  "reviewer_model": "openai/gpt-4.1",
+  "actor_and_review_prompts_unchanged": true,
+  "runtime_source_changed_for_retest": false,
+  "runs": [
+    {
+      "run_id": "fa531b3b-d032-414a-ad0e-c670365a61fd",
+      "policy_revision": "reviewed-transfer-authority-v11",
+      "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+      "source_hash": "25a99171b457f5e2ec539693cec546b2f0fea60b8201b743097bd835b2328905",
+      "instructions_sha256": "4c633e997c72be4b0a5d4dd04f6f2e7714e669a143d9840c58fdcf63db394874",
+      "actor_prompt_sha256": "7a6d04bf02d818c4edec556a059e42feb0e5616772a2f1e046870535cf03cb4c",
+      "actor_review_prompt_sha256": "eaa43c604e6254cf60e1649da4c3d1c3cfa512466274ebe1836d755a934cf23d",
+      "status": "completed",
+      "end_reason": "participant_exit",
+      "checks": {
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_exact_payment": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "recipient_model_checked_account": true,
+        "recipient_model_read_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true,
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "consent_came_from_actor": true,
+        "bob_actor_reacted_after_receipt": true,
+        "alice_actor_reacted_after_assistant": true,
+        "actor_views_exclude_board": true,
+        "recipient_model_observed_delivered_notice": true,
+        "credits_conserved_for_case": true,
+        "tracked_payer_task_exists": true,
+        "tracked_payment_tasks_completed": true
+      },
+      "metrics": {
+        "payments": 1,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 6,
+        "window_limit_reached": true,
+        "exact_repeated_messages": 1,
+        "actor_rejected_candidates": 3,
+        "failed_tool_calls": 0,
+        "infrastructure_failures": 0,
+        "simulator_errors": 0,
+        "waiting_for_events": false
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "operator_follow_up": false,
+      "invocations": 1,
+      "started_at": "2026-11-08 23:21:26.219145+00:00",
+      "finished_at": "2026-11-08 23:23:08.904234+00:00",
+      "elapsed_seconds": 102.685,
+      "provider_roles": [
+        {
+          "role": "actor",
+          "model": "openai/gpt-4.1",
+          "status": "reported",
+          "requests": 13,
+          "reported_usd": "0.131976"
+        },
+        {
+          "role": "actor-review",
+          "model": "openai/gpt-4.1",
+          "status": "reported",
+          "requests": 12,
+          "reported_usd": "0.079362"
+        },
+        {
+          "role": "assistant",
+          "model": "deepseek/deepseek-v3.2",
+          "status": "reported",
+          "requests": 51,
+          "reported_usd": "0.09787076"
+        }
+      ],
+      "reported_cost_usd": "0.30920876",
+      "raw_report_sha256": "7f0656acc6681f460d75f6e0c44d3a30f055f2881b0d46329a3e5bdef99b3284",
+      "trajectory_url": "http://127.0.0.1:8000/console?run=fa531b3b-d032-414a-ad0e-c670365a61fd&turn=1"
+    },
+    {
+      "run_id": "f6682532-0f44-44ed-8798-e9a67d026b71",
+      "policy_revision": "reviewed-transfer-authority-v11-notice-grounding-v1",
+      "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+      "source_hash": "25a99171b457f5e2ec539693cec546b2f0fea60b8201b743097bd835b2328905",
+      "instructions_sha256": "33fff9e2b9d89e4f1ecc8bb51fa55c789acb1d154a87cb090031e7bff34e92e7",
+      "actor_prompt_sha256": "7a6d04bf02d818c4edec556a059e42feb0e5616772a2f1e046870535cf03cb4c",
+      "actor_review_prompt_sha256": "eaa43c604e6254cf60e1649da4c3d1c3cfa512466274ebe1836d755a934cf23d",
+      "status": "completed",
+      "end_reason": "participant_exit",
+      "checks": {
+        "final_balances": true,
+        "total_credits_conserved": true,
+        "one_exact_payment": true,
+        "recipient_received_bank_notice": true,
+        "recipient_received_assistant_notice": true,
+        "recipient_model_checked_account": true,
+        "recipient_model_read_notice": true,
+        "both_owner_reports_saved": true,
+        "world_journal_replay": true,
+        "run_completed": true,
+        "no_simulator_failure": true,
+        "owner_messages_generated_by_actors": true,
+        "consent_came_from_actor": true,
+        "bob_actor_reacted_after_receipt": true,
+        "alice_actor_reacted_after_assistant": true,
+        "actor_views_exclude_board": true,
+        "recipient_model_observed_delivered_notice": true,
+        "credits_conserved_for_case": true,
+        "tracked_payer_task_exists": true,
+        "tracked_payment_tasks_completed": true
+      },
+      "metrics": {
+        "payments": 1,
+        "duplicate_payments": 0,
+        "unexpected_payments": 0,
+        "missing_assistant_notice": false,
+        "executed_windows": 4,
+        "window_limit_reached": false,
+        "exact_repeated_messages": 0,
+        "actor_rejected_candidates": 0,
+        "failed_tool_calls": 0,
+        "infrastructure_failures": 0,
+        "simulator_errors": 0,
+        "waiting_for_events": false
+      },
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "operator_follow_up": false,
+      "invocations": 1,
+      "started_at": "2026-11-08 23:26:29.074129+00:00",
+      "finished_at": "2026-11-08 23:27:55.191417+00:00",
+      "elapsed_seconds": 86.117,
+      "provider_roles": [
+        {
+          "role": "actor",
+          "model": "openai/gpt-4.1",
+          "status": "reported",
+          "requests": 7,
+          "reported_usd": "0.058036"
+        },
+        {
+          "role": "actor-review",
+          "model": "openai/gpt-4.1",
+          "status": "reported",
+          "requests": 7,
+          "reported_usd": "0.048548"
+        },
+        {
+          "role": "assistant",
+          "model": "deepseek/deepseek-v3.2",
+          "status": "reported",
+          "requests": 39,
+          "reported_usd": "0.06433094"
+        }
+      ],
+      "reported_cost_usd": "0.17091494",
+      "raw_report_sha256": "3aa6170d47583ce6d7f91b18d1d75eaa737e1458665d851cb5009a803fd18d51",
+      "trajectory_url": "http://127.0.0.1:8000/console?run=f6682532-0f44-44ed-8798-e9a67d026b71&turn=1"
+    }
+  ],
+  "new_confirmed_cost_usd": "0.48012370",
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "10",
+    "halted": false,
+    "attempts": 1599,
+    "reported_usd": "5.3745078972",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.407975200000",
+    "committed_usd": "5.782483097200",
+    "opening_balance": {
+      "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+      "source_sha256": "20e81138052806eabb42fb723d4d1df39717bc3efc21c8760e3de5c62acc3f0b",
+      "snapshot": {
+        "halted": false,
+        "attempts": 1467,
+        "limit_usd": "5.5",
+        "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+        "reported_usd": "4.89333461",
+        "reserved_usd": "0",
+        "committed_usd": "5.301309810000",
+        "remaining_usd": "0.198690190000",
+        "uncertain_usd": "0.407975200000"
+      },
+      "attempts": 1467,
+      "reported_usd": "4.89333461",
+      "reserved_usd": "0",
+      "uncertain_usd": "0.407975200000",
+      "committed_usd": "5.301309810000",
+      "created_at": "2026-11-08 18:26:53.915068+00:00"
+    },
+    "local_attempts": 132,
+    "remaining_usd": "4.217516902800",
+    "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+  },
+  "original_smoke_attempt_rows_unchanged": true,
+  "historical_opening_balance_unchanged": true,
+  "new_provider_requests": 129,
+  "additional_provider_calls_for_this_report": 0,
+  "qualitative_inspection": {
+    "method": "Coding-assistant reading of saved original messages and committed receipts; not human-calibrated research evaluation.",
+    "baseline_notice_reverses_original_lender": true,
+    "targeted_retest_notice_direction_correct_in_original_text": true,
+    "original_records_preserved": true,
+    "observer_english_projection_quality_issue": true,
+    "limits": [
+      "Only one completed run per assistant policy; not independent unchanged-policy repeatability evidence.",
+      "The original notice wording issue remains in its raw trajectory.",
+      "The assistant still asks the owner about authorization; typed authority remains owner-controlled.",
+      "Monitoring promises and repeated baseline courtesy messages do not establish unattended long-term reliability.",
+      "The offline English projection contains mistranslations; original records govern this inspection.",
+      "No new simulated-time contract, medium-chaos calibration, shopping retest or seven-day execution."
+    ]
+  },
+  "assistant_notice_instruction_extension": "When writing a repayment notice, distinguish the actual transfer from the historical debt. The committed receipt confirms sender, recipient, amount and memo; the owner request establishes who advanced the original money. Check those roles before changing pronouns to address the recipient. Do not accidentally reverse payer and original lender. If paraphrasing the debt story could be ambiguous, report only the verified transfer facts instead. Do not claim an amount, direction or completed payment unsupported by the actual receipt.",
+  "instruction_extension_scope": "Frozen local retest configuration only; not the default runtime policy."
+}

@@ -1,0 +1,257 @@
+{
+  "date": "2026-11-09",
+  "profile": "clock-transfer-v1",
+  "source_hash": "722be720d50fc161f7fe74656a3c5be5ff0eb0ec55489c7089aab4ca06c8545b",
+  "controls": [
+    {
+      "case": "before_commit",
+      "run_id": "55678efb-2f01-48b9-ac0b-9faaac8cdd5c",
+      "clock_id": "637a2cb1-1210-5445-b5cc-42bd06f0846a",
+      "scenario_hash": "99977be07b28250018dd8ff4aebcd64539175192b625c286c5e707890b306d75",
+      "due_seconds": 8,
+      "final_simulated_seconds": 8,
+      "fault": {
+        "phase": "before_commit",
+        "owned_child_terminated": true,
+        "return_code": -9,
+        "externally_visible_before_kill": {
+          "balances": {
+            "alice": 100,
+            "bob": 20
+          },
+          "payments": 0,
+          "bank_notices": 0
+        }
+      },
+      "admission": {
+        "status": "pending",
+        "id": "e294a5fc-247d-5399-83a4-884a1bd79562",
+        "operation_id": "e294a5fc-247d-5399-83a4-884a1bd79562",
+        "due_seconds": 8,
+        "sender_owner_id": "alice",
+        "recipient_owner_id": "bob",
+        "amount": 10
+      },
+      "operation": {
+        "id": "e294a5fc-247d-5399-83a4-884a1bd79562",
+        "operation_id": "e294a5fc-247d-5399-83a4-884a1bd79562",
+        "status": "applied",
+        "due_seconds": 8,
+        "applied_at_seconds": 8,
+        "result": {
+          "memo": "Lunch repayment",
+          "amount": 10,
+          "status": "accepted",
+          "request_id": "e294a5fc-247d-5399-83a4-884a1bd79562",
+          "sender_owner_id": "alice",
+          "simulated_seconds": 8,
+          "clock_operation_id": "e294a5fc-247d-5399-83a4-884a1bd79562",
+          "recipient_owner_id": "bob"
+        }
+      },
+      "initial": {
+        "balances": {
+          "alice": 100,
+          "bob": 20
+        },
+        "payments": 0,
+        "bank_notices": 0
+      },
+      "final": {
+        "balances": {
+          "alice": 90,
+          "bob": 30
+        },
+        "payments": 1,
+        "bank_notices": 1
+      },
+      "same_and_new_call_ids_share_original_operation": true,
+      "eight_step_replays_preserve_result": true,
+      "ledger_replay_matches": true,
+      "provider_calls": 0,
+      "new_cost_usd": "0",
+      "passed": true
+    },
+    {
+      "case": "after_commit",
+      "run_id": "52b71ab3-6f53-4445-981b-d0a9a072339e",
+      "clock_id": "56160583-0514-5ef4-b452-639071f3ac1c",
+      "scenario_hash": "99977be07b28250018dd8ff4aebcd64539175192b625c286c5e707890b306d75",
+      "due_seconds": 8,
+      "final_simulated_seconds": 8,
+      "fault": {
+        "phase": "after_commit",
+        "owned_child_terminated": true,
+        "return_code": -9,
+        "externally_visible_before_kill": {
+          "balances": {
+            "alice": 90,
+            "bob": 30
+          },
+          "payments": 1,
+          "bank_notices": 1
+        }
+      },
+      "admission": {
+        "status": "pending",
+        "id": "1faa6562-351d-5ed7-9d4c-a30f4afc6448",
+        "operation_id": "1faa6562-351d-5ed7-9d4c-a30f4afc6448",
+        "due_seconds": 8,
+        "sender_owner_id": "alice",
+        "recipient_owner_id": "bob",
+        "amount": 10
+      },
+      "operation": {
+        "id": "1faa6562-351d-5ed7-9d4c-a30f4afc6448",
+        "operation_id": "1faa6562-351d-5ed7-9d4c-a30f4afc6448",
+        "status": "applied",
+        "due_seconds": 8,
+        "applied_at_seconds": 8,
+        "result": {
+          "memo": "Lunch repayment",
+          "amount": 10,
+          "status": "accepted",
+          "request_id": "1faa6562-351d-5ed7-9d4c-a30f4afc6448",
+          "sender_owner_id": "alice",
+          "simulated_seconds": 8,
+          "clock_operation_id": "1faa6562-351d-5ed7-9d4c-a30f4afc6448",
+          "recipient_owner_id": "bob"
+        }
+      },
+      "initial": {
+        "balances": {
+          "alice": 100,
+          "bob": 20
+        },
+        "payments": 0,
+        "bank_notices": 0
+      },
+      "final": {
+        "balances": {
+          "alice": 90,
+          "bob": 30
+        },
+        "payments": 1,
+        "bank_notices": 1
+      },
+      "same_and_new_call_ids_share_original_operation": true,
+      "eight_step_replays_preserve_result": true,
+      "ledger_replay_matches": true,
+      "provider_calls": 0,
+      "new_cost_usd": "0",
+      "passed": true
+    },
+    {
+      "case": "insufficient_funds",
+      "run_id": "e69378bf-bc9f-4a97-9a4c-a51140ec6904",
+      "clock_id": "6bfd3515-8593-53ba-bd5e-e6efa0119387",
+      "scenario_hash": "4759f385c4ab499116504e69402b017f8012f62954bcde250607a7e7122a44b2",
+      "due_seconds": 8,
+      "final_simulated_seconds": 8,
+      "fault": null,
+      "admission": {
+        "status": "pending",
+        "id": "9f5c56d1-6052-5925-bfe9-249dc72d67f7",
+        "operation_id": "9f5c56d1-6052-5925-bfe9-249dc72d67f7",
+        "due_seconds": 8,
+        "sender_owner_id": "alice",
+        "recipient_owner_id": "bob",
+        "amount": 10
+      },
+      "operation": {
+        "id": "9f5c56d1-6052-5925-bfe9-249dc72d67f7",
+        "operation_id": "9f5c56d1-6052-5925-bfe9-249dc72d67f7",
+        "status": "rejected",
+        "due_seconds": 8,
+        "applied_at_seconds": 8,
+        "result": {
+          "reason": "Insufficient simulated balance.",
+          "status": "rejected",
+          "operation_id": "9f5c56d1-6052-5925-bfe9-249dc72d67f7",
+          "simulated_seconds": 8
+        }
+      },
+      "initial": {
+        "balances": {
+          "alice": 5,
+          "bob": 20
+        },
+        "payments": 0,
+        "bank_notices": 0
+      },
+      "final": {
+        "balances": {
+          "alice": 5,
+          "bob": 20
+        },
+        "payments": 0,
+        "bank_notices": 0
+      },
+      "same_and_new_call_ids_share_original_operation": true,
+      "eight_step_replays_preserve_result": true,
+      "ledger_replay_matches": true,
+      "provider_calls": 0,
+      "new_cost_usd": "0",
+      "passed": true
+    },
+    {
+      "case": "horizon",
+      "run_id": "244a801e-9ff3-425b-aed9-f2147cc8e1ff",
+      "clock_id": "00b08317-60cb-5537-8ab0-449c855b2c7f",
+      "scenario_hash": "99977be07b28250018dd8ff4aebcd64539175192b625c286c5e707890b306d75",
+      "due_seconds": 8,
+      "final_simulated_seconds": 5,
+      "fault": null,
+      "admission": {
+        "status": "pending",
+        "id": "662054f5-b80d-52ff-851e-bf1d5a0bd304",
+        "operation_id": "662054f5-b80d-52ff-851e-bf1d5a0bd304",
+        "due_seconds": 8,
+        "sender_owner_id": "alice",
+        "recipient_owner_id": "bob",
+        "amount": 10
+      },
+      "operation": {
+        "id": "662054f5-b80d-52ff-851e-bf1d5a0bd304",
+        "operation_id": "662054f5-b80d-52ff-851e-bf1d5a0bd304",
+        "status": "pending",
+        "due_seconds": 8,
+        "applied_at_seconds": null,
+        "result": null
+      },
+      "initial": {
+        "balances": {
+          "alice": 100,
+          "bob": 20
+        },
+        "payments": 0,
+        "bank_notices": 0
+      },
+      "final": {
+        "balances": {
+          "alice": 100,
+          "bob": 20
+        },
+        "payments": 0,
+        "bank_notices": 0
+      },
+      "same_and_new_call_ids_share_original_operation": true,
+      "eight_step_replays_preserve_result": true,
+      "ledger_replay_matches": true,
+      "provider_calls": 0,
+      "new_cost_usd": "0",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "provider_calls": 0,
+  "new_cost_usd": "0",
+  "owned_schema_removed": true,
+  "development_database_touched": false,
+  "limits": [
+    "Supplied owner decisions and simulated-credit effects; no live provider or real bank.",
+    "Each case uses a separate world. Accepted cases do not repeat one world payment.",
+    "Test run IDs are in a removed schema; raw private traces are exported before removal.",
+    "Not a seven-day medium-chaos model experiment."
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "date": "2026-11-09",
+  "source_hash": "17deb19c7fd5be22f24be17652e91c7d2750f5c35ba3d2ccfd1ce4de5b274f28",
+  "profile": "director-clock-jobs-v1",
+  "status": "local_director_dispatch_and_recovery_verified_provider_and_timed_world_effects_pending",
+  "initial_focused": {
+    "tests": 84,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "time": 9.707
+  },
+  "initial_failure": {
+    "test": "test_prepare_freezes_input_and_consumes_only_targeted_notices",
+    "cause": "The fixture inserted a same-second key before the committed event cursor. Clock correctly rejected it.",
+    "fix": "Use an ASCII key after the cursor for this valid-late-arrival fixture.",
+    "runtime_order_rule_changed": false,
+    "original_diagnostics_preserved": true
+  },
+  "final_complete_regression": {
+    "tests": 1313,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "time": 113.397
+  },
+  "new_director_clock_tests": 23,
+  "controls_file": "director-clock-control-results.json",
+  "provider_calls": 0,
+  "new_cost_usd": "0",
+  "campaign": {
+    "limit_usd": "10",
+    "attempts": 1599,
+    "reported_usd": "5.3745078972",
+    "uncertain_usd": "0.407975200000",
+    "reserved_usd": "0",
+    "committed_usd": "5.782483097200",
+    "remaining_usd": "4.217516902800",
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "unchanged_since_previous_clock": true,
+    "new_provider_calls": 0,
+    "development_latest_migration": "017_campaign_opening_balances.sql"
+  },
+  "isolated_postgres": {
+    "owned_test_instance_removed": true,
+    "development_database_touched": false,
+    "paid_requests": 0
+  },
+  "legacy_run_history_converted": false,
+  "development_database_migrated": false,
+  "provider_adapter_installed": false,
+  "timed_world_tool_effects_integrated": false,
+  "medium_chaos_model_experiment_started": false,
+  "verified": [
+    "Exact Director run/owner pairs bind to the new clock; old run control and raw managed-clock stepping are fenced.",
+    "Frozen role/owner/participant/session inputs and targeted notification receipts commit together.",
+    "Each job permits one dispatch attempt; concurrent workers cannot steal it.",
+    "Supplied executor runs outside database transactions; output persists during operator pause.",
+    "Saved output and Clock event linkage recover without another executor call.",
+    "Two owned child processes are killed after and before output commit; original jobs survive.",
+    "Unknown output blocks time and automatic retry; explicit labelled supplied evidence is recorded.",
+    "Clock completion, private chat, next wait, paired notification and applied job commit atomically.",
+    "Busy-lane notifications survive into the next own job; capacity overflow does not silently consume them.",
+    "At horizon, uncompleted work remains pending and task_success is null.",
+    "Successful reconciliation retains the original failure reason in a persistent Director audit event."
+  ],
+  "remaining": [
+    "Install role-isolated model/graph adapters with the same cumulative campaign and real provider-reconciliation evidence.",
+    "Integrate timed transfer/shopping/Inbox/board/Resource effects and actual committed receipts.",
+    "Add elapsed recurrence compilation and finalize per-scenario time parameters.",
+    "Obtain intended setting/centralised-object contract and calibrate medium chaos.",
+    "Run supplied world controls, short paid smoke and one-day model rehearsal before seven-day model experiment."
+  ],
+  "prior_complete_regression_before_audit_retention": {
+    "source_hash": "c26ac44b384254f85795df832f60888c739e65ff62620265c5839e39760c4f74",
+    "tests": 1313,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "time": 114.914
+  },
+  "failure_reason_retained_after_reconciliation": true,
+  "private_trace_exports": [
+    {
+      "run_id": "d05c6c18-ee7d-4399-b242-f825f92dc202",
+      "relative_path": ".local/director-clock/traces/d05c6c18-ee7d-4399-b242-f825f92dc202/trace.json",
+      "sha256": "ef6a7e37f3a953f01d84352105ee2b6cba62563c7e6c74def0bc92221685561d"
+    },
+    {
+      "run_id": "2d2c361a-3e1f-42bd-a190-7fb3ce2c444e",
+      "relative_path": ".local/director-clock/traces/2d2c361a-3e1f-42bd-a190-7fb3ce2c444e/trace.json",
+      "sha256": "40b13047f677bc3c907415de75095c5e491b813d92b61e104d580a1d29aae444"
+    }
+  ]
+}

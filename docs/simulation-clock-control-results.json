@@ -1,0 +1,594 @@
+{
+  "date": "2026-11-09",
+  "source_hash": "05d027c696253e1a42a52072d29888f17863cf08f5203a20cf6634c0d81c9a23",
+  "clock_contract_version": "elapsed-seconds-v1",
+  "controls": [
+    {
+      "clock_id": "7dd8fc37-6592-4f82-b898-8b5f5e03cf73",
+      "kind": "supplied_clock_component_control_no_business_actions",
+      "simulated_seconds": 3600,
+      "simulated_days": 0.041666666666666664,
+      "owner_pairs": 15,
+      "lane_count": 30,
+      "delivered_events": 3,
+      "event_delivery_lateness_seconds": 0,
+      "parallel_work_completion_seconds": [
+        7,
+        60
+      ],
+      "simulated_start": "2026-11-09T09:00:00+00:00",
+      "simulated_end": "2026-11-09T10:00:00+00:00",
+      "elapsed_wall_seconds": 0.237,
+      "same_original_step_replayed_in_independent_process": true,
+      "pause_and_resume_invocations": 1,
+      "pending_event_count_at_cutoff": 32,
+      "queue_drained": false,
+      "task_success": null,
+      "contract_hash": "a86f1fc42b99c397c8fb235dc003fb39d4c8180916aded08ce159ff10f29e2ad",
+      "contract": {
+        "epoch": "2026-11-09T09:00:00Z",
+        "version": "elapsed-seconds-v1",
+        "processes": [
+          {
+            "id": "actor-0",
+            "role": "actor",
+            "owner_id": "owner-0"
+          },
+          {
+            "id": "agent-0",
+            "role": "agent",
+            "owner_id": "owner-0"
+          },
+          {
+            "id": "actor-1",
+            "role": "actor",
+            "owner_id": "owner-1"
+          },
+          {
+            "id": "agent-1",
+            "role": "agent",
+            "owner_id": "owner-1"
+          },
+          {
+            "id": "actor-2",
+            "role": "actor",
+            "owner_id": "owner-2"
+          },
+          {
+            "id": "agent-2",
+            "role": "agent",
+            "owner_id": "owner-2"
+          },
+          {
+            "id": "actor-3",
+            "role": "actor",
+            "owner_id": "owner-3"
+          },
+          {
+            "id": "agent-3",
+            "role": "agent",
+            "owner_id": "owner-3"
+          },
+          {
+            "id": "actor-4",
+            "role": "actor",
+            "owner_id": "owner-4"
+          },
+          {
+            "id": "agent-4",
+            "role": "agent",
+            "owner_id": "owner-4"
+          },
+          {
+            "id": "actor-5",
+            "role": "actor",
+            "owner_id": "owner-5"
+          },
+          {
+            "id": "agent-5",
+            "role": "agent",
+            "owner_id": "owner-5"
+          },
+          {
+            "id": "actor-6",
+            "role": "actor",
+            "owner_id": "owner-6"
+          },
+          {
+            "id": "agent-6",
+            "role": "agent",
+            "owner_id": "owner-6"
+          },
+          {
+            "id": "actor-7",
+            "role": "actor",
+            "owner_id": "owner-7"
+          },
+          {
+            "id": "agent-7",
+            "role": "agent",
+            "owner_id": "owner-7"
+          },
+          {
+            "id": "actor-8",
+            "role": "actor",
+            "owner_id": "owner-8"
+          },
+          {
+            "id": "agent-8",
+            "role": "agent",
+            "owner_id": "owner-8"
+          },
+          {
+            "id": "actor-9",
+            "role": "actor",
+            "owner_id": "owner-9"
+          },
+          {
+            "id": "agent-9",
+            "role": "agent",
+            "owner_id": "owner-9"
+          },
+          {
+            "id": "actor-10",
+            "role": "actor",
+            "owner_id": "owner-10"
+          },
+          {
+            "id": "agent-10",
+            "role": "agent",
+            "owner_id": "owner-10"
+          },
+          {
+            "id": "actor-11",
+            "role": "actor",
+            "owner_id": "owner-11"
+          },
+          {
+            "id": "agent-11",
+            "role": "agent",
+            "owner_id": "owner-11"
+          },
+          {
+            "id": "actor-12",
+            "role": "actor",
+            "owner_id": "owner-12"
+          },
+          {
+            "id": "agent-12",
+            "role": "agent",
+            "owner_id": "owner-12"
+          },
+          {
+            "id": "actor-13",
+            "role": "actor",
+            "owner_id": "owner-13"
+          },
+          {
+            "id": "agent-13",
+            "role": "agent",
+            "owner_id": "owner-13"
+          },
+          {
+            "id": "actor-14",
+            "role": "actor",
+            "owner_id": "owner-14"
+          },
+          {
+            "id": "agent-14",
+            "role": "agent",
+            "owner_id": "owner-14"
+          }
+        ],
+        "max_events": 10000,
+        "tool_seconds": {
+          "synthetic_tool": 7
+        },
+        "horizon_policy": "exclusive_end_retain_pending",
+        "horizon_seconds": 3600,
+        "same_time_order": "seconds_priority_ascii_key_no_retroactive_insert",
+        "generation_time_policy": "ceil_output_tokens_at_frozen_rate_minimum_one_second",
+        "output_tokens_per_minute": 600
+      },
+      "provider_calls": 0,
+      "provider_cost_usd": "0",
+      "passed": true
+    },
+    {
+      "clock_id": "25938ede-b9b5-4a52-be04-3e7cf18d57dd",
+      "kind": "supplied_clock_component_control_no_business_actions",
+      "simulated_seconds": 86400,
+      "simulated_days": 1.0,
+      "owner_pairs": 15,
+      "lane_count": 30,
+      "delivered_events": 26,
+      "event_delivery_lateness_seconds": 0,
+      "parallel_work_completion_seconds": [
+        7,
+        60
+      ],
+      "simulated_start": "2026-11-09T09:00:00+00:00",
+      "simulated_end": "2026-11-10T09:00:00+00:00",
+      "elapsed_wall_seconds": 0.279,
+      "same_original_step_replayed_in_independent_process": true,
+      "pause_and_resume_invocations": 1,
+      "pending_event_count_at_cutoff": 32,
+      "queue_drained": false,
+      "task_success": null,
+      "contract_hash": "69d07a4f2f18ea5cfc618db864d956530217278b01fa3c7be1aa38ec1f9d763f",
+      "contract": {
+        "epoch": "2026-11-09T09:00:00Z",
+        "version": "elapsed-seconds-v1",
+        "processes": [
+          {
+            "id": "actor-0",
+            "role": "actor",
+            "owner_id": "owner-0"
+          },
+          {
+            "id": "agent-0",
+            "role": "agent",
+            "owner_id": "owner-0"
+          },
+          {
+            "id": "actor-1",
+            "role": "actor",
+            "owner_id": "owner-1"
+          },
+          {
+            "id": "agent-1",
+            "role": "agent",
+            "owner_id": "owner-1"
+          },
+          {
+            "id": "actor-2",
+            "role": "actor",
+            "owner_id": "owner-2"
+          },
+          {
+            "id": "agent-2",
+            "role": "agent",
+            "owner_id": "owner-2"
+          },
+          {
+            "id": "actor-3",
+            "role": "actor",
+            "owner_id": "owner-3"
+          },
+          {
+            "id": "agent-3",
+            "role": "agent",
+            "owner_id": "owner-3"
+          },
+          {
+            "id": "actor-4",
+            "role": "actor",
+            "owner_id": "owner-4"
+          },
+          {
+            "id": "agent-4",
+            "role": "agent",
+            "owner_id": "owner-4"
+          },
+          {
+            "id": "actor-5",
+            "role": "actor",
+            "owner_id": "owner-5"
+          },
+          {
+            "id": "agent-5",
+            "role": "agent",
+            "owner_id": "owner-5"
+          },
+          {
+            "id": "actor-6",
+            "role": "actor",
+            "owner_id": "owner-6"
+          },
+          {
+            "id": "agent-6",
+            "role": "agent",
+            "owner_id": "owner-6"
+          },
+          {
+            "id": "actor-7",
+            "role": "actor",
+            "owner_id": "owner-7"
+          },
+          {
+            "id": "agent-7",
+            "role": "agent",
+            "owner_id": "owner-7"
+          },
+          {
+            "id": "actor-8",
+            "role": "actor",
+            "owner_id": "owner-8"
+          },
+          {
+            "id": "agent-8",
+            "role": "agent",
+            "owner_id": "owner-8"
+          },
+          {
+            "id": "actor-9",
+            "role": "actor",
+            "owner_id": "owner-9"
+          },
+          {
+            "id": "agent-9",
+            "role": "agent",
+            "owner_id": "owner-9"
+          },
+          {
+            "id": "actor-10",
+            "role": "actor",
+            "owner_id": "owner-10"
+          },
+          {
+            "id": "agent-10",
+            "role": "agent",
+            "owner_id": "owner-10"
+          },
+          {
+            "id": "actor-11",
+            "role": "actor",
+            "owner_id": "owner-11"
+          },
+          {
+            "id": "agent-11",
+            "role": "agent",
+            "owner_id": "owner-11"
+          },
+          {
+            "id": "actor-12",
+            "role": "actor",
+            "owner_id": "owner-12"
+          },
+          {
+            "id": "agent-12",
+            "role": "agent",
+            "owner_id": "owner-12"
+          },
+          {
+            "id": "actor-13",
+            "role": "actor",
+            "owner_id": "owner-13"
+          },
+          {
+            "id": "agent-13",
+            "role": "agent",
+            "owner_id": "owner-13"
+          },
+          {
+            "id": "actor-14",
+            "role": "actor",
+            "owner_id": "owner-14"
+          },
+          {
+            "id": "agent-14",
+            "role": "agent",
+            "owner_id": "owner-14"
+          }
+        ],
+        "max_events": 10000,
+        "tool_seconds": {
+          "synthetic_tool": 7
+        },
+        "horizon_policy": "exclusive_end_retain_pending",
+        "horizon_seconds": 86400,
+        "same_time_order": "seconds_priority_ascii_key_no_retroactive_insert",
+        "generation_time_policy": "ceil_output_tokens_at_frozen_rate_minimum_one_second",
+        "output_tokens_per_minute": 600
+      },
+      "provider_calls": 0,
+      "provider_cost_usd": "0",
+      "passed": true
+    },
+    {
+      "clock_id": "8c466b48-0ce9-49a8-a788-a4aca9cb7c38",
+      "kind": "supplied_clock_component_control_no_business_actions",
+      "simulated_seconds": 604800,
+      "simulated_days": 7.0,
+      "owner_pairs": 15,
+      "lane_count": 30,
+      "delivered_events": 170,
+      "event_delivery_lateness_seconds": 0,
+      "parallel_work_completion_seconds": [
+        7,
+        60
+      ],
+      "simulated_start": "2026-11-09T09:00:00+00:00",
+      "simulated_end": "2026-11-16T09:00:00+00:00",
+      "elapsed_wall_seconds": 0.527,
+      "same_original_step_replayed_in_independent_process": true,
+      "pause_and_resume_invocations": 1,
+      "pending_event_count_at_cutoff": 32,
+      "queue_drained": false,
+      "task_success": null,
+      "contract_hash": "74b63b04f34e7bd6e64d567c2ebc52bb773dc9a294ad008caf5cf1943bfcbe39",
+      "contract": {
+        "epoch": "2026-11-09T09:00:00Z",
+        "version": "elapsed-seconds-v1",
+        "processes": [
+          {
+            "id": "actor-0",
+            "role": "actor",
+            "owner_id": "owner-0"
+          },
+          {
+            "id": "agent-0",
+            "role": "agent",
+            "owner_id": "owner-0"
+          },
+          {
+            "id": "actor-1",
+            "role": "actor",
+            "owner_id": "owner-1"
+          },
+          {
+            "id": "agent-1",
+            "role": "agent",
+            "owner_id": "owner-1"
+          },
+          {
+            "id": "actor-2",
+            "role": "actor",
+            "owner_id": "owner-2"
+          },
+          {
+            "id": "agent-2",
+            "role": "agent",
+            "owner_id": "owner-2"
+          },
+          {
+            "id": "actor-3",
+            "role": "actor",
+            "owner_id": "owner-3"
+          },
+          {
+            "id": "agent-3",
+            "role": "agent",
+            "owner_id": "owner-3"
+          },
+          {
+            "id": "actor-4",
+            "role": "actor",
+            "owner_id": "owner-4"
+          },
+          {
+            "id": "agent-4",
+            "role": "agent",
+            "owner_id": "owner-4"
+          },
+          {
+            "id": "actor-5",
+            "role": "actor",
+            "owner_id": "owner-5"
+          },
+          {
+            "id": "agent-5",
+            "role": "agent",
+            "owner_id": "owner-5"
+          },
+          {
+            "id": "actor-6",
+            "role": "actor",
+            "owner_id": "owner-6"
+          },
+          {
+            "id": "agent-6",
+            "role": "agent",
+            "owner_id": "owner-6"
+          },
+          {
+            "id": "actor-7",
+            "role": "actor",
+            "owner_id": "owner-7"
+          },
+          {
+            "id": "agent-7",
+            "role": "agent",
+            "owner_id": "owner-7"
+          },
+          {
+            "id": "actor-8",
+            "role": "actor",
+            "owner_id": "owner-8"
+          },
+          {
+            "id": "agent-8",
+            "role": "agent",
+            "owner_id": "owner-8"
+          },
+          {
+            "id": "actor-9",
+            "role": "actor",
+            "owner_id": "owner-9"
+          },
+          {
+            "id": "agent-9",
+            "role": "agent",
+            "owner_id": "owner-9"
+          },
+          {
+            "id": "actor-10",
+            "role": "actor",
+            "owner_id": "owner-10"
+          },
+          {
+            "id": "agent-10",
+            "role": "agent",
+            "owner_id": "owner-10"
+          },
+          {
+            "id": "actor-11",
+            "role": "actor",
+            "owner_id": "owner-11"
+          },
+          {
+            "id": "agent-11",
+            "role": "agent",
+            "owner_id": "owner-11"
+          },
+          {
+            "id": "actor-12",
+            "role": "actor",
+            "owner_id": "owner-12"
+          },
+          {
+            "id": "agent-12",
+            "role": "agent",
+            "owner_id": "owner-12"
+          },
+          {
+            "id": "actor-13",
+            "role": "actor",
+            "owner_id": "owner-13"
+          },
+          {
+            "id": "agent-13",
+            "role": "agent",
+            "owner_id": "owner-13"
+          },
+          {
+            "id": "actor-14",
+            "role": "actor",
+            "owner_id": "owner-14"
+          },
+          {
+            "id": "agent-14",
+            "role": "agent",
+            "owner_id": "owner-14"
+          }
+        ],
+        "max_events": 10000,
+        "tool_seconds": {
+          "synthetic_tool": 7
+        },
+        "horizon_policy": "exclusive_end_retain_pending",
+        "horizon_seconds": 604800,
+        "same_time_order": "seconds_priority_ascii_key_no_retroactive_insert",
+        "generation_time_policy": "ceil_output_tokens_at_frozen_rate_minimum_one_second",
+        "output_tokens_per_minute": 600
+      },
+      "provider_calls": 0,
+      "provider_cost_usd": "0",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "owned_schema_removed": true,
+  "development_database_touched": false,
+  "new_provider_calls": 0,
+  "new_cost_usd": "0",
+  "legacy_window_runtime_modified": false,
+  "model_or_world_adapter_integrated": false,
+  "medium_chaos_experiment_started": false,
+  "limits": [
+    "Supplied Clock component decisions only; no model autonomy evidence.",
+    "No payment, shopping, mail service, shared object or BOLD OS integration.",
+    "Hour events are explicit control inputs, not a calibrated medium-chaos profile.",
+    "Clock IDs belong to a removed test schema; they are not console run URLs."
+  ]
+}

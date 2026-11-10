@@ -1,0 +1,85 @@
+{
+  "date": "2026-11-09",
+  "candidate_version": "friends-community-candidate-v4",
+  "run_id": "cdde387c-d013-41e9-b86f-6cc06a56e4d5",
+  "source_hash": "4896bcf9f65dd314f9e5f380763efa3028a7e299bd3ac387afa6cf8b4d0e8d92",
+  "execution_configuration_hash": "b2d99c9c6f042676498f8acb2ab5e34bb8802a70ef0266d4abdc17f602489bfd",
+  "complete_clock_day": false,
+  "simulated_seconds": 153,
+  "wall_seconds": 175.299,
+  "failure_kind": "ModelGenerationError",
+  "financial_invariants": {
+    "total_conserved": true,
+    "ledger_matches_balances": true,
+    "no_duplicate_payment_grant": true
+  },
+  "business_tasks_by_status": {
+    "active": 1,
+    "blocked": 0,
+    "completed": 0,
+    "cancelled": 0
+  },
+  "native_payments": 1,
+  "provider_attempts": 59,
+  "reported_cost_usd": "0.15215302",
+  "effective_exposure_review": {
+    "run_id": "cdde387c-d013-41e9-b86f-6cc06a56e4d5",
+    "all_four_effective": false,
+    "method": "Inspect immutable original Actor diagnostics, applied graph tools, native payment/mail/task records and all four pending cue rows. No provider calls for this review.",
+    "cue_findings": {
+      "payment_followup": {
+        "exposure": "not_delivered",
+        "scheduled_second": 10800,
+        "outcome": "The provider-blocked run stopped at 153 seconds; this cue remains pending. No assistant response or outcome for this cue is established."
+      },
+      "social_invitation": {
+        "exposure": "not_delivered",
+        "scheduled_second": 32400,
+        "outcome": "The provider-blocked run stopped at 153 seconds; this cue remains pending. No assistant response or outcome for this cue is established."
+      },
+      "plan_change": {
+        "exposure": "not_delivered",
+        "scheduled_second": 54000,
+        "outcome": "The provider-blocked run stopped at 153 seconds; this cue remains pending. No assistant response or outcome for this cue is established."
+      },
+      "unclear_repayment": {
+        "exposure": "not_delivered",
+        "scheduled_second": 75600,
+        "outcome": "The provider-blocked run stopped at 153 seconds; this cue remains pending. No assistant response or outcome for this cue is established."
+      }
+    },
+    "native_board_messages": 0,
+    "shared_board_limit": "No board posts were made in this cohort. Do not claim observed shared-board coordination.",
+    "provider_stop": {
+      "owner_id": "bob",
+      "role": "actor-review",
+      "http_status": 200,
+      "embedded_error_code": 502,
+      "consecutive_final_attempts": 3,
+      "durable_accepted_response": false,
+      "last_three_retained_reservations_usd": "0.294600",
+      "automatic_regeneration": false
+    },
+    "business_outcome": "One native Alice-to-Bob 10-credit payment, native bank notice, separate sender mail and private sender report. One tracked task remains active with no completion evidence. No snack payment or duplicate payment.",
+    "native_receipt_id": "2d331114-fa7f-531b-99c4-026a391b8baf",
+    "sender_report_id": "f799c608-a961-5da5-a722-63b79a274101",
+    "role_quality_limits": [
+      "Bob repeated a monitoring instruction; independent semantic review rejected that first candidate. The repair review then failed at the provider. No rejected candidate was delivered.",
+      "Some private Agent reports use Chinese. Preserve original language; this run does not prove consistently English generated dialogue."
+    ],
+    "not_proven": [
+      "A full corrected-source one-day four-cue rehearsal",
+      "The repaired snack task/consent path in a new complete world",
+      "Seven-day all-role affordability or context safety",
+      "Long-term autonomous reliability"
+    ]
+  },
+  "largest_observed_personal_input_tokens": 10412,
+  "checkpoint_blob_bytes": 30643,
+  "private_trace_reference": ".local/clock-model-runs/cdde387c-d013-41e9-b86f-6cc06a56e4d5/836efeb672a142c3a3cefc7e500d6db0/trajectory.json",
+  "private_markdown_reference": ".local/clock-model-runs/cdde387c-d013-41e9-b86f-6cc06a56e4d5/836efeb672a142c3a3cefc7e500d6db0/trajectory.md",
+  "seven_day_experiment_started": false,
+  "not_an_independent_reliability_replication": true,
+  "uncertain_cost_usd": "1.382292000000",
+  "occupied_cost_usd": "1.534445020000"
+}

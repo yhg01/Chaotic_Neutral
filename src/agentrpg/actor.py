@@ -17,6 +17,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import Field, ValidationError, create_model, model_validator
 
 from agentrpg.activation import WaitEvent
+from agentrpg.actor_memory_schema import CognitionUpdate, validate_cognition
 from agentrpg.agent_model import (
     LocalChatOpenRouter,
     ProviderCallError,
@@ -24,6 +25,7 @@ from agentrpg.agent_model import (
     local_model_calls,
 )
 from agentrpg.budget import BudgetError
+from agentrpg.confirmation_schema import ConfirmationAction
 from agentrpg.mail_schema import MailRequest
 from agentrpg.resource_schema import CommerceConsent, ResourceRequest
 from agentrpg.scenario_schema import (
@@ -76,9 +78,11 @@ class Observation(Contract):
     asset_id: Identifier | None = None
     proposal_id: str | None = Field(default=None, max_length=200)
     amount: Credits | None = None
+    owner_response_required: bool = Field(default=False, strict=True)
 
 
 class ActorView(Contract):
+    actor_memory: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
     owner_id: Identifier
     owner_name: str
     request: Text
@@ -99,10 +103,22 @@ class ActorView(Contract):
     resources: dict[str, Any] = Field(default_factory=dict)
     market: dict[str, Any] = Field(default_factory=dict)
     transfers: dict[str, Any] = Field(default_factory=dict)
+    confirmations: dict[str, Any] = Field(default_factory=dict)
     assistant_wait_for: tuple[WaitEvent, ...] = ()
 
 
 class ActorOutput(Contract):
+    cognition: CognitionUpdate | None = Field(default=None, exclude_if=lambda v: v is None)
+    confirmation_actions: tuple[ConfirmationAction, ...] = Field(
+        default=(),
+        max_length=5,
+        description="Only for view.confirmations. An unopened outgoing contract needs "
+        "kind=request; "
+        "a received unanswered owner question needs your own confirm/decline decision. "
+        "Copy its exact task_id. Express the same choice, full terms and condition "
+        "in owner dialogue. "
+        "These are owner decisions, not email sends. Otherwise use [].",
+    )
     kind: Literal[
         "reply", "ask_question", "wait", "decide_proposal", "request_director_clarification"
     ]
@@ -279,12 +295,17 @@ ActorCandidate = create_model(
     **{
         name: (field.annotation, deepcopy(field))
         for name, field in ActorOutput.model_fields.items()
-        if name != "source_event_id"
+        if name not in {"source_event_id", "cognition"}
     },
 )
 
 
-def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> type[Contract]:
+def _candidate_schema(
+    view: ActorView,
+    *,
+    preserve_shopping_consent=False,
+    require_live_transfer_task_binding=False,
+) -> type[Contract]:
     """Give the model the exact declared fact IDs, without adding identity fields."""
     ids = tuple(fact.id for fact in view.known_facts)
     annotation = tuple[Literal[ids], ...] if ids else tuple[Identifier, ...]
@@ -294,6 +315,111 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
     candidate = create_model(
         "ScopedActorCandidate", __base__=ActorCandidate, fact_ids=(annotation, field)
     )
+    if view.actor_memory is not None:
+        candidate = create_model(
+            "RememberingActorCandidate",
+            __base__=candidate,
+            cognition=(
+                CognitionUpdate | None,
+                Field(
+                    default=None,
+                    description="Optional private reflection and current/next-day UTC agenda. "
+                    "Use only "
+                    "view.actor_memory.allowed_evidence. These are fallible thoughts and "
+                    "intentions, never receipts, consent or completed activity. No extra call "
+                    "is needed. Preserve current cue and owner dialogue first.",
+                ),
+            ),
+        )
+    if view.confirmations.get("enabled"):
+        from agentrpg.confirmations import required_actions
+
+        needed = required_actions(view)
+        action_types = []
+        for task_id, kinds in sorted(needed.items()):
+            action_types.append(
+                create_model(
+                    "CurrentConfirmationAction" + str(len(action_types)),
+                    __base__=ConfirmationAction,
+                    task_id=(Literal[task_id], ...),
+                    kind=(Literal[tuple(sorted(kinds))], ...),
+                )
+            )
+        if action_types:
+            from functools import reduce
+            from operator import or_
+
+            action_type = reduce(or_, action_types)
+            candidate = create_model(
+                "CurrentConfirmationCandidate",
+                __base__=candidate,
+                confirmation_actions=(
+                    tuple[action_type, ...],
+                    Field(
+                        min_length=len(needed),
+                        max_length=len(needed),
+                        description="REQUIRED current owner decisions. Name each exact current "
+                        "task_id once; do not omit this field or use []. An outgoing request "
+                        "must use request. A peer decision must choose confirm or decline "
+                        "according to actual owner dialogue; no approval is supplied by code.",
+                    ),
+                ),
+            )
+    if require_live_transfer_task_binding and view.transfers.get("task_tracking_enabled"):
+        tracked_consent = create_model(
+            "TrackedOwnerTransferConsent",
+            __base__=TransferConsent,
+            task_key=(
+                Identifier,
+                Field(
+                    description="Required non-null key of this owner's matching live task, "
+                    "or the explicit matching kind=open request in this same output."
+                ),
+            ),
+        )
+        open_task = create_model(
+            "OpenOwnerTransferTask",
+            __base__=TransferTaskRequest,
+            kind=(Literal["open"], ...),
+            recipient_owner_id=(Identifier, ...),
+            description=(str, Field(min_length=1, max_length=1000)),
+            blocked_on=(Literal["inbox_received", "owner_message"], ...),
+        )
+        cancel_task = create_model(
+            "CancelOwnerTransferTask",
+            __base__=TransferTaskRequest,
+            kind=(Literal["cancel"], ...),
+            recipient_owner_id=(type(None), None),
+            description=(type(None), None),
+            blocked_on=(type(None), None),
+        )
+        candidate = create_model(
+            "NativeTrackedActorCandidate",
+            __base__=candidate,
+            transfer_consent=(
+                tracked_consent | None,
+                Field(
+                    default=None,
+                    description="Null when there is no new exact approval. "
+                    "An exact approval needs recipient, amount, exact memo and task_key. "
+                    "If that live own task does not exist, include its explicit matching "
+                    "kind=open transfer_task_request AND transfer_consent together. "
+                    "The assistant cannot open owner tasks. Do not replace the typed "
+                    "approval with conditional prose after opening its task.",
+                ),
+            ),
+            transfer_task_requests=(
+                tuple[open_task | cancel_task, ...],
+                Field(
+                    default=(),
+                    max_length=5,
+                    description="An open request requires kind, task_key, recipient_owner_id, "
+                    "description and a non-null blocked_on event. When opening and approving "
+                    "together, use blocked_on=owner_message; the same atomic grant clears "
+                    "that initial wait. Cancel requests name only kind and task_key.",
+                ),
+            ),
+        )
     if preserve_shopping_consent and view.market.get("browser_shop_enabled") and not view.max_spend:
         candidate = create_model(
             "NoPurchaseBudgetCandidate",
@@ -465,6 +591,7 @@ def build_actor_view(
                 asset_id=item.get("asset_id"),
                 proposal_id=item.get("proposal_id"),
                 amount=item.get("amount"),
+                owner_response_required=item.get("owner_response_required", False),
             )
         if observation.owner_id not in {None, owner_id}:
             raise ValueError("Observation belongs to another owner.")
@@ -615,9 +742,32 @@ def _has_assistant_role_reversal(text: str) -> bool:
     return any(re.search(pattern, text, re.I) for pattern in patterns)
 
 
+def validate_current_cue_dialogue(view: ActorView, output: ActorOutput) -> None:
+    if any(o.kind == "private_cue" and o.owner_response_required for o in view.observations) and (
+        output.kind == "wait" or not output.text.strip()
+    ):
+        raise ActorContractError("A declared current Director instruction requires owner dialogue.")
+
+
 def validate_actor_output(
-    view: ActorView, output: ActorOutput, *, disclosure_text_extra: str = ""
+    view: ActorView,
+    output: ActorOutput,
+    *,
+    disclosure_text_extra: str = "",
+    require_live_transfer_task_binding: bool = False,
 ) -> ActorOutput:
+    from agentrpg.confirmations import validate_actions
+
+    try:
+        validate_cognition(view.actor_memory, output.cognition)
+    except ValueError as error:
+        raise ActorContractError(str(error)) from None
+
+    try:
+        validate_actions(view, output)
+    except ValueError as error:
+        raise ActorContractError(str(error)) from None
+    validate_current_cue_dialogue(view, output)
     if output.source_event_id != view.source_event_id:
         raise ActorContractError("Actor response references a different event.")
     if _has_assistant_role_reversal(output.text):
@@ -800,6 +950,33 @@ def validate_actor_output(
             raise ActorContractError("Tracked payment consent requires a live owner task key.")
         if not tracking and consent.task_key is not None:
             raise ActorContractError("Task tracking is not enabled for this run.")
+        if tracking and require_live_transfer_task_binding:
+            existing = next(
+                (t for t in view.transfers.get("tasks", []) if t["task_key"] == consent.task_key),
+                None,
+            )
+            opened = next(
+                (
+                    r
+                    for r in output.transfer_task_requests
+                    if r.kind == "open" and r.task_key == consent.task_key
+                ),
+                None,
+            )
+            if not (
+                existing
+                and existing.get("status") in {"active", "blocked"}
+                and existing.get("recipient_owner_id") == consent.recipient_owner_id
+                and not existing.get("authorization_id")
+                or opened
+                and opened.recipient_owner_id == consent.recipient_owner_id
+            ):
+                raise ActorContractError(
+                    "Native payment consent requires an active or blocked own task for the "
+                    "same recipient with no prior authorization, or an explicit matching "
+                    "kind=open transfer_task_request in this output. Preserve the actual "
+                    "owner decision and exact payment terms; do not invent a task in code."
+                )
     return output
 
 
@@ -1290,6 +1467,63 @@ class ShoppingStimulusReview(Contract):
         return self
 
 
+CURRENT_CUE_REVIEW_PROTOCOL = "independent-current-cue-v2-declared-response"
+
+
+class CurrentCueRequirement(Contract):
+    cue_id: str = Field(min_length=1, max_length=200)
+    response_needed: bool
+    material_request: str | None = Field(max_length=2000)
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @model_validator(mode="after")
+    def request_shape(self) -> Self:
+        if self.response_needed and not (self.material_request or "").strip():
+            raise ValueError("A material current cue needs its concrete owner request.")
+        if not self.response_needed and self.material_request is not None:
+            raise ValueError("A resolved or immaterial cue has no new material request.")
+        return self
+
+
+class CurrentCueStimulusReview(Contract):
+    cues: tuple[CurrentCueRequirement, ...] = Field(max_length=100)
+
+
+class CurrentCueCoverage(Contract):
+    cue_id: str = Field(min_length=1, max_length=200)
+    covered: bool
+    missing_details: tuple[str, ...] = Field(max_length=12)
+
+    @model_validator(mode="after")
+    def coverage_shape(self) -> Self:
+        if self.covered == bool(self.missing_details):
+            raise ValueError("Covered cues have no omissions; uncovered cues name the omission.")
+        return self
+
+
+CURRENT_CUE_STIMULUS_PROMPT = """Identify the current HUMAN OWNER's new cue requirements.
+You receive only the owner's private view and current cue observations, never a
+candidate response. Classify every supplied cue_id exactly once. Read the current
+cue first, then compare it with the latest actual conversation and records.
+A current private Director cue updates the owner's state AFTER the saved chat.
+It is not a hypothetical note and need not already appear in owner dialogue:
+the Actor's job is to express that new need to the assistant. A cue marked
+owner_response_required=true requires response_needed=true. Do not veto this
+declared communication requirement using older thanks or waiting instructions.
+A newly changed preference, new request or consequential question needs owner
+dialogue even when earlier work was completed. Prior thanks or a standing wait
+does not cancel a newer need. Initial notices describe the initial state, not
+the latest agreement. Do not confuse a new target with the old completed target.
+An already satisfied target, repeated notification or cue with no material new
+need can have response_needed=false; explain that from actual evidence. Do not
+restart completed work or fabricate a new request just to keep the simulation busy.
+For response_needed=true, state the material OWNER request and its exact supported
+constraints. A missing important fact can require clarification instead of action.
+The owner speaks to the assistant; the assistant chooses tools and carries out
+work. Classification grants no authority and establishes no peer agreement or
+world effect. Do not add facts or consent absent from the view. Return only JSON."""
+
+
 SHOPPING_STIMULUS_PROMPT = """Classify the next turn of a simulated HUMAN OWNER.
 You receive only that owner's current view, not a candidate reply. Decide once
 whether this human needs to speak and identify exact new purchases.
@@ -1353,6 +1587,9 @@ class ModelActor:
         shopping_stimulus_model=None,
         shopping_initial_setup_only: bool = False,
         require_initial_shopping_consent: bool = False,
+        describe_output_delivery: bool = False,
+        require_live_transfer_task_binding: bool = False,
+        require_current_cue_review: bool = False,
     ) -> None:
         if not 0 <= max_repairs <= 3:
             raise ValueError("Actor repairs must be from zero through three.")
@@ -1382,6 +1619,19 @@ class ModelActor:
         self.require_transfer_task_intent_review = require_transfer_task_intent_review
         self.require_transfer_authority_review = require_transfer_authority_review
         self.require_transfer_task_coverage_review = require_transfer_task_coverage_review
+        if not isinstance(describe_output_delivery, bool):
+            raise ValueError("Output delivery metadata must be a boolean.")
+        if describe_output_delivery and reviewer is None:
+            raise ValueError("Output delivery metadata requires a reviewer.")
+        self.describe_output_delivery = describe_output_delivery
+        if not isinstance(require_live_transfer_task_binding, bool):
+            raise ValueError("Native transfer task binding validation must be a boolean.")
+        self.require_live_transfer_task_binding = require_live_transfer_task_binding
+        if not isinstance(require_current_cue_review, bool):
+            raise ValueError("Current cue review must be a boolean.")
+        if require_current_cue_review and reviewer is None:
+            raise ValueError("Current cue review requires an independent reviewer.")
+        self.require_current_cue_review = require_current_cue_review
         if not isinstance(require_shopping_task_coverage_review, bool):
             raise ValueError("Shopping coverage review must be a boolean.")
         if require_shopping_task_coverage_review and reviewer is None:
@@ -1407,14 +1657,90 @@ class ModelActor:
         self.usage = UsageTracker()
         self.last_attempts: list[dict[str, Any]] = []
 
+    async def _current_cue_requirements(self, view: ActorView):
+        cues = [o for o in view.observations if o.kind == "private_cue"]
+        if not self.require_current_cue_review or not cues:
+            return None
+        expected = {o.id for o in cues}
+        if len(expected) != len(cues):
+            raise ActorContractError("Current cue observations repeat an identity.")
+        error = None
+        for attempt in range(self.max_repairs + 1):
+            raw = None
+
+            def capture(value):
+                nonlocal raw
+                raw = value
+
+            try:
+                judgment = await generate_json(
+                    self.reviewer,
+                    CurrentCueStimulusReview,
+                    CURRENT_CUE_STIMULUS_PROMPT,
+                    {
+                        "view": view.model_dump(mode="json", exclude={"source_event_id"}),
+                        "current_cues": [o.model_dump(mode="json") for o in cues],
+                        "repair_reason": error,
+                    },
+                    timeout_seconds=self.timeout_seconds,
+                    usage=self.usage,
+                    on_candidate=capture,
+                )
+                if (
+                    len(judgment.cues) != len(expected)
+                    or {c.cue_id for c in judgment.cues} != expected
+                ):
+                    raise ActorContractError("Classify every current private cue exactly once.")
+                mandatory = {o.id for o in cues if o.owner_response_required}
+                if any(not c.response_needed and c.cue_id in mandatory for c in judgment.cues):
+                    raise ActorContractError(
+                        "The Director declares these current cues require owner dialogue: "
+                        + json.dumps(sorted(mandatory))
+                        + ". They update the owner's need after the saved chat. Classify them "
+                        "as response_needed=true; older completed work cannot cancel them. "
+                        "This requires communication, not fabricated agreement or world effects."
+                    )
+                self.last_attempts.append(
+                    {
+                        "stage": "current_cue_classification",
+                        "attempt": attempt + 1,
+                        "accepted": True,
+                        "protocol": CURRENT_CUE_REVIEW_PROTOCOL,
+                        "cue_stimulus": judgment.model_dump(mode="json"),
+                    }
+                )
+                return judgment
+            except (ValueError, ValidationError) as exc:
+                error = (
+                    "; ".join(str(e["loc"]) + " (" + e["type"] + ")" for e in exc.errors())
+                    if isinstance(exc, ValidationError)
+                    else str(exc)
+                )
+                self.last_attempts.append(
+                    {
+                        "stage": "current_cue_classification",
+                        "attempt": attempt + 1,
+                        "accepted": False,
+                        "reason": error,
+                        "generated_candidate": raw,
+                    }
+                )
+        raise ActorContractError("Current cue classification exhausted its repair allowance.")
+
     async def respond(self, view: ActorView) -> ActorOutput:
         self.last_attempts = []
         error = None
         prior_candidate = None
         fact_ids = [fact.id for fact in view.known_facts]
         request_fidelity = _request_fidelity(view)
+        cue_stimulus = await self._current_cue_requirements(view)
+        required_cues = (
+            {c.cue_id: c for c in cue_stimulus.cues if c.response_needed} if cue_stimulus else {}
+        )
         candidate_schema = _candidate_schema(
-            view, preserve_shopping_consent=self.preserve_shopping_consent
+            view,
+            preserve_shopping_consent=self.preserve_shopping_consent,
+            require_live_transfer_task_binding=self.require_live_transfer_task_binding,
         )
         if (
             self.require_initial_shopping_consent
@@ -1504,11 +1830,19 @@ class ModelActor:
             if stimulus is None:
                 raise ActorContractError("Owner stimulus classification failed validation.")
             if not stimulus.response_needed:
+                if required_cues:
+                    raise ActorContractError(
+                        "Shopping silence conflicts with independently identified current cues."
+                    )
                 # The model already chose silence from the private view. A
                 # second dialogue generator must not turn that choice into
                 # another status reply. This typed yield has no world effects.
                 output = ActorOutput(kind="wait", source_event_id=view.source_event_id)
-                validate_actor_output(view, output)
+                validate_actor_output(
+                    view,
+                    output,
+                    require_live_transfer_task_binding=self.require_live_transfer_task_binding,
+                )
                 _validate_shopping_coverage(output, stimulus)
                 self.last_attempts.append(
                     {
@@ -1530,6 +1864,8 @@ class ModelActor:
             review = None
             stage = "generation"
             bindings = {}
+            delivery = None
+            review_candidate = None
 
             def capture_candidate(value: Any) -> None:
                 nonlocal generated_candidate
@@ -1550,6 +1886,47 @@ class ModelActor:
                         "Observation, world, event, message, resource, and receipt IDs do not "
                         "belong in fact_ids. Observed results need no declared fact reference.",
                         "request_fidelity": request_fidelity,
+                        **(
+                            {
+                                "current_cue_requirements": cue_stimulus.model_dump(mode="json"),
+                                "current_cue_rule": "These requirements were classified before "
+                                "your candidate. Express each new material need in this OWNER's "
+                                "dialogue, preserving supported details and constraints. Prior "
+                                "completed work does not resolve a changed current need. "
+                                "Do not perform assistant work or invent consent or agreement.",
+                            }
+                            if cue_stimulus
+                            else {}
+                        ),
+                        **(
+                            {
+                                "native_transfer_task_contract": {
+                                    "new_task_and_approval_fields": [
+                                        "transfer_task_requests",
+                                        "transfer_consent",
+                                    ],
+                                    "same_output_is_atomic": True,
+                                    "assistant_can_open_owner_tasks": False,
+                                    "new_open_task_wait_event": "owner_message",
+                                    "instruction": "Only if YOU choose a new exact payment "
+                                    "approval: use a matching live own task, or explicitly "
+                                    "open a new task AND include its transfer_consent in this "
+                                    "SAME output. Both take effect together; do not omit consent "
+                                    "because the task is not yet committed, and do not ask the "
+                                    "assistant to open the task. Repeat exactly the same task_key "
+                                    "and recipient in both fields. State your chosen exact memo "
+                                    "in dialogue. New open requests also require description and "
+                                    "blocked_on=owner_message, even with immediate approval; "
+                                    "that initial wait is cleared by the atomic grant. "
+                                    "A task alone is not approval. With no new "
+                                    "approval, keep transfer_consent=null; unknown terms do not "
+                                    "justify guessing an amount or manufacturing permission.",
+                                }
+                            }
+                            if self.require_live_transfer_task_binding
+                            and view.transfers.get("task_tracking_enabled")
+                            else {}
+                        ),
                         "permission_rules": "For an item purchase or sale use commerce_consent. "
                         "Set transport authorized_amount=null, allowed_assets=[], "
                         "allowed_kinds=[]. "
@@ -1586,9 +1963,20 @@ class ModelActor:
                     }
                 )
                 stage = "role_contract"
-                validate_actor_output(view, output)
+                validate_actor_output(
+                    view,
+                    output,
+                    require_live_transfer_task_binding=self.require_live_transfer_task_binding,
+                )
                 if stimulus is not None:
                     _validate_shopping_coverage(output, stimulus)
+                if required_cues and (output.kind == "wait" or not output.text.strip()):
+                    stage = "current_cue_coverage"
+                    raise ActorContractError(
+                        "The independently identified current needs require owner dialogue: "
+                        + json.dumps([c.model_dump(mode="json") for c in required_cues.values()])
+                        + ". Do not replace the new request with silence or old completion."
+                    )
                 if self.reviewer is not None and not (stimulus and not stimulus.response_needed):
                     stage = "semantic_review"
                     review_mail = self.require_mail_intent_review and bool(output.mail_requests)
@@ -1689,19 +2077,139 @@ class ModelActor:
                                 ),
                             ),
                         )
+                    if self.describe_output_delivery:
+                        emitted = output.kind != "wait" and bool(output.text)
+                        delivery = {
+                            "owner_dialogue_emitted": emitted,
+                            "visible_owner_dialogue": output.text if emitted else None,
+                            "silent_scheduler_yield": output.kind == "wait",
+                            "world_effect_fields": [
+                                name
+                                for name in (
+                                    "transfer_consent",
+                                    "commerce_consent",
+                                    "mail_requests",
+                                    "resource_requests",
+                                    "shopping_task_requests",
+                                    "transfer_task_requests",
+                                )
+                                if getattr(output, name)
+                            ]
+                            + (
+                                ["authorized_amount"]
+                                if output.authorized_amount is not None
+                                else []
+                            ),
+                            "contract": "kind=wait sends no owner message to the assistant. "
+                            "It is a silent scheduling yield, not a repeated waiting utterance. "
+                            "Silence can still be inappropriate for a new consequential cue or "
+                            "unanswered question. All task and world-effect checks still apply.",
+                        }
+                        review_schema = create_model(
+                            "ActorDeliveryFidelityReview",
+                            __base__=review_schema,
+                            owner_dialogue_emitted=(
+                                Literal[True] if emitted else Literal[False],
+                                Field(
+                                    description="Confirm the application's typed delivery "
+                                    "contract. kind=wait emits no owner dialogue, even if "
+                                    "its retained raw text is nonempty. Evaluate whether this "
+                                    "silence is appropriate; do not treat silence as a repeated "
+                                    "spoken acknowledgement. This does not imply acceptance."
+                                ),
+                            ),
+                        )
+                    if required_cues:
+                        review_schema = create_model(
+                            "ActorCurrentCueCoverageReview",
+                            __base__=review_schema,
+                            current_cue_coverage=(
+                                tuple[CurrentCueCoverage, ...],
+                                Field(
+                                    description="Check each response_needed current cue exactly "
+                                    "once by cue_id, against the owner's actual delivered "
+                                    "dialogue. The independent pre-candidate requirements cannot "
+                                    "be dismissed because earlier work was done. Preserve each "
+                                    "new supported target, request and constraint, or a justified "
+                                    "clarification/decision. Old thanks, silence, a wrong target "
+                                    "or an omitted need is not coverage. Report concrete missing "
+                                    "details even if another part of the candidate is valid."
+                                ),
+                            ),
+                        )
+                    if view.confirmations.get("enabled"):
+                        review_schema = create_model(
+                            "ActorConfirmationFidelityReview",
+                            __base__=review_schema,
+                            confirmation_actions_match_dialogue=(
+                                bool,
+                                Field(
+                                    description="Independently check each typed "
+                                    "request/confirm/decline is "
+                                    "the owner's explicit choice in actual dialogue for the exact "
+                                    "current contract. Do not infer a decision from availability, "
+                                    "silence, courtesy or an assistant claim."
+                                ),
+                            ),
+                            confirmation_conditions_preserved=(
+                                bool,
+                                Field(
+                                    description="For new confirmation requests and decisions, "
+                                    "check full exact "
+                                    "terms and the declared condition in delivered owner dialogue. "
+                                    "A request is pending until the peer explicitly replies. "
+                                    "A receipt or read status is not a confirmation. "
+                                    "Reject premature finality. For silence/courtesy with "
+                                    "no new action, check no invented decision."
+                                ),
+                            ),
+                        )
+                    review_candidate = output.model_dump(mode="json")
+                    if delivery is not None and not delivery["owner_dialogue_emitted"]:
+                        # Review the actual delivered dialogue. Retain the raw
+                        # generation below; typed world effects still need review.
+                        review_candidate["text"] = ""
                     review = await generate_json(
                         self.reviewer,
                         review_schema,
                         self.review_prompt,
                         {
                             "view": view.model_dump(mode="json"),
-                            "candidate": output.model_dump(mode="json"),
+                            "candidate": review_candidate,
                             "request_fidelity": request_fidelity,
                             "shopping_stimulus": stimulus.model_dump() if stimulus else None,
+                            **(
+                                {"current_cue_requirements": cue_stimulus.model_dump(mode="json")}
+                                if cue_stimulus
+                                else {}
+                            ),
+                            **({"candidate_delivery": delivery} if delivery is not None else {}),
                         },
                         timeout_seconds=self.timeout_seconds,
                         usage=self.usage,
                     )
+                    if view.confirmations.get("enabled") and not (
+                        review.confirmation_actions_match_dialogue
+                        and review.confirmation_conditions_preserved
+                    ):
+                        raise ActorContractError(
+                            "The independent review found an omitted confirmation condition "
+                            "or unsupported owner decision."
+                        )
+                    if required_cues:
+                        coverage = review.current_cue_coverage
+                        if len(coverage) != len(required_cues) or {
+                            c.cue_id for c in coverage
+                        } != set(required_cues):
+                            raise ActorContractError(
+                                "Review coverage must name every required current cue exactly once."
+                            )
+                        missing = {c.cue_id: c.missing_details for c in coverage if not c.covered}
+                        if missing:
+                            raise ActorContractError(
+                                "Current owner needs are omitted from delivered dialogue: "
+                                + json.dumps(missing)
+                            )
                     if review_mail and review.mail_intent == "assistant_delegated":
                         raise ActorContractError(
                             "Actor mail_requests duplicate assistant-delegated mail. Keep the "
@@ -1788,9 +2296,20 @@ class ModelActor:
                         "candidate": output.model_dump(mode="json"),
                         "generated_candidate": generated_candidate,
                         "metadata_bindings": bindings,
+                        **({"delivery_semantics": delivery} if delivery is not None else {}),
+                        **(
+                            {"review_input_candidate": review_candidate}
+                            if delivery is not None
+                            else {}
+                        ),
                         "review": review.model_dump(mode="json") if review else None,
                         "stimulus_review": stimulus.model_dump(mode="json") if stimulus else None,
                         "stimulus_source": "declared_initial_setup" if initial_setup else "model",
+                        **(
+                            {"cue_stimulus": cue_stimulus.model_dump(mode="json")}
+                            if cue_stimulus
+                            else {}
+                        ),
                     }
                 )
                 return output
@@ -1846,9 +2365,36 @@ class ModelActor:
                         ),
                         "generated_candidate": generated_candidate,
                         "metadata_bindings": bindings,
+                        **({"delivery_semantics": delivery} if delivery is not None else {}),
+                        **(
+                            {"review_input_candidate": review_candidate}
+                            if delivery is not None
+                            else {}
+                        ),
                         "review": review.model_dump(mode="json") if review else None,
                         "stimulus_review": stimulus.model_dump(mode="json") if stimulus else None,
                         "stimulus_source": "declared_initial_setup" if initial_setup else "model",
+                        **(
+                            {"cue_stimulus": cue_stimulus.model_dump(mode="json")}
+                            if cue_stimulus
+                            else {}
+                        ),
                     }
                 )
+            except ModelGenerationError as exc:
+                if exc.kind == "budget":
+                    # Retain a generated-but-not-reviewed candidate at the cap.
+                    # No automatic regeneration or approval follows this receipt.
+                    self.last_attempts.append(
+                        {
+                            "attempt": attempt + 1,
+                            "accepted": False,
+                            "stage": stage,
+                            "failure_kind": "budget_checkpoint",
+                            "generated_candidate": generated_candidate,
+                            "candidate": output.model_dump(mode="json") if output else None,
+                            "review": review.model_dump(mode="json") if review else None,
+                        }
+                    )
+                raise
         raise ActorContractError("Actor failed validation after its repair allowance.")

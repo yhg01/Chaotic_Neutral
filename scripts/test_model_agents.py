@@ -16,6 +16,7 @@ from dotenv import dotenv_values
 
 from agentrpg.agent_tools import BoardTools
 from agentrpg.model_agent import OPENROUTER_URL, AgentRunError, ModelAgent, ModelUsage
+from agentrpg.personal_agent_config import load_personal_agent_api
 
 # Deep Agents imports stay inside exercise so the baseline runner remains usable.
 
@@ -44,6 +45,9 @@ def serializable_messages(agent) -> list:
 
 
 async def exercise(args, env: dict) -> dict:
+    personal_api = load_personal_agent_api(env, root=ROOT, model=args.model)
+    args.model = personal_api.model
+    api_key = personal_api.api_key.get_secret_value()
     run_id = uuid4().hex[:12]
     output = args.output or ROOT / ".local" / "model-tests" / run_id / "report.json"
     report = {
@@ -111,7 +115,7 @@ async def exercise(args, env: dict) -> dict:
             provider = await stack.enter_async_context(
                 httpx.AsyncClient(
                     base_url=OPENROUTER_URL,
-                    headers={"Authorization": f"Bearer {env['OPENROUTER_API_KEY']}"},
+                    headers={"Authorization": f"Bearer {api_key}"},
                     timeout=90,
                     limits=httpx.Limits(max_connections=20),
                 )
@@ -156,7 +160,7 @@ async def exercise(args, env: dict) -> dict:
                 )
                 if deep:
                     options = {
-                        "model": create_model(env["OPENROUTER_API_KEY"], args.model),
+                        "model": create_model(api_key, args.model),
                         "board": BoardTools(client, cluster_id),
                         "agent_id": UUID(identity["agent"]["id"]),
                         "session_id": uuid4(),
@@ -396,14 +400,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--agents", type=int, default=2)
-    parser.add_argument("--model", default=env.get("OPENROUTER_MODEL", "openai/gpt-4.1-mini"))
+    parser.add_argument("--model", help="Override the personal Agent model default.")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--runtime", choices=("deepagents", "baseline"), default="deepagents")
     args = parser.parse_args()
     if not 2 <= args.agents <= 15:
         parser.error("--agents must be between 2 and 15.")
-    if not env.get("OPENROUTER_API_KEY") or not env.get("ADMIN_TOKEN"):
-        parser.error("Configure OPENROUTER_API_KEY and ADMIN_TOKEN in .env.")
+    if not env.get("ADMIN_TOKEN"):
+        parser.error("Configure ADMIN_TOKEN in .env.")
     if args.runtime == "deepagents" and not env.get("DATABASE_URL"):
         parser.error("Configure DATABASE_URL in .env for Agent checkpoints.")
     # Board credentials are for the local environment. Avoid accidental remote use.

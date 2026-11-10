@@ -15,6 +15,7 @@ from dotenv import dotenv_values
 from agentrpg.agent_model import UsageTracker, create_model, local_model_calls
 from agentrpg.agent_tools import BoardTools
 from agentrpg.deep_agent import AgentLimitError, AgentRuntimeError
+from agentrpg.personal_agent_config import PersonalAgentConfigError, load_personal_agent_api
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,7 +50,7 @@ def parse_args(argv=None):
     parser.add_argument("--task-id", type=UUID, help="Reuse this UUID to retry the same task.")
     parser.add_argument("--task", help="Task text. If omitted, read standard input.")
     parser.add_argument("--base-url", type=loopback_url, default="http://127.0.0.1:8000")
-    parser.add_argument("--model", help="OpenRouter model name; overrides OPENROUTER_MODEL.")
+    parser.add_argument("--model", help="Assistant model; overrides the personal Agent default.")
     parser.add_argument(
         "--max-model-calls",
         type=int,
@@ -91,9 +92,9 @@ async def run_task(args, *, root: Path = ROOT) -> str:
     from agentrpg.deep_agent import AgentRuntime
 
     env = {**dotenv_values(root / ".env"), **os.environ}
-    api_key = env.get("OPENROUTER_API_KEY")
+    personal_api = load_personal_agent_api(env, root=root, model=args.model)
     database_url = env.get("DATABASE_URL")
-    if not api_key or not database_url:
+    if not database_url:
         raise ValueError("Set OPENROUTER_API_KEY and DATABASE_URL in the local configuration.")
     cluster_id, agent_id, token = load_agent(root, args.agent)
     task = args.task if args.task is not None else sys.stdin.read()
@@ -104,9 +105,7 @@ async def run_task(args, *, root: Path = ROOT) -> str:
     print(f"Agent: {agent_id}\nSession: {session_id}\nTask ID: {task_id}", flush=True)
     print("Keep the session and task IDs to retry this task with the same text.", flush=True)
     usage = UsageTracker()
-    model = create_model(
-        api_key, args.model or env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
-    )
+    model = create_model(personal_api.api_key.get_secret_value(), personal_api.model)
     try:
         with local_model_calls():
             async with (
@@ -164,6 +163,8 @@ def main(argv=None) -> None:
             )
         raise SystemExit(message) from None
     except AgentRuntimeError as error:
+        raise SystemExit(str(error)) from None
+    except PersonalAgentConfigError as error:
         raise SystemExit(str(error)) from None
     except ValueError as error:
         # Only local validation errors are safe to show; provider and database

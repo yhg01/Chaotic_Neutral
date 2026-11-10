@@ -139,3 +139,127 @@ async def test_authority_review_does_not_change_untracked_owner_schema():
     )
     assert (await actor.respond(current)).transfer_consent is None
     assert "transfer_authority" not in review_schema(reviewer)["properties"]
+
+
+@pytest.mark.parametrize(
+    "task",
+    [
+        None,
+        {"status": "cancelled"},
+        {"status": "completed"},
+        {"recipient_owner_id": "different-owner"},
+        {"authorization_id": "an-existing-authorization"},
+    ],
+)
+def test_native_task_binding_rejects_before_world_effect(task):
+    current = view("alice")
+    existing = {"task_key": "lunch", "status": "active", "recipient_owner_id": "bob"}
+    current = current.model_copy(
+        update={
+            "transfers": {
+                **current.transfers,
+                "tasks": [] if task is None else [{**existing, **task}],
+            }
+        }
+    )
+    output = ActorOutput(
+        **{**candidate(outgoing=True, tasks=False), "transfer_consent": TERMS},
+        source_event_id=current.source_event_id,
+    )
+    with pytest.raises(ActorContractError, match="Native payment consent requires"):
+        validate_actor_output(current, output, require_live_transfer_task_binding=True)
+
+
+@pytest.mark.parametrize("task_source", ["new", "active", "blocked"])
+def test_native_task_binding_accepts_explicit_matching_live_work(task_source):
+    current = view("alice")
+    if task_source != "new":
+        current = current.model_copy(
+            update={
+                "transfers": {
+                    **current.transfers,
+                    "tasks": [
+                        {"task_key": "lunch", "status": task_source, "recipient_owner_id": "bob"}
+                    ],
+                }
+            }
+        )
+    output = ActorOutput(
+        **{
+            **candidate(outgoing=True, tasks=task_source == "new"),
+            "transfer_consent": TERMS,
+        },
+        source_event_id=current.source_event_id,
+    )
+    assert validate_actor_output(current, output, require_live_transfer_task_binding=True) == output
+
+
+async def test_native_task_binding_uses_original_repair_and_reviews_the_explicit_task():
+    missing = {**candidate(outgoing=True, tasks=False), "transfer_consent": TERMS}
+    fixed = {**candidate(outgoing=True), "transfer_consent": TERMS}
+    model, reviewer = Responses([missing, fixed]), Responses([judgment()])
+    actor = ModelActor(
+        model,
+        reviewer=reviewer,
+        max_repairs=1,
+        require_live_transfer_task_binding=True,
+        require_transfer_task_intent_review=True,
+        require_transfer_authority_review=True,
+    )
+    result = await actor.respond(view("alice"))
+    assert result.transfer_consent.model_dump() == TERMS
+    assert result.transfer_task_requests[0].task_key == TERMS["task_key"]
+    assert len(model.calls) == 2 and len(reviewer.calls) == 1
+    assert actor.last_attempts[0]["stage"] == "role_contract"
+    assert actor.last_attempts[0]["generated_candidate"] == missing
+    assert actor.last_attempts[1]["review"]["transfer_task_intents"][0]["task_key"] == "lunch"
+
+
+@pytest.mark.parametrize("flag", [None, "true", 0, 1])
+def test_native_task_binding_flag_is_explicit_boolean(flag):
+    with pytest.raises(ValueError, match="must be a boolean"):
+        ModelActor(Responses([]), require_live_transfer_task_binding=flag)
+
+
+async def test_tracked_generation_requires_key_before_semantic_review_and_keeps_both_effects():
+    missing = {
+        **candidate(outgoing=True, tasks=False),
+        "transfer_consent": {**TERMS, "task_key": None},
+    }
+    fixed = {**candidate(outgoing=True), "transfer_consent": TERMS}
+    model, reviewer = Responses([missing, fixed]), Responses([judgment()])
+    actor = ModelActor(
+        model,
+        reviewer=reviewer,
+        max_repairs=1,
+        require_live_transfer_task_binding=True,
+        require_transfer_task_intent_review=True,
+        require_transfer_authority_review=True,
+    )
+    result = await actor.respond(view("alice"))
+    assert result.transfer_consent.model_dump() == TERMS
+    assert result.transfer_task_requests[0].task_key == TERMS["task_key"]
+    assert actor.last_attempts[0]["failure_kind"] == "schema_invalid"
+    assert len(model.calls) == 2 and len(reviewer.calls) == 1
+    schema = review_schema(model)
+    consent = schema["$defs"]["TrackedOwnerTransferConsent"]
+    assert "task_key" in consent["required"]
+    assert consent["properties"]["task_key"]["type"] == "string"
+    import json
+
+    contract = json.loads(model.calls[0][1].content)["native_transfer_task_contract"]
+    assert contract["same_output_is_atomic"] is True
+    assert contract["assistant_can_open_owner_tasks"] is False
+    assert contract["new_open_task_wait_event"] == "owner_message"
+    opened = schema["$defs"]["OpenOwnerTransferTask"]
+    assert {"task_key", "recipient_owner_id", "description", "blocked_on"} <= set(
+        opened["required"]
+    )
+    assert opened["properties"]["blocked_on"]["type"] == "string"
+    assert contract["new_task_and_approval_fields"] == [
+        "transfer_task_requests",
+        "transfer_consent",
+    ]
+    assert (
+        "AND transfer_consent together" in schema["properties"]["transfer_consent"]["description"]
+    )

@@ -200,6 +200,8 @@ class _ActivationYield(AgentMiddleware):
                 "read_world_action",
                 "submit_market_action",
                 "read_market_action",
+                "transfer_credits",
+                "read_transfer_operation",
             }:
                 data = payload.get("data", {})
                 if payload.get("ok") and isinstance(data, dict) and data.get("status") == "pending":
@@ -249,6 +251,41 @@ class _ActivationYield(AgentMiddleware):
                                             "code": "unobserved_inbox_notifications",
                                             "message_ids": missing,
                                             "detail": _UNOBSERVED_MAIL_DETAIL,
+                                        },
+                                    }
+                                )
+                            }
+                        )
+                    ]
+                }
+        if (
+            explicit is not None
+            and self.agent.environment is not None
+            and self.agent.environment.confirmations
+        ):
+            from agentrpg.confirmations import yield_error
+
+            async with self.agent.runtime.pool.connection() as conn:
+                participant = await (
+                    await conn.execute(
+                        "SELECT owner_id FROM run_participants WHERE run_id=%s AND agent_id=%s",
+                        (self.agent.environment.run_id, self.agent.agent_id),
+                    )
+                ).fetchone()
+                detail = await yield_error(
+                    conn, self.agent.environment.run_id, participant["owner_id"], explicit
+                )
+            if detail:
+                return {
+                    "messages": [
+                        finish_message.model_copy(
+                            update={
+                                "content": json.dumps(
+                                    {
+                                        "ok": False,
+                                        "error": {
+                                            "code": "confirmation_protocol",
+                                            "detail": detail,
                                         },
                                     }
                                 )
@@ -609,6 +646,8 @@ class PersonalAgent:
                 environment.run_id,
                 self._session_namespace,
                 track_transfer_tasks=environment.track_transfer_tasks,
+                timed_transfers=environment.timed_transfers,
+                confirmations=environment.confirmations,
                 shop_browser=environment.shop_browser.bind(self._session_namespace)
                 if environment.shop_browser is not None
                 else None,
@@ -645,6 +684,11 @@ class PersonalAgent:
                     "instructions": instructions,
                     "run_id": environment.run_id if environment is not None else None,
                     "tools_version": 1,
+                    **(
+                        {"confirmation_protocol": "owner-confirmation-receipt-v1"}
+                        if self.environment is not None and self.environment.confirmations
+                        else {}
+                    ),
                     **({"guard_transfer_task_yield": True} if guard_transfer_task_yield else {}),
                     **(
                         {"browser_shop_profile": self.environment.shop_browser.profile}
@@ -655,6 +699,11 @@ class PersonalAgent:
                     **(
                         {"track_transfer_tasks": True}
                         if environment is not None and environment.track_transfer_tasks
+                        else {}
+                    ),
+                    **(
+                        {"timed_transfers": True}
+                        if environment is not None and environment.timed_transfers
                         else {}
                     ),
                     **({"require_explicit_finish": True} if require_explicit_finish else {}),
@@ -777,6 +826,10 @@ class PersonalAgent:
                 raise AgentLimitError("The task reached its model-call limit.")
 
     async def _summarize(self, messages) -> str:
+        if getattr(self, "_elapsed_mode", False):
+            raise AgentLimitError(
+                "Elapsed context requires a separately timed compaction boundary; pause this run."
+            )
         # The default summarizer calls the model outside model middleware.
         # Supplying this public hook gives compaction the same durable budget.
         await self._reserve_model_call()

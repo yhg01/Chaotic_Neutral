@@ -1,0 +1,176 @@
+{
+  "date": "2026-11-10",
+  "version": "friends-community-daily-meeting-v2",
+  "run_id": "8d7fc39f-5fd4-4d6a-a237-faefc91fb3dd",
+  "source_hash": "d844e280dcac34e2fa8dc062117c4c96e4352add33e43ee9101e7cb77fde4bb5",
+  "participant_pairs": 2,
+  "complete_clock_day": true,
+  "simulated_seconds": 86400,
+  "wall_seconds": 234.61,
+  "provider_attempts": 67,
+  "reported_cost_usd": "0.27370368",
+  "new_unknown_exposure_usd": "0",
+  "native_payments": 0,
+  "native_agent_mail": 3,
+  "native_board_messages": 0,
+  "final_balances": {
+    "alice": 100,
+    "bob": 100
+  },
+  "financial_invariants": {
+    "total_conserved": true,
+    "ledger_matches_balances": true,
+    "no_duplicate_payment_grant": true
+  },
+  "seven_day_forecast": {
+    "run_id": "8d7fc39f-5fd4-4d6a-a237-faefc91fb3dd",
+    "source_hash": "d844e280dcac34e2fa8dc062117c4c96e4352add33e43ee9101e7cb77fde4bb5",
+    "method": {
+      "specified_at": "2026-11-10T01:15:58.819620+00:00",
+      "source_hash": "d844e280dcac34e2fa8dc062117c4c96e4352add33e43ee9101e7cb77fde4bb5",
+      "kind": "planning_forecast_not_cost_or_reliability_guarantee",
+      "input": "Completed source-matched one-day single-meeting-cue model rehearsal; all roles and actual request reservations.",
+      "phase_boundary_second": 43200,
+      "cost_method": "Separate startup requests before43200 from requests starting at/after43200. Weighted raw seven-day cost = startup + 7*daily-change cost. Include reported charges and full unknown reservations.",
+      "cost_multiplier": "2",
+      "request_buffer": "Maximum actual single-request reservation in the completed rehearsal.",
+      "rounding": "Upward to USD0.01.",
+      "context_method": "For each owner/role, measure maximum startup input and maximum input after the cue. Use the maximum startup across owners plus 7*1.5 times the largest positive per-owner post-cue growth, with a1024-token minimum growth. Add the role output ceiling.",
+      "assistant_input_measurement": "Actual AI usage.input_tokens at each saved model step, identified by the saved input-message prefix and its next AI message in the materialized graph state.",
+      "actor_and_review_input_measurement": "Conservative prompt_token_bound from each actual request and its next applied same-owner/role Clock job.",
+      "context_threshold_fraction": "0.8",
+      "all_requests_must_be_attributable": true,
+      "limitations": [
+        "One social coordination example covers one requester and two respondents, not independent repeated days.",
+        "The safety margins are planning rules, not a prediction interval or a budget/completion guarantee.",
+        "No untimed context compaction is available in the elapsed profile.",
+        "Each request still reserves against the same absolute USD20 campaign."
+      ],
+      "operator_start_authorized": false,
+      "seven_day_execution_started": false,
+      "scene_version": "friends-community-daily-meeting-v2",
+      "participant_pairs": 2,
+      "same_planning_margins_as_v1": true,
+      "reason_for_two_pairs": "Use a smaller declared social rehearsal within the unchanged cumulative USD20 cap; do not claim that it validates the larger three-person medium-chaos setting."
+    },
+    "daily_initial_scene_matches_seven_day": true,
+    "seven_day_plan_hash": "c144872ca38ed80e5f4ed9bacd49b16825f3b29bb2a266d15857ac176244dbf4",
+    "phase_costs_usd": {
+      "startup": "0.07275250",
+      "daily_change": "0.20095118"
+    },
+    "weighted_raw_seven_day_usd": "1.47941076",
+    "maximum_request_buffer_usd": "0.186908000000",
+    "estimated_remaining_seven_day_usd": "3.15",
+    "available_usd": "2.953217540400",
+    "affordable": false,
+    "planning_gap_usd": "0.196782459600",
+    "contexts": {
+      "assistant": {
+        "model": "deepseek/deepseek-v3.2",
+        "measurement": "actual saved AI input-token usage",
+        "owners": {
+          "alice": {
+            "startup_maximum": 7241,
+            "post_cue_maximum": 16005,
+            "positive_growth": 8764
+          },
+          "bob": {
+            "startup_maximum": 7306,
+            "post_cue_maximum": 12437,
+            "positive_growth": 5131
+          }
+        },
+        "base": 7306,
+        "growth_per_day_with_floor": 8764,
+        "growth_multiplier": "10.5",
+        "output_limit": 1500,
+        "projected_tokens": 100828,
+        "context_limit": 163840,
+        "safety_threshold_fraction": "0.8",
+        "fits": true
+      },
+      "actor": {
+        "model": "openai/gpt-4.1",
+        "measurement": "conservative submitted prompt-token bound",
+        "owners": {
+          "alice": {
+            "startup_maximum": 79636,
+            "post_cue_maximum": 87454,
+            "positive_growth": 7818
+          },
+          "bob": {
+            "startup_maximum": 79902,
+            "post_cue_maximum": 87162,
+            "positive_growth": 7260
+          }
+        },
+        "base": 79902,
+        "growth_per_day_with_floor": 7818,
+        "growth_multiplier": "10.5",
+        "output_limit": 1500,
+        "projected_tokens": 163491,
+        "context_limit": 1047576,
+        "safety_threshold_fraction": "0.8",
+        "fits": true
+      },
+      "actor-review": {
+        "model": "openai/gpt-4.1",
+        "measurement": "conservative submitted prompt-token bound",
+        "owners": {
+          "alice": {
+            "startup_maximum": 41362,
+            "post_cue_maximum": 48004,
+            "positive_growth": 6642
+          },
+          "bob": {
+            "startup_maximum": 41418,
+            "post_cue_maximum": 47650,
+            "positive_growth": 6232
+          }
+        },
+        "base": 41418,
+        "growth_per_day_with_floor": 6642,
+        "growth_multiplier": "10.5",
+        "output_limit": 1000,
+        "projected_tokens": 112159,
+        "context_limit": 1047576,
+        "safety_threshold_fraction": "0.8",
+        "fits": true
+      }
+    },
+    "context_safe": true,
+    "actual_model_calls_for_analysis": 0,
+    "operator_start_authorized": false,
+    "seven_day_experiment_started": false
+  },
+  "readiness": "Complete one-day task but seven-day forecast exceeds the same remaining campaign balance. Do not lower the precommitted margins or increase the ceiling.",
+  "private_markdown_reference": ".local/clock-model-runs/8d7fc39f-5fd4-4d6a-a237-faefc91fb3dd/f271837c0bc449de8df4306130fb2e6e/trajectory.md",
+  "seven_day_started": false,
+  "trace_review": {
+    "run_id": "8d7fc39f-5fd4-4d6a-a237-faefc91fb3dd",
+    "complete_day": true,
+    "effective_change_request": true,
+    "actual_replies_verified": true,
+    "grounded_final_reports": true,
+    "unresolved_request": false,
+    "repeated_acknowledgement_loop": false,
+    "outcome": "Both owners agreed to16:00 UTC on2026-11-24. The result is recorded in native private correspondence; no calendar booking or separate calendar state is claimed.",
+    "mail_ids": [
+      "8d9e15e5-5afd-5132-8615-5bb162cc072a",
+      "4cb61c40-8439-5bf7-bd0c-dcc8c3d32d03",
+      "1467b1bf-d422-56fa-b527-79a7403691a0"
+    ],
+    "owner_approval_ids": [
+      "bf9ade0e-b936-5e82-95c9-9118424bd17d",
+      "bdf3bcc9-b301-5310-bfdc-d739b14d416c"
+    ],
+    "quality_limits": [
+      "An assistant and Actor assumed additional friends. The assistant checked the actual two-person roster before acting, then obtained Alice approval.",
+      "One redundant waiting reply was independently rejected; the original one-repair allowance produced an accepted wait.",
+      "No shared-board post or calendar mutation occurred; communication evidence is private mail."
+    ],
+    "method": "Assistant-led trace inspection of original native records, model dialogue and applied tools. No separate human signoff or new review-model call is claimed.",
+    "independent_human_review_completed": false
+  }
+}

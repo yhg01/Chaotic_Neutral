@@ -1,7 +1,7 @@
 """Durable cost reservations for every actual text-model HTTP attempt.
 
 GPT-4.1 uses a byte-tokenizer content bound with explicit wrapper allowances.
-Two pinned DeepSeek/Qwen text models reserve their full declared input context
+Explicitly supported DeepSeek/Qwen text models reserve their full declared input context
 instead of assuming that their tokenizers behave like GPT. Unknown models,
 paid plugins, reasoning options and media fail closed.
 OpenRouter enforces the stored provider price ceilings on each request.
@@ -22,6 +22,7 @@ import httpx
 from psycopg.types.json import Jsonb
 
 CONTEXT_BOUND_MODELS = {
+    "deepseek/deepseek-v3.2": "DeepSeek",
     "deepseek/deepseek-chat-v3-0324": "DeepSeek",
     "qwen/qwen3-30b-a3b-instruct-2507": "Qwen3",
 }
@@ -38,6 +39,14 @@ class BudgetError(RuntimeError):
 
 class BudgetExceeded(BudgetError):
     """The campaign cannot reserve another provider attempt."""
+
+
+class ProviderResponseError(RuntimeError):
+    """A numeric provider error in an HTTP-success body, without private text."""
+
+    def __init__(self, status_code: int):
+        self.status_code = status_code
+        super().__init__(f"Model provider reported error {status_code} inside HTTP 200.")
 
 
 def amount(value: Any) -> Decimal:
@@ -198,9 +207,23 @@ class CampaignLedger:
                 raise BudgetError("The saved campaign budget differs from the requested budget.")
         return await self.summary(campaign_id)
 
-    async def reserve(self, campaign_id, price, prompt_bound, output_bound, *, role="model"):
+    async def reserve(
+        self,
+        campaign_id,
+        price,
+        prompt_bound,
+        output_bound,
+        *,
+        role="model",
+        max_role_attempts=None,
+    ):
+        if max_role_attempts is not None and (
+            type(max_role_attempts) is not int or not 1 <= max_role_attempts <= 100
+        ):
+            raise BudgetError("The role attempt limit must be from one through 100.")
         cost = price.maximum(prompt_bound, output_bound)
         meta = _context.get() or {}
+        role = role if role != "model" else meta.get("role", role)
         attempt_id = uuid4()
         async with self.pool.connection() as conn, conn.transaction():
             campaign = await (
@@ -210,6 +233,16 @@ class CampaignLedger:
             ).fetchone()
             if campaign is None or campaign["halted"]:
                 raise BudgetExceeded("The model campaign is absent or halted.")
+            if max_role_attempts is not None:
+                used = await (
+                    await conn.execute(
+                        "SELECT count(*) AS n FROM model_spend_attempts "
+                        "WHERE campaign_id=%s AND role=%s",
+                        (campaign_id, role),
+                    )
+                ).fetchone()
+                if used["n"] >= max_role_attempts:
+                    raise BudgetExceeded("The saved role attempt limit is exhausted.")
             committed = await (
                 await conn.execute(
                     """SELECT COALESCE(sum(CASE WHEN status='reported' THEN reported_usd
@@ -218,7 +251,15 @@ class CampaignLedger:
                     (campaign_id,),
                 )
             ).fetchone()
-            if committed["total"] + cost > campaign["limit_usd"]:
+            opening = await (
+                await conn.execute(
+                    "SELECT committed_usd FROM model_campaign_opening_balances "
+                    "WHERE campaign_id=%s",
+                    (campaign_id,),
+                )
+            ).fetchone()
+            historical = opening["committed_usd"] if opening else Decimal(0)
+            if historical + committed["total"] + cost > campaign["limit_usd"]:
                 raise BudgetExceeded("The campaign budget cannot cover this provider attempt.")
             await conn.execute(
                 """INSERT INTO model_spend_attempts
@@ -230,7 +271,7 @@ class CampaignLedger:
                     campaign_id,
                     meta.get("run_id"),
                     meta.get("owner_id"),
-                    role if role != "model" else meta.get("role", role),
+                    role,
                     price.model,
                     cost,
                     prompt_bound,
@@ -300,9 +341,27 @@ class CampaignLedger:
                     (campaign_id, min(max(recent_limit, 0), 100)),
                 )
             ).fetchall()
+            opening = await (
+                await conn.execute(
+                    "SELECT * FROM model_campaign_opening_balances WHERE campaign_id=%s",
+                    (campaign_id,),
+                )
+            ).fetchone()
+        carried = {}
+        if opening:
+            carried = {"opening_balance": opening, "local_attempts": totals["attempts"]}
+            for key in (
+                "attempts",
+                "reported_usd",
+                "reserved_usd",
+                "uncertain_usd",
+                "committed_usd",
+            ):
+                totals[key] += opening[key]
         return {
             **campaign,
             **totals,
+            **carried,
             "remaining_usd": max(Decimal(0), campaign["limit_usd"] - totals["committed_usd"]),
             "recent_attempts": recent,
             "accounting": (
@@ -316,6 +375,7 @@ class BudgetBinding:
     ledger: CampaignLedger
     campaign_id: UUID
     prices: Mapping[str, ModelPrice]
+    max_role_attempts: int | None = None
 
 
 def prepare_request(body: dict, prices):
@@ -342,6 +402,11 @@ def prepare_request(body: dict, prices):
         "presence_penalty",
         "user",
     }
+    if model == "deepseek/deepseek-v3.2" and "reasoning" in body:
+        # Only an explicit opt-out is supported. No paid thinking configuration.
+        if body["reasoning"] != {"effort": "none"}:
+            raise BudgetError("The request contains an unsupported billing option.")
+        allowed.add("reasoning")
     if set(body) - allowed or body.get("stream") is True:
         raise BudgetError("The request contains an unsupported billing option.")
     output = body.get("max_tokens")
@@ -361,7 +426,31 @@ def prepare_request(body: dict, prices):
                 for part in content
             ):
                 raise BudgetError("Campaign requests support text only.")
-        if set(message) - {"role", "content", "tool_calls", "tool_call_id", "name", "refusal"}:
+        message_fields = {"role", "content", "tool_calls", "tool_call_id", "name", "refusal"}
+        if model == "deepseek/deepseek-v3.2" and message.get("role") == "assistant":
+            # Some providers return these even after an explicit reasoning opt-out.
+            # They are saved text input, covered by the full-context reservation;
+            # they do not activate an additional reasoning or billing option.
+            message_fields.update({"reasoning", "reasoning_details"})
+            if "reasoning" in message and not isinstance(message["reasoning"], str):
+                raise BudgetError("Historical reasoning must contain text only.")
+            if "reasoning_details" in message:
+                details = message["reasoning_details"]
+                if not isinstance(details, list):
+                    raise BudgetError("Historical reasoning must contain text only.")
+                for item in details:
+                    if (
+                        not isinstance(item, dict)
+                        or set(item) - {"type", "text", "summary", "format", "index", "id"}
+                        or item.get("type") not in {"reasoning.text", "reasoning.summary"}
+                        or any(not isinstance(v, str) for k, v in item.items() if k != "index")
+                        or (
+                            "index" in item
+                            and (type(item["index"]) is not int or item["index"] < 0)
+                        )
+                    ):
+                        raise BudgetError("Historical reasoning must contain text only.")
+        if set(message) - message_fields:
             raise BudgetError("The message contains an unsupported billing option.")
     tools = body.get("tools", [])
     if not isinstance(tools, list) or any(tool.get("type") != "function" for tool in tools):
@@ -417,18 +506,31 @@ class BudgetTransport(httpx.AsyncBaseTransport):
             extensions=request.extensions,
         )
         attempt = await self.binding.ledger.reserve(
-            self.binding.campaign_id, price, prompt_bound, output_bound, role=self.role
+            self.binding.campaign_id,
+            price,
+            prompt_bound,
+            output_bound,
+            role=self.role,
+            **(
+                {"max_role_attempts": self.binding.max_role_attempts}
+                if self.binding.max_role_attempts is not None
+                else {}
+            ),
         )
         try:
             response = await self.transport.handle_async_request(bounded)
             await response.aread()
-            cost, generation = None, None
+            cost, generation, provider_error = None, None, None
             if response.is_success:
                 try:
                     result = json.loads(response.content, parse_float=Decimal)
-                    cost = amount(result["usage"]["cost"])
                     generation = result.get("id")
-                except (KeyError, TypeError, ValueError, BudgetError):
+                    error = result.get("error")
+                    code = error.get("code") if isinstance(error, dict) else None
+                    if type(code) is int and 400 <= code <= 599:
+                        provider_error = code
+                    cost = amount(result["usage"]["cost"])
+                except (AttributeError, KeyError, TypeError, ValueError, BudgetError):
                     pass
             await self.binding.ledger.finish(
                 attempt,
@@ -436,20 +538,30 @@ class BudgetTransport(httpx.AsyncBaseTransport):
                 generation_id=generation,
                 reason=None
                 if cost is not None
-                else "Provider charge is not confirmed; maximum retained.",
+                else (
+                    f"Provider charge is not confirmed (HTTP {response.status_code}"
+                    + (f", provider error {provider_error}" if provider_error else "")
+                    + "); "
+                    "maximum retained."
+                ),
             )
-            return response
-        except BaseException:
+        except BaseException as error:
             # A request may have reached the provider. Never release its reserve.
             try:
                 await asyncio.shield(
                     self.binding.ledger.finish(
-                        attempt, reason="Request did not complete; maximum retained."
+                        attempt,
+                        reason=(
+                            f"Request did not complete ({type(error).__name__}); maximum retained."
+                        ),
                     )
                 )
             except Exception:
                 pass  # The committed reservation itself remains durable.
             raise
+        if provider_error is not None:
+            raise ProviderResponseError(provider_error)
+        return response
 
     async def aclose(self):
         await self.transport.aclose()

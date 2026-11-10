@@ -16,6 +16,7 @@ from agentrpg.config import Settings
 from agentrpg.console_execution import save_private
 from agentrpg.main import create_app
 from agentrpg.migrate import migrate
+from agentrpg.personal_agent_config import load_personal_agent_api
 from agentrpg.transfer_demo import prepare_task
 from agentrpg.transfer_model_task import execute_model_task
 
@@ -24,13 +25,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 async def main(args):
     env = {**dotenv_values(ROOT / ".env"), **os.environ}
-    api_key = env.get("OPENROUTER_API_KEY")
-    if not api_key or not api_key.strip():
-        raise SystemExit("Set OPENROUTER_API_KEY in the local .env before running models.")
-    model_name = env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
     manifest = json.loads(args.resume.read_text()) if args.resume else None
-    if manifest:
-        model_name = manifest["configuration"]["model"]
+    personal_api = load_personal_agent_api(
+        env, root=ROOT, configuration=manifest["configuration"] if manifest else None
+    )
+    api_key, model_name = personal_api.api_key.get_secret_value(), personal_api.model
     prices = await fetch_model_prices({model_name})
     settings = Settings()
     database_url = settings.database_url.get_secret_value()
@@ -42,6 +41,7 @@ async def main(args):
             manifest, _ = await prepare_task(app.state.pool)
             manifest["configuration"] = {
                 "model": model_name,
+                **personal_api.manifest_fields(),
                 "campaign_id": str(uuid4()),
                 "budget_usd": "1",
             }

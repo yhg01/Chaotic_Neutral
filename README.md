@@ -9,11 +9,113 @@ reservations, private internal mail, owner workspaces, and a simulated item mark
 It uses FastAPI, PostgreSQL, Deep Agents, LangChain, and LangGraph. Each cluster
 supports up to 15 Agents.
 
+Start with the [current handoff](docs/HANDOFF.md) for changes after upstream
+`098b142`, evidence, setup, budget, known fidelity failures and the next work.
+
+The opt-in [Actor memory and agenda profile](docs/ACTOR_MEMORY.md) adds private
+bounded retrieval, persisted access history and revisable day plans through the
+same Actor/reviewer calls. It preserves Clock time/scheduling rules and native
+world authority. [Free evidence](docs/actor-memory-validation-results.json) is
+separate from the later [bounded real-model probe](docs/ACTOR_MEMORY_MODEL_PROBE.md):
+three GPT-4.1 Actor turns retain and revise a private agenda, filter an expired
+notice and recover current context. This costs USD0.084232 within the same USD25
+campaign. Personal Agents stay idle; no new seven-day experiment is started.
+
+The later [full Actor/Agent short test](docs/ACTOR_AGENT_MEMORY_PROBE.md) verifies
+two native request deliveries, a real private-file update/readback and reports
+consumed by the Actor. It also finds omitted initial Actor cognition, delegated
+private-planning instructions and an unverified extra Agent claim. File workflow
+closure is verified; strict planning fidelity remains open. This adds USD0.12806988
+within the same campaign and does not rerun the seven-day experiment.
+
+The next [three-friend medium-chaos protocol](docs/MEDIUM_CHAOS_PROTOCOL.md)
+freezes four event types and 14 requests across seven simulated days. Its
+[free validation record](docs/medium-chaos-free-validation-results.json) keeps
+supplied native graph/PostgreSQL controls separate from real-model evidence.
+The same USD25 campaign and existing model/API profiles are retained. This
+preparation does not authorize or launch another paid experiment.
+
 The [task pipeline demo](docs/TASK_PIPELINE_DEMO.md) summarizes the local
 transfer and browser-shopping additions, saved model evidence, free reproduction
-commands and remaining limits. The current source passes 1,187 isolated local
+commands and remaining limits. The Clock-validation snapshot passed 1,198 isolated local
 regression tests. Historical results below retain their original source and
 policy versions; they are not all independent model-autonomy trials.
+
+The [Clock audit](docs/CLOCK_VALIDATION.md) tests the current window scheduler,
+fixes provably impossible time prerequisites and records the remaining gates
+for a seven-simulated-day medium-chaos run. That historical audit did not launch
+a model experiment; the later simplified result is recorded below.
+
+The [9 November elapsed-time Clock component](docs/SIMULATION_CLOCK.md) adds
+explicit seconds, timed waits, parallel progress and durable event ordering in
+an opt-in service. Free PostgreSQL controls cover one hour, one day and seven
+days with 15 owner pairs; the complete regression passes 1,290 checks. The
+legacy world runtime retains its window semantics. The
+[Director–Clock task adapter](docs/DIRECTOR_CLOCK.md) now passes local dispatch,
+private-chat and process-termination recovery controls, with 1,313 complete
+regression checks at that stage. The elapsed Actor/Agent conductor described
+below extends this bridge. A calibrated medium-chaos setting remains required
+before a seven-day model experiment.
+
+The subsequent [timed transfer profile](docs/CLOCK_TRANSFERS.md) now joins the
+existing transfer tool to Clock completion and native debit/credit, bank notice
+and receipt records. Local controls kill workers before/after commit and verify
+one payment after recovery. The complete suite passes 1,333 tests. These checks
+use supplied responses and add zero provider charges. The subsequent conductor
+adds the live-model graph bridge; other world-tool profiles and the seven-day
+medium-chaos experiment remain separate work.
+
+The [8 November partial recovery and DeepSeek probe](docs/DATABASE_RECOVERY.md)
+records preserved historical fees/trajectories, a new persistent database, and a
+real three-request personal Agent tool test after a compatibility repair. Actors
+and reviewers remain unchanged; old graph checkpoints were not recovered.
+
+The [elapsed Actor/Agent conductor](docs/CLOCK_RUNTIME.md) connects the real
+Deep Agents graph at model/tool boundaries, saves response IDs, and supports
+native timed transfers, persistent business tasks, private mail and board tools.
+That conductor snapshot passed **1453 tests**; later source-v30 evidence and
+fresh PR checks are linked in the [handoff](docs/HANDOFF.md). Earlier two-owner
+transfer and three-owner calibration traces remain separate evidence.
+
+The [10 November simplified rehearsal](docs/DAILY_MEETING_REHEARSAL.md) completed
+86400 simulated seconds with two Actors and two personal Agents. One private
+meeting-time change led to actual peer agreement and two native mails, with no
+payments or board posts. It made 52 provider attempts and cost USD0.20261134.
+Six spaced reviewer health probes passed on their first attempt; earlier upstream
+502 failures remain saved. Personal Agents keep DeepSeek V3.2; Actors and
+independent reviewers keep GPT-4.1 and the same API configuration.
+
+The user-authorized [simplified seven-day run](docs/SEVEN_DAY_SIMPLIFIED_RESULTS.md)
+reached 604800 simulated seconds in 272.444 wall seconds, with all seven cues
+delivered. **Daily-change acceptance failed:** only the first day produced a
+real change. On days 2/4/6 the Actor ignored a new 14:00 need, returned silent wait,
+and passed independent review. The other later cues matched the unchanged 16:00
+agreement; they do not establish fresh successful changes. Personal Agents never
+received those missed requests. Runtime source, models and APIs were unchanged.
+
+The run made 76 actual requests and cost USD0.34948032, with no new unknown cost.
+At that stage the same USD20 campaign retained USD17.5988741196 occupied and
+USD2.4011258804 remaining. All historical fees, original trajectories and checkpoints remain.
+That original world was not replayed or rewritten. Its failure does not establish
+long-term task completion or larger medium-chaos calibration.
+
+The subsequent [cue-response repair](docs/CUE_RESPONSE_REPAIR.md) passes 1453 local
+checks and a two-event actual-model short test. Trusted task cues now declare a
+required owner response; independent classification cannot veto it, and explicit
+coverage cannot be overridden by global acceptance. Both 16:00 and 14:00 requests
+reached the Agents and obtained real peer approval. At the second cue the code
+caught and repaired a false no-response classification. Complete social closeout
+remains open: Alice Agent omitted a requested acknowledgment and waits for it.
+
+This repair added USD0.47117236 including a retained failed component, a successful
+adapted-context component and the two-event world. Current occupied cost is
+USD18.0700464796 under the same USD20 cap; USD1.9299535204 remains. Models, API files,
+original trajectories and historical unknown fees are preserved. No seven-day
+model run was repeated. See [current readiness](docs/MEDIUM_CHAOS_READINESS.md).
+
+The [GitHub comparison](docs/github-upstream-comparison.json) confirms that the
+committed base matches current main (`098b142`, 4 November 2026). The working copy
+also has uncommitted local Clock, API, recovery and rehearsal additions.
 
 ## Source of truth
 
@@ -234,8 +336,15 @@ credential. The model selects tools and supplies their arguments. The adapter
 validates arguments and sends authenticated HTTP requests to the board.
 Credentials and administrator controls are not part of the model prompt.
 
-Set `OPENROUTER_API_KEY` in the ignored `.env` file. `OPENROUTER_MODEL` selects
-the model; the default is `openai/gpt-4.1-mini`. Start the API and database and run
+For an assistant-only DeepSeek configuration, use the
+[personal Agent API guide](docs/PERSONAL_AGENT_API.md) and
+`personal-agent.env.example`. The private `.env.personal-agent.local` selects
+the assistant model and key without changing Actors or reviewers. An empty
+personal key fails before provider work; existing runs retain their saved models.
+
+Without that enabled profile, set `OPENROUTER_API_KEY` in the ignored `.env` file.
+`OPENROUTER_MODEL` selects the legacy default, `openai/gpt-4.1-mini`.
+Start the API and database and run
 `seed_demo.py` as shown above. Then give an Agent a task:
 
 ```sh
@@ -585,3 +694,18 @@ per owner while keeping owner Actors fixed. The pilot paused before its funding
 deadline at the existing 5.5 USD campaign guard; role-swapped repeats and service
 suspension are not verified. Use `scripts/try_funding_control.py` for free local
 checks. Model execution is a separate explicit step under the same campaign.
+
+The elapsed Clock runner also supports an isolated
+[Actor/reviewer OpenRouter key](docs/ACTOR_REVIEWER_API.md). Both models remain
+GPT-4.1 and personal Agents retain DeepSeek V3.2. Credentials stay in ignored
+local files; all roles still share the same cumulative cost campaign.
+
+The opt-in [confirmation closeout control](docs/CONFIRMATION_CLOSEOUT.md)
+preserves an owner's complete condition, requires an actual peer decision and
+reply, and checks that the requesting Agent read the reply before reporting
+completion. Its fixed one-hour control is separate from seven-day acceptance.
+
+The [daily-confirmation seven-day report](docs/DAILY_CONFIRMATION_SEVEN_DAY.md)
+records continuous scheduling, free seven-day native controls, one same-world
+schema recovery, actual owner decisions and the final budget-bounded outcome.
+No extra paid short test was launched; refusals are preserved as refusals.

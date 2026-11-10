@@ -8,7 +8,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from agentrpg.agent_model import UsageTracker, create_model
+from agentrpg.agent_model import ProviderCallError, UsageTracker, create_model
 from agentrpg.budget import (
     CONTEXT_BOUND_MODELS,
     BudgetBinding,
@@ -248,6 +248,10 @@ async def test_transport_reserves_before_call_and_retains_unknown_charge(pool, o
         assert report["uncertain_usd"] == 0
     else:
         assert report["uncertain_usd"] > 0
+    if outcome == "timeout":
+        assert "ReadTimeout" in report["recent_attempts"][0]["reason"]
+    if outcome == "failure":
+        assert "HTTP 503" in report["recent_attempts"][0]["reason"]
     assert "secret" not in json.dumps(report, default=str)
 
 
@@ -278,6 +282,73 @@ async def test_factory_counts_each_actual_retry_and_stops_at_cap(pool, monkeypat
     assert len(calls) == report["attempts"] == 3
     assert report["uncertain_usd"] > 0
     assert "test-secret" not in json.dumps(report, default=str)
+
+
+@pytest.mark.parametrize(
+    ("code", "retries", "attempts"),
+    [(502, 2, 3), (429, 1, 2), (401, 2, 1), (402, 2, 1), (502, 0, 1)],
+)
+async def test_embedded_provider_errors_obey_retries_and_keep_each_reservation(
+    pool, code, retries, attempts, caplog
+):
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "1")
+    binding = BudgetBinding(ledger, campaign, {"openai/gpt-4.1": price()})
+    model = create_model("test-secret", budget=binding, model=price().model, max_retries=retries)
+    calls = []
+
+    def provider(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "id": f"gen-embedded-{len(calls)}",
+                "error": {"code": code, "message": "private-provider-body"},
+            },
+        )
+
+    model._budget_clients[1]._transport.transport = httpx.MockTransport(provider)
+    try:
+        with pytest.raises(ProviderCallError, match=f"error {code} inside HTTP 200") as failure:
+            await model.ainvoke("Hello")
+    finally:
+        await model.aclose()
+    report = await ledger.summary(campaign)
+    assert len(calls) == report["attempts"] == attempts
+    assert all(c == calls[0] for c in calls)
+    assert calls[0]["provider"]["allow_fallbacks"] is False
+    assert report["reported_usd"] == report["reserved_usd"] == 0
+    assert report["uncertain_usd"] == sum(a["reserved_usd"] for a in report["recent_attempts"])
+    assert {a["generation_id"] for a in report["recent_attempts"]} == {
+        f"gen-embedded-{i + 1}" for i in range(attempts)
+    }
+    assert failure.value.retryable is (code in {429, 502})
+    assert all(f"provider error {code}" in a["reason"] for a in report["recent_attempts"])
+    evidence = str(failure.value) + caplog.text + json.dumps(report, default=str)
+    assert "private-provider-body" not in evidence and "test-secret" not in evidence
+
+
+async def test_embedded_error_retry_cannot_bypass_cumulative_cap(pool):
+    ledger, campaign = CampaignLedger(pool), uuid4()
+    await ledger.ensure_campaign(campaign, "0.04")
+    binding = BudgetBinding(ledger, campaign, {"openai/gpt-4.1": price()})
+    model = create_model("test-secret", budget=binding, model=price().model, max_retries=2)
+    calls = []
+
+    def provider(request):
+        calls.append(1)
+        return httpx.Response(200, json={"error": {"code": 502}})
+
+    model._budget_clients[1]._transport.transport = httpx.MockTransport(provider)
+    try:
+        with pytest.raises(BudgetExceeded):
+            await model.ainvoke("Hello")
+    finally:
+        await model.aclose()
+    report = await ledger.summary(campaign)
+    assert len(calls) == report["attempts"] == 1
+    assert Decimal(0) < report["uncertain_usd"] <= Decimal("0.04")
+    assert report["committed_usd"] <= Decimal("0.04")
 
 
 async def test_empty_budget_never_sends_http(pool):
@@ -313,13 +384,21 @@ async def test_factory_preserves_budget_exhaustion_without_http(pool):
     assert (await ledger.summary(campaign))["attempts"] == 0
 
 
-async def test_factory_success_keeps_existing_usage_callbacks_and_exact_cost(pool):
+@pytest.mark.parametrize("embedded_error_first", [False, True])
+async def test_factory_success_keeps_existing_usage_callbacks_and_exact_cost(
+    pool, embedded_error_first
+):
     ledger, campaign = CampaignLedger(pool), uuid4()
     await ledger.ensure_campaign(campaign, "1")
     binding = BudgetBinding(ledger, campaign, {"openai/gpt-4.1": price()})
     model = create_model("test-secret", model="openai/gpt-4.1", budget=binding)
-    model._budget_clients[1]._transport.transport = httpx.MockTransport(
-        lambda request: httpx.Response(
+    calls = []
+
+    def provider(request):
+        calls.append(1)
+        if embedded_error_first and len(calls) == 1:
+            return httpx.Response(200, json={"error": {"code": 502}})
+        return httpx.Response(
             200,
             json={
                 "id": "gen-budget-test",
@@ -343,7 +422,8 @@ async def test_factory_success_keeps_existing_usage_callbacks_and_exact_cost(poo
                 },
             },
         )
-    )
+
+    model._budget_clients[1]._transport.transport = httpx.MockTransport(provider)
     usage = UsageTracker()
     try:
         result = await model.ainvoke("Hello", config={"callbacks": [usage]})
@@ -352,7 +432,10 @@ async def test_factory_success_keeps_existing_usage_callbacks_and_exact_cost(poo
     assert result.content == "Done"
     assert usage.summary()["completed_requests"] == 1
     assert usage.summary()["reported_cost_usd"] == 0.000028
-    assert (await ledger.summary(campaign))["reported_usd"] == Decimal("0.000028")
+    report = await ledger.summary(campaign)
+    assert report["reported_usd"] == Decimal("0.000028")
+    assert report["attempts"] == 1 + embedded_error_first
+    assert bool(report["uncertain_usd"]) is embedded_error_first
 
 
 @pytest.mark.parametrize("model", list(CONTEXT_BOUND_MODELS))

@@ -17,7 +17,16 @@ from agentrpg.actor import (
     validate_actor_output,
 )
 from agentrpg.budget import budget_context
-from agentrpg.director import Director, DirectorError, emit, fingerprint, row, rows, save_message
+from agentrpg.director import (
+    Director,
+    DirectorError,
+    emit,
+    fingerprint,
+    require_window_profile,
+    row,
+    rows,
+    save_message,
+)
 from agentrpg.inbox import InboxService
 from agentrpg.market import MarketService
 from agentrpg.resources import ResourceService
@@ -121,6 +130,8 @@ class RunEngine:
                 await lease.commit()
 
     async def _advance(self, run_id):
+        async with self.pool.connection() as conn:
+            await require_window_profile(conn, run_id)
         run = await self.director.get_run(run_id)
         if run["status"] != "running":
             raise DirectorError("Start or resume the run before advancing it.")

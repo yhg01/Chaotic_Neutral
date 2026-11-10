@@ -36,6 +36,11 @@ async def rows(conn, query, args=()):
     return await (await conn.execute(query, args)).fetchall()
 
 
+async def require_window_profile(conn, run_id):
+    if await row(conn, "SELECT id FROM simulation_clocks WHERE manager_run_id=%s", (run_id,)):
+        raise DirectorError("Use the elapsed Director Clock adapter for this run.")
+
+
 async def emit(conn, run_id, kind, window, payload, operation_key, owner_id=None):
     event_id = uuid5(UUID(str(run_id)), operation_key)
     await conn.execute(
@@ -187,6 +192,7 @@ class Director:
                 )
                 if run is None:
                     raise DirectorError("Run not found.")
+                await require_window_profile(conn, run_id)
                 status = run["status"]
                 result = run["result"]
                 if action == "start" and status in {"pending", "running"}:
@@ -227,6 +233,9 @@ class Director:
     async def send_message(self, run_id, owner_id, content, request_id):
         async with self.pool.connection() as conn:
             async with conn.transaction():
+                from agentrpg.clock_runtime import lock_profile, notify, tool_context
+
+                elapsed = await lock_profile(conn, run_id)
                 run = await row(
                     conn, "SELECT * FROM environment_runs WHERE id=%s FOR SHARE", (run_id,)
                 )
@@ -236,11 +245,34 @@ class Director:
                     "AND owner_id=%s AND source='agent' AND request_id=%s",
                     (run_id, owner_id, request_id),
                 )
-                if run is None or (run["status"] != "running" and not existing):
+                if elapsed and not existing:
+                    from agentrpg.confirmations import guard_freeform
+
+                    await guard_freeform(conn, run_id, owner_id)
+                    await tool_context(
+                        conn,
+                        run_id,
+                        owner_id,
+                        "send_owner_message",
+                        {"content": content},
+                        request_id,
+                    )
+                if run is None or (run["status"] != "running" and not existing and not elapsed):
                     raise DirectorError("The run is not running.")
-                return await save_message(
+                message = await save_message(
                     conn, run_id, owner_id, "agent", content, request_id, run["current_window"]
                 )
+                if elapsed and not existing:
+                    await notify(
+                        conn,
+                        self.pool,
+                        run_id,
+                        owner_id,
+                        "assistant_reply",
+                        message["id"],
+                        {"message_id": str(message["id"])},
+                    )
+                return message
 
     async def fire_beats(self, run_id):
         """Compile scene conditions into private, durable Actor observations."""

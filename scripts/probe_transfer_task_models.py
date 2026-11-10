@@ -26,6 +26,7 @@ from agentrpg.director import Director, rows
 from agentrpg.environment_tools import EnvironmentTools
 from agentrpg.main import create_app
 from agentrpg.migrate import migrate
+from agentrpg.personal_agent_config import load_personal_agent_api
 from agentrpg.run_engine import RunEngine
 from agentrpg.scenario_schema import ScenarioSpec
 from agentrpg.transfer_task_demo import LocalTaskOwner, lifecycle_scenario
@@ -233,16 +234,14 @@ async def main(args):
     from run_transfer_actors import ASSISTANT_INSTRUCTIONS, TASK_INSTRUCTIONS
 
     env = {**dotenv_values(ROOT / ".env"), **os.environ}
-    key = env.get("OPENROUTER_API_KEY")
-    if not key:
-        raise SystemExit("Configure the provider key locally; never paste it into chat.")
     manifest = json.loads(args.resume.read_text()) if args.resume else None
     config = saved_configuration(manifest) if manifest else None
     if not manifest and (not args.case or not args.campaign):
         raise SystemExit("New probes require --case and --campaign.")
     if manifest and (args.case or args.campaign or args.guard_task_yield):
         raise SystemExit("Resume uses saved case, campaign, and guard settings; omit overrides.")
-    model_name = config["model"] if config else env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
+    personal_api = load_personal_agent_api(env, root=ROOT, configuration=config)
+    key, model_name = personal_api.api_key.get_secret_value(), personal_api.model
     prices = await fetch_model_prices({model_name})
     settings = Settings()
     await migrate(settings.database_url.get_secret_value())
@@ -256,6 +255,7 @@ async def main(args):
             config = {
                 "mode": "one_real_assistant_supplied_owners_and_peer",
                 "model": model_name,
+                **personal_api.manifest_fields(),
                 "campaign_id": str(args.campaign),
                 "budget_usd": str(args.budget_usd),
                 "runtime_revision": "persistent-transfer-tasks-v7",

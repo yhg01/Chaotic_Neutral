@@ -1,0 +1,2735 @@
+{
+  "date": "2026-11-10",
+  "profile": "clock-runtime-v1-paired-roles-native-transfer-tasks",
+  "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+  "provider_calls": 0,
+  "new_cost_usd": "0",
+  "new_checks": 120,
+  "complete_regression": {
+    "tests": 1453,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "complete_regression_seconds": 158.92,
+  "controls": [
+    {
+      "run_id": "c821dab4-68e2-4353-b4d3-4d7621688424",
+      "clock_id": "55a120f1-e989-5ad6-a5b7-62aec3b087a1",
+      "simulated_seconds": 100,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 15,
+      "ordered_event_delivery": true,
+      "director_jobs": 8,
+      "graph_nodes": 6,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-03ae3bbeb2ae571fb5fe57a3b0adc7ca",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-6aa243a30f7952dda8571b8a83d67a4f",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-98506eb095b559d4909aeb18169452e4",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-d1399976ac255f3b8794a5639e9647c9",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 3,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 14,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 5816,
+      "largest_saved_graph_input_chars": 2867,
+      "largest_observed_model_input_tokens": 20,
+      "case": "actor-direct-mail",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/actor-direct-mail/c821dab4-68e2-4353-b4d3-4d7621688424/trajectory.json",
+      "trajectory_sha256": "f6d94586b344ea7137f7ef10968b7fe3830b5c41d881e74f9447272b8feb3950"
+    },
+    {
+      "run_id": "b4f200ee-4a11-4dbe-b831-f12acaa6ab62",
+      "clock_id": "b2782e5a-ec9d-572e-ab56-b36b08742a12",
+      "simulated_seconds": 100,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 2,
+      "ordered_event_delivery": true,
+      "director_jobs": 2,
+      "graph_nodes": 0,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-7980b1c2c0c4502bacecb2b5c6114ffe",
+          "at_seconds": 101,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-e7b83dbb0b1f52f5ab045c3243ca189f",
+          "at_seconds": 101,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b15c25bb4c695927869d989fda18fe80",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-e8fd6277538b5e4c9478a36c20ca09ea",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 0,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 0,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 0,
+      "largest_saved_graph_input_chars": 0,
+      "largest_observed_model_input_tokens": 0,
+      "case": "actor-wait-text-is-not-dialogue",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/actor-wait-text-is-not-dialogue/b4f200ee-4a11-4dbe-b831-f12acaa6ab62/trajectory.json",
+      "trajectory_sha256": "7a1f7c2ca0ace3e32d58573bfad64792ec0ef4805b541bd20bc716b8b5efc23b"
+    },
+    {
+      "run_id": "16eef300-7882-4d56-b5ee-a25fdd8506e6",
+      "clock_id": "d036d0b7-f85a-5a76-9e02-ee514909a9c4",
+      "simulated_seconds": 86400,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 100,
+        "eli": 100,
+        "kai": 100,
+        "lee": 100,
+        "dana": 100,
+        "fran": 100,
+        "hugo": 100,
+        "iris": 100,
+        "noor": 100,
+        "owen": 100,
+        "alice": 100,
+        "grace": 100,
+        "jules": 100,
+        "morgan": 100,
+        "charlie": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 100,
+        "charlie": 100,
+        "dana": 100,
+        "eli": 100,
+        "fran": 100,
+        "grace": 100,
+        "hugo": 100,
+        "iris": 100,
+        "jules": 100,
+        "kai": 100,
+        "lee": 100,
+        "morgan": 100,
+        "noor": 100,
+        "owen": 100
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 267,
+      "ordered_event_delivery": true,
+      "director_jobs": 126,
+      "graph_nodes": 156,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-0cba8a20b2fc5835a13c28dac9d90aac",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-0efafbaf136254dcbfb7377f46f6f16d",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-noor"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-115b964d75dc5c89a14874f97f7fe1b9",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-1a71dcd78cb556afafcb08134e915f77",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-1e60066e0045515895811db8a45eeaa9",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-23ee8af4d3a65b829f49ffa936e7dd65",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-4058f3a977015164909628f03bffa346",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-40b58651ab5a5675a2368ca7072d339e",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-481e1c1aa31b5901880635836be11c46",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-49d0848c95e556db839d3d93e32714ca",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-noor"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-56f01145df6c5ea9a602ac003ec0ccff",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-60a4e16c2b9253198c3c13ff418b7de2",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-6bd95eb29b005c0bbfd0fc7a35066fe3",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-7bf2c02a994250e9847fab54f156a8ef",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-grace"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-7c2558a8ebec5871b3a375eb9cef916c",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-9507b146b9145919a19ca266efed51a8",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-grace"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-a45465a402f75b60919084072ef29bdf",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b01f5dddc68a5840b5486842436a6cf2",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b080b83ccb1d5a6892ddd3a39c87ba03",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-fran"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b5ab4519a3e959018ecba124c2cfbc04",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-lee"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b70ce5a3beea52dbb1bd53fdc0acb5b6",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-bcffad755e1d5ab396de57d281a6f124",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-cd050f9fbf655423b5e20047b9e9d6d0",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-cdd2f3987e1a5291a94a08638267d084",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-d6d429f8936d5809a4e22e1abf817a10",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-d8870356cb31541694904405703c87fc",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-e90022af87925dff95a12e5914f85e8a",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-lee"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-f3f82e2ff6e65cbaae2d24a8f879dd47",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-f7af3227b5965c448a6c5b1476384e67",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-fbcd2b05b222563c82a4617517a80405",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-fran"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 32,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 220,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 59342,
+      "largest_saved_graph_input_chars": 9001,
+      "largest_observed_model_input_tokens": 20,
+      "case": "daily-meeting-15-pairs-1-days",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/daily-meeting-15-pairs-1-days/16eef300-7882-4d56-b5ee-a25fdd8506e6/trajectory.json",
+      "trajectory_sha256": "653448ab21ce9eaa4183553014cedd21c97b3bdf75d493c46ca5370d63e2eb7f"
+    },
+    {
+      "run_id": "d1aaff39-0110-4514-95e7-3c2101411190",
+      "clock_id": "5c7a75ab-6699-5a2f-8c70-3932b9b9449a",
+      "simulated_seconds": 604800,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 100,
+        "eli": 100,
+        "kai": 100,
+        "lee": 100,
+        "dana": 100,
+        "fran": 100,
+        "hugo": 100,
+        "iris": 100,
+        "noor": 100,
+        "owen": 100,
+        "alice": 100,
+        "grace": 100,
+        "jules": 100,
+        "morgan": 100,
+        "charlie": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 100,
+        "charlie": 100,
+        "dana": 100,
+        "eli": 100,
+        "fran": 100,
+        "grace": 100,
+        "hugo": 100,
+        "iris": 100,
+        "jules": 100,
+        "kai": 100,
+        "lee": 100,
+        "morgan": 100,
+        "noor": 100,
+        "owen": 100
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 339,
+      "ordered_event_delivery": true,
+      "director_jobs": 162,
+      "graph_nodes": 192,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-0120d89464335a1e8e927382584245bf",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-17b4b61bd273563d8a7a937a0c526dba",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-1e5a3bf5a84855ecbe6a24544ae5dd69",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-fran"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-24cead5ebf5a540faa4ca9490866423c",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-2d378f9106c85580a9ae9c8ed635f55b",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-420efd43164d5ba4bdfafb8bd0741096",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-lee"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-43cd44f03b4d5cca84f77a82fc022cf5",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-43e87e32fbdd5af19a0e13c1bacf3eb0",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-4c1b6036222e572ea06ebb238e410c1f",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-4d37b7e908fc5bca9b664d53211ee2b6",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-52e36a97ea1d5525b915f586f16025a9",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-5fefd413fbdc5e14aae41536a8141404",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-67eed5d941675fac9aa22991e22c6809",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-693ca2ed89d250069e303f4fa0e90e1e",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-fran"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-6eb39bb36a6c5800a0a24fd8dc2e3794",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-89c549e37cad5b4692391829e9cd8e80",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-8c20859dfd0150d7ab68bb201b8a8ab9",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-9cebca2eb2f753adb655553e43030ff8",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-9f4d8d2891485a93a5229e3704e3ce2a",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-grace"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-9fb70a21784955aaa74cf97cbcd4aedb",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-a1fc65449a91509ca0f2d9e8c363a4cd",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b20b043fdce253caacd092cfa2aeedbe",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-noor"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b2e9b887ff00593cb6b7866fcc7a971c",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b3b2ccd435fb5853acee9b934bb30b77",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b575efb684355db3a0eeba86fa2209b3",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b9d46b9fedd256b193f6b87ff0d5dcaa",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-lee"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-c5d7172382bd59a4a8245a584ee4b6fb",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-d726288708a357dca89df819d7f0275a",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-e070b5f9a5695f739c06b19392323438",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-grace"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-e9c30f5acb29575991b0f539a4437a24",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-noor"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 44,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 280,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 76040,
+      "largest_saved_graph_input_chars": 9011,
+      "largest_observed_model_input_tokens": 20,
+      "case": "daily-meeting-15-pairs-7-days",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/daily-meeting-15-pairs-7-days/d1aaff39-0110-4514-95e7-3c2101411190/trajectory.json",
+      "trajectory_sha256": "0e8b6adb3e81205c0165de9bc9db69471b3959cd42412610fb91009a45a2932d"
+    },
+    {
+      "run_id": "5de35ebf-7089-4624-90dd-db726752d580",
+      "clock_id": "845ec908-2529-556a-8449-e157b84aedc1",
+      "simulated_seconds": 86400,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 100,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 100
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 46,
+      "ordered_event_delivery": true,
+      "director_jobs": 22,
+      "graph_nodes": 26,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-6ed61040f2635d799ddf0889e696a4e1",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b7a1c58041ed5d83b1881d47fdff3ea7",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b9c3421df89d5b6bbadcb85dc6226b26",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-df2a8e9ec8bb5a9dafcd0f7812e84f1a",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 6,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 38,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 10319,
+      "largest_saved_graph_input_chars": 8919,
+      "largest_observed_model_input_tokens": 20,
+      "case": "daily-meeting-2-pairs-1-days",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/daily-meeting-2-pairs-1-days/5de35ebf-7089-4624-90dd-db726752d580/trajectory.json",
+      "trajectory_sha256": "37e792fafdcecaf03897321543bbdf9f699604556cd155a43c7a4be654a23e1d"
+    },
+    {
+      "run_id": "dccc3e7d-7880-4157-8ce5-45198ed14296",
+      "clock_id": "9bf445f6-19a6-55a3-ab74-4019963474c8",
+      "simulated_seconds": 604800,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 100,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 100
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 118,
+      "ordered_event_delivery": true,
+      "director_jobs": 58,
+      "graph_nodes": 62,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-36777a50bec051d48895aff98aad3e8a",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-5b7a8e66950b579482c9babfadba9929",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-990c3e3c44c2580ba3a22906af6546f2",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-c67b7f0c431a59bfb3753ebd57bb8c09",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 18,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 98,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 27017,
+      "largest_saved_graph_input_chars": 19035,
+      "largest_observed_model_input_tokens": 20,
+      "case": "daily-meeting-2-pairs-7-days",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/daily-meeting-2-pairs-7-days/dccc3e7d-7880-4157-8ce5-45198ed14296/trajectory.json",
+      "trajectory_sha256": "08c974747a416e9a048c5a5d4c6b863b5048dda711bfbadecb920299c2a0d880"
+    },
+    {
+      "run_id": "9e9d929a-6be7-468b-8020-b3ec6563f80f",
+      "clock_id": "5e9830a4-a113-5ebe-9266-e74f61b8192f",
+      "simulated_seconds": 86400,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 100,
+        "eli": 100,
+        "kai": 100,
+        "lee": 100,
+        "dana": 100,
+        "fran": 100,
+        "hugo": 100,
+        "iris": 100,
+        "noor": 100,
+        "owen": 100,
+        "alice": 100,
+        "grace": 100,
+        "jules": 100,
+        "morgan": 100,
+        "charlie": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 100,
+        "charlie": 100,
+        "dana": 100,
+        "eli": 100,
+        "fran": 100,
+        "grace": 100,
+        "hugo": 100,
+        "iris": 100,
+        "jules": 100,
+        "kai": 100,
+        "lee": 100,
+        "morgan": 100,
+        "noor": 100,
+        "owen": 100
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 279,
+      "ordered_event_delivery": true,
+      "director_jobs": 132,
+      "graph_nodes": 162,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-01b263acb700525aa75187c6547c149c",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-085c4550cbfb502aac8cbdb9aca06b04",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-0b15a3e4e45e5024ab427c5d281b2fe5",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-lee"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-19ac8b1d47aa52c6a9c87fb3929114d0",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-1e6454a497fc52ebb630f77ae32786bc",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-216a273fe29f537fbb59fa93946a7a98",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-21ab4bbc9a345205959bc3b5ab1c0c82",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-fran"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-268e6ba03211538c86ceb230907a6fcc",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-grace"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-28289ae2c25d5b2eb6c20d2fa95e1f58",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-3d5c947073395e73984c515502d413c5",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-46a47f1fbd5f525e85ecfe038753c9b5",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-540298bbdc5652e483c9793078ee3794",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-58e68c992f0d5db88b0a4f0a7d36b368",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-75e10c997a53580f9bc9a00b1282e915",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-7ec0542a368d5c2e87bad5d8916d6480",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-81942c60311d5d3ab7764442da7a6cc8",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-8b5fdf7f9ca355cebc3135e9f97e1364",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-noor"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-8f4a9d180f4f572db2a182f510a73d19",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-94e1bbf6ab4259cfa64d32a8ee019e70",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-a8238bcce04554aa92909a6dd5e891cc",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-aec07da05a4e5a7ab50bdb0e1c7448ea",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-noor"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b89e888b3cb455118ce3a4799089e2a1",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b9b6aca7362b526e9b4a4337c0853ddc",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-c2e761c14498598bbcb743c0adbe6827",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-d337b87fa5ac53d38a628d4d880f2e06",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-ef95204d1e015ff1846d1d54e18a1c3f",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-f078dbea4cd65f9b902d7324d6e77ea0",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-f805a8dfed5553feabd334fb48319e8a",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-grace"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-fe25308fcd3c5294b7f019bfd3773a6c",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-fran"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-ff5fccea6f3951f9ab06472dd4f498a8",
+          "at_seconds": 172800,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-lee"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 34,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 230,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 62119,
+      "largest_saved_graph_input_chars": 8969,
+      "largest_observed_model_input_tokens": 20,
+      "case": "fifteen-pairs-1-days",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/fifteen-pairs-1-days/9e9d929a-6be7-468b-8020-b3ec6563f80f/trajectory.json",
+      "trajectory_sha256": "2231337584967b3560fb2cc1b61d5e2c701a5d743dac2ac99e7d6f3a7377438c"
+    },
+    {
+      "run_id": "588eaada-b787-413b-84f0-fa7589c348c8",
+      "clock_id": "01666f1b-4068-501f-9b62-026c725bf728",
+      "simulated_seconds": 604800,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 100,
+        "eli": 100,
+        "kai": 100,
+        "lee": 100,
+        "dana": 100,
+        "fran": 100,
+        "hugo": 100,
+        "iris": 100,
+        "noor": 100,
+        "owen": 100,
+        "alice": 100,
+        "grace": 100,
+        "jules": 100,
+        "morgan": 100,
+        "charlie": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 100,
+        "charlie": 100,
+        "dana": 100,
+        "eli": 100,
+        "fran": 100,
+        "grace": 100,
+        "hugo": 100,
+        "iris": 100,
+        "jules": 100,
+        "kai": 100,
+        "lee": 100,
+        "morgan": 100,
+        "noor": 100,
+        "owen": 100
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 423,
+      "ordered_event_delivery": true,
+      "director_jobs": 204,
+      "graph_nodes": 234,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-08a796b74d4b566596d581f9430f388e",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-0f460cd252845c0882f70b9dd1ebe4ef",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-104088b71a8a5159a70d3a8c732d9bd9",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-1837552ebbb85549b9b3096904c92068",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-1ee870be85265bc4b7a03a1579aa9e71",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-25bbc7b1ab31525e8457b2382086b3c5",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-2909da2d9a9b51e780971be7f4a725ee",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-2ef7981482fc518a91deacd1da2d1f50",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-charlie"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-31e0491db3ec59c988ed4408adbbfe03",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-36e6a2dd2cf151bbbc86a2276acb9918",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-grace"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-3b17e4b7f2ba5ae3bea92cff1a711a7e",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-fran"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-3e12ed78434c5499915fde60e2dcdc29",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-448ed383073559a9927330b18d788638",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-kai"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-5d359210bbe05db7b158e3370748a129",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-noor"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-8cc1defac0ae573795bd77732d6d8afa",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-9ef738adf6a2588eb3c6296264658244",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-a38b132b74415c9195529b9786fd2eaa",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-a6e9c2b4532653f9a9d9181c0415f925",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-noor"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-ad0969d6ed095a86aac45e0b81a631a5",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-owen"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b4aa241a946c5f3bb64d3692be871f0d",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-jules"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-b965fbd5849a5e68b18e822d872714ae",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-morgan"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-c56c3a5116105725bf28a7423d530893",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-fran"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-c66c8aafe63e56268bbbe46979d79d88",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-cc64ba235afe5eee8b4b0821486911cb",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-lee"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-d0971cab1e0c548f99e77b453afaffde",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-hugo"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-e516a4c17bd55bc689a0174655f64ee8",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-lee"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-ea4188f2d4515c40a6288c082882f05b",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-eli"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-eb44e4528e295617a031acc1b0defab3",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-dana"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-f3eaaaa5265c58758cd5e7cfb9903b42",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-iris"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-fe8ec1e36b6d5bf886cfa7b1ba74d408",
+          "at_seconds": 691200,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-grace"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 58,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 350,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 95515,
+      "largest_saved_graph_input_chars": 19101,
+      "largest_observed_model_input_tokens": 20,
+      "case": "fifteen-pairs-7-days",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/fifteen-pairs-7-days/588eaada-b787-413b-84f0-fa7589c348c8/trajectory.json",
+      "trajectory_sha256": "9bd28ed7b9c3d48da193b31a4ce50a602da075a27b6ede288c269e5d621bb8e4"
+    },
+    {
+      "run_id": "7b842ff4-613f-4f34-a560-a3f5d87c16b1",
+      "clock_id": "846c4fab-9fea-5312-a02e-43a8de5d7c4e",
+      "simulated_seconds": 100,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "native_payments": 1,
+      "native_board_messages": 0,
+      "native_agent_mail": 1,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 44,
+      "ordered_event_delivery": true,
+      "director_jobs": 21,
+      "graph_nodes": 24,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-05f078336ddc54c2be1a888e6557c245",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-84406c0b7475579db86334fed9cbb1dd",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-8d23915e157a53cdbbe37e391c2290a6",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-9983cfab685a5887b4322e1b9176f14d",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 5,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 47,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 16765,
+      "largest_saved_graph_input_chars": 9807,
+      "largest_observed_model_input_tokens": 20,
+      "case": "full-transfer",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/full-transfer/7b842ff4-613f-4f34-a560-a3f5d87c16b1/trajectory.json",
+      "trajectory_sha256": "64f560831ed37df5437763361b339d5c41ccb4edf826cded2636879a25628a1a"
+    },
+    {
+      "run_id": "1d6edce3-dc65-4a0d-9f1f-7b77df0110e1",
+      "clock_id": "037521a3-da06-5939-9392-f62049904930",
+      "simulated_seconds": 100,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 5
+      },
+      "final_balances": {
+        "alice": 5,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 24,
+      "ordered_event_delivery": true,
+      "director_jobs": 12,
+      "graph_nodes": 12,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-9177636e0997503eab8af54af93e46da",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-a58ac35715bf5300a97101e482f6aeff",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-d69e003656aa59f8a5d8dd8911ad4026",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-e8675d4c28ea5a7696d6121859c783e5",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 4,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 25,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 8766,
+      "largest_saved_graph_input_chars": 5696,
+      "largest_observed_model_input_tokens": 20,
+      "case": "insufficient-balance",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/insufficient-balance/1d6edce3-dc65-4a0d-9f1f-7b77df0110e1/trajectory.json",
+      "trajectory_sha256": "b81a2c08b30454d7e0f262dfbda07b0287b7285583c0c743fef928a48d27356a"
+    },
+    {
+      "run_id": "45a8b332-3a85-4e7f-b508-a8f4f8eb07ba",
+      "clock_id": "4d2b997a-9d76-5671-9776-d8af47876bc2",
+      "simulated_seconds": 100,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 25,
+      "ordered_event_delivery": true,
+      "director_jobs": 13,
+      "graph_nodes": 10,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-089a7db03d945fc7ba3bcc5caa36d069",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-6bc0c87002d25892ab49ad03a959c31e",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-94111d6e0e275adfa88e30fe379f1543",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-bd960498cfb35ef9bac5a38254916548",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 6,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 23,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 8050,
+      "largest_saved_graph_input_chars": 4418,
+      "largest_observed_model_input_tokens": 20,
+      "case": "paired-question-answer",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/paired-question-answer/45a8b332-3a85-4e7f-b508-a8f4f8eb07ba/trajectory.json",
+      "trajectory_sha256": "3990e88c3d8fc61bbdd734a728e371735d79aba91ebf280ee60060430d72bed2"
+    },
+    {
+      "run_id": "4d1e39aa-7742-466b-ae70-c208773a98f4",
+      "clock_id": "17fec664-7bcb-52f2-88a7-98f117eda002",
+      "simulated_seconds": 1,
+      "clock_status": "active",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 4,
+      "ordered_event_delivery": true,
+      "director_jobs": 3,
+      "graph_nodes": 1,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "work-a187cb7b0a245146bc27b760b8675140",
+          "at_seconds": 2,
+          "priority": 0,
+          "kind": "generation_complete",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {
+            "tool": null,
+            "output_tokens": 10,
+            "duration_seconds": 1
+          }
+        },
+        {
+          "event_key": "sleep-351f2d2ccd175dd8a38179107c3ee3b7",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-7e514a8f8bab5432bc47440c2e38938e",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 2,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 4,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 2450,
+      "largest_saved_graph_input_chars": 1095,
+      "largest_observed_model_input_tokens": 20,
+      "case": "saved-ai-before-step-receipt",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/saved-ai-before-step-receipt/4d1e39aa-7742-466b-ae70-c208773a98f4/trajectory.json",
+      "trajectory_sha256": "4aa6295e37a3c5952e0461c4dc9b6d07671909bbc85c1ee1eadae367052a40a0"
+    },
+    {
+      "run_id": "378de294-d3d1-4d25-86a8-f9e2a6807ab2",
+      "clock_id": "643d1b37-091e-58e4-a8ea-04814e5242dc",
+      "simulated_seconds": 0,
+      "clock_status": "active",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 0,
+      "ordered_event_delivery": true,
+      "director_jobs": 1,
+      "graph_nodes": 0,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "work-fd705a0672a65afdb16629fefd5baa8f",
+          "at_seconds": 1,
+          "priority": 0,
+          "kind": "generation_complete",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {
+            "tool": null,
+            "output_tokens": 10,
+            "duration_seconds": 1
+          }
+        },
+        {
+          "event_key": "sleep-50725a95de8a5ed98006caa9fc3d57ba",
+          "at_seconds": 101,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-985016391e42571cb439d34d99a5f083",
+          "at_seconds": 101,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 0,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 0,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 0,
+      "largest_saved_graph_input_chars": 0,
+      "largest_observed_model_input_tokens": 0,
+      "case": "saved-response-actor",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/saved-response-actor/378de294-d3d1-4d25-86a8-f9e2a6807ab2/trajectory.json",
+      "trajectory_sha256": "c5af869b95d429f49b3bedb5e2d0bf4c1e904c931e2edd6a7aeaff15368feea2"
+    },
+    {
+      "run_id": "d6af8ce4-fab1-4b6a-8645-a747eb96446d",
+      "clock_id": "e7518381-4c8c-5d84-a162-e4ffb03bff8c",
+      "simulated_seconds": 1,
+      "clock_status": "active",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 4,
+      "ordered_event_delivery": true,
+      "director_jobs": 3,
+      "graph_nodes": 1,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "work-c60503adf3fc5642b691770d060ffbc3",
+          "at_seconds": 2,
+          "priority": 0,
+          "kind": "generation_complete",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {
+            "tool": null,
+            "output_tokens": 10,
+            "duration_seconds": 1
+          }
+        },
+        {
+          "event_key": "sleep-7fd44e6a0d745bd6aaa39608fbe4c5bf",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-ced1a334d0255d91a8ad23d0097f31b7",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 2,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 4,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 2450,
+      "largest_saved_graph_input_chars": 1095,
+      "largest_observed_model_input_tokens": 20,
+      "case": "saved-response-agent",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/saved-response-agent/d6af8ce4-fab1-4b6a-8645-a747eb96446d/trajectory.json",
+      "trajectory_sha256": "c0fd0a2d4a36f2049e1a834c601694a62a84469048315cbf46d7fa6ec221d6b9"
+    },
+    {
+      "run_id": "2f8b68bc-1681-4930-884f-3c84d1fd48dd",
+      "clock_id": "a211d66a-e426-5393-9155-6da1c9ca076d",
+      "simulated_seconds": 100,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "native_payments": 1,
+      "native_board_messages": 0,
+      "native_agent_mail": 1,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 49,
+      "ordered_event_delivery": true,
+      "director_jobs": 23,
+      "graph_nodes": 26,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-0d47e1477f585a2aa4749978512b8970",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-14b2e67d0fd954c8a73c26c6f9cc8ce7",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-20e859e871fa5626adf478bffc150018",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-4234ac0865ae5525be59f35052eafb92",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 6,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 1,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 49,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 16777,
+      "largest_saved_graph_input_chars": 11124,
+      "largest_observed_model_input_tokens": 20,
+      "case": "tracked-business-task",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/tracked-business-task/2f8b68bc-1681-4930-884f-3c84d1fd48dd/trajectory.json",
+      "trajectory_sha256": "a2e55c98be157a00da74a8a67b2df0393669fbb0e700f7a7e95a3bac3a18cc42"
+    },
+    {
+      "run_id": "956c5067-42e4-468a-b0d2-3574cc482968",
+      "clock_id": "89167a96-1a02-506d-9fdc-f15550d59a47",
+      "simulated_seconds": 100,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 90,
+        "bob": 30
+      },
+      "native_payments": 1,
+      "native_board_messages": 0,
+      "native_agent_mail": 1,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 49,
+      "ordered_event_delivery": true,
+      "director_jobs": 23,
+      "graph_nodes": 26,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "sleep-1a526b95f9035b3b89674f05ede1be26",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-6b57a3cf9703577c9146edfea33ef959",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-7817bf6bda7e580b8943b1ee7b473818",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-c08c58a59a4f5828966e4cb59ff2c44c",
+          "at_seconds": 86500,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 6,
+      "business_tasks_by_status": {
+        "active": 0,
+        "blocked": 0,
+        "completed": 1,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 49,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 16777,
+      "largest_saved_graph_input_chars": 11124,
+      "largest_observed_model_input_tokens": 20,
+      "case": "tracked-business-task",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/tracked-business-task/956c5067-42e4-468a-b0d2-3574cc482968/trajectory.json",
+      "trajectory_sha256": "09eea8fc3a9cf85b0afc60b74a24c568c6c94b4fe1e92f03ad8a6928264fc800"
+    },
+    {
+      "run_id": "bca085fc-83bd-41f9-a369-ee28f62ebf9b",
+      "clock_id": "bd9f9b38-ccd8-537b-80b7-dd9572c062e5",
+      "simulated_seconds": 8,
+      "clock_status": "horizon",
+      "task_success": null,
+      "initial_balances": {
+        "bob": 20,
+        "alice": 100
+      },
+      "final_balances": {
+        "alice": 100,
+        "bob": 20
+      },
+      "native_payments": 0,
+      "native_board_messages": 0,
+      "native_agent_mail": 0,
+      "financial_invariants": {
+        "total_conserved": true,
+        "ledger_matches_balances": true,
+        "no_duplicate_payment_grant": true
+      },
+      "delivered_events": 15,
+      "ordered_event_delivery": true,
+      "director_jobs": 8,
+      "graph_nodes": 8,
+      "uncertain_jobs": 0,
+      "pending_events_at_cutoff": [
+        {
+          "event_key": "work-b120a1c6a57d537ea2f8640df7a9b9c5",
+          "at_seconds": 12,
+          "priority": 0,
+          "kind": "tool_complete",
+          "recipients": [
+            "agent-alice"
+          ],
+          "payload": {
+            "tool": "transfer_credits",
+            "output_tokens": null,
+            "duration_seconds": 7
+          }
+        },
+        {
+          "event_key": "sleep-715e5b9883165912906ed3da17d936da",
+          "at_seconds": 86408,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-alice"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-78d6f2c9ca9855718df20d8032838e88",
+          "at_seconds": 86408,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "actor-bob"
+          ],
+          "payload": {}
+        },
+        {
+          "event_key": "sleep-da3aed8574b154b8a56b72a91e5dc344",
+          "at_seconds": 86408,
+          "priority": 0,
+          "kind": "timer",
+          "recipients": [
+            "agent-bob"
+          ],
+          "payload": {}
+        }
+      ],
+      "pending_events_truncated": false,
+      "original_message_count": 3,
+      "business_tasks_by_status": {
+        "active": 1,
+        "blocked": 0,
+        "completed": 0,
+        "cancelled": 0
+      },
+      "checkpoint_blob_versions": 16,
+      "virtual_scratch_files": 0,
+      "checkpoint_blob_bytes": 5360,
+      "largest_saved_graph_input_chars": 3103,
+      "largest_observed_model_input_tokens": 20,
+      "case": "tracked-task-horizon",
+      "provider_calls": 0,
+      "fixed_response_control": true,
+      "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+      "private_trace_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/traces/tracked-task-horizon/bca085fc-83bd-41f9-a369-ee28f62ebf9b/trajectory.json",
+      "trajectory_sha256": "8dd640376f9061b1fdb76c35ce69649c33089b1ab7853305f2d72086ef5442dc"
+    }
+  ],
+  "owned_postgres_cleanup": {
+    "owned_test_instance_removed": true,
+    "development_database_touched": false,
+    "paid_requests": 0
+  },
+  "scope": [
+    "Actual Deep Agents graph nodes and PostgreSQL checkpoints, supplied model responses.",
+    "Native task/grant/private-message atomicity; complete-task response loss replays original IDs without extra Alice model calls.",
+    "Thirty lanes and sparse one/seven-day monitoring controls; not seven-day model reliability.",
+    "Earlier process-kill payment controls are retained in clock-transfer-control-results.json.",
+    "Paired role turns retain queued owner input and prevent empty handoff ping-pong.",
+    "Same-second notification priority remains causal after released native effects.",
+    "Actor wait prose is retained as raw evidence but is not a fresh owner instruction.",
+    "Silent-yield delivery metadata keeps independent rejection and all original review gates; changed metadata is frozen on resume.",
+    "Exported delta-channel messages equal actual graph.aget_state values, including original tool responses.",
+    "The authorized cumulative ceiling and personal-only timeout/retry settings are frozen and checked before provider access. Safe transport diagnostics retain full unknown-charge reservations.",
+    "The opt-in visible-wait-delivery-v2 review receives actual delivered text. Raw wait prose remains in diagnostics; silence can still be rejected for ignoring a question, and typed effects and mail-intent rejection remain enforced.",
+    "The opt-in native task-binding precheck rejects absent, terminal, already-bound or wrong-recipient task references before delivery. The original repair allowance and semantic reviews apply to an explicit Actor-generated correction; binding drift fails before new calls.",
+    "Opt-in generation schema requires a tracked consent key and expresses existing open/cancel conditional requirements, including the non-null open-task wait event. Atomic task/consent input leaves all native and semantic checks intact; legacy generation remains unchanged.",
+    "HTTP-success responses with numeric provider errors use the existing retry allowance, retain every unknown reservation and generation ID, stop at the cumulative cap, and never enable endpoint fallback.",
+    "Versioned daily-meeting scene with one event per day and no initial financial task. Exact two-pair and fifteen-pair supplied controls reach one/seven-day horizons; no model reliability or seven-day model completion claim.",
+    "Declared current Director cues cannot be silenced or vetoed by model classification; exact independent coverage, bounded repairs, paired-session persistence and original spending checks are verified. Unmarked notifications may still wait."
+  ],
+  "retained_fixture_corrections": [
+    "Candidate v2 balanced events can address the snack debtor more than three times. Allocate supplied responses from actual declared recipient counts, rather than a uniform four-activation assumption.",
+    "Frozen private fact owner_ids is a tuple, not a list. The initial assertion failure and corrected rerun remain in private test artifacts.",
+    "The first review-effect fixture incorrectly attached mail to kind=wait, which the pre-existing output contract correctly rejects. Retain the two failed tests and separately verify non-wait mail review plus forbidden-wait rejection. No runtime guard was relaxed.",
+    "The first new SDK role-routing test omitted the required nullable system_fingerprint field in its supplied response. Preserve that failed local run and the corrected pass. No real provider request was made.",
+    "Daily profile uses one event per day. The first new controls reached their horizons but an old two-events/day model-call assertion failed; retained both failures and derive expected calls from declared event count.",
+    "New cue-rejection fixture first omitted required paired Agent sessions, then attempted to re-park already sleeping Agent lanes. Both failures remain; use the common paired runtime and its actual startup wait state. No production guard weakened."
+  ],
+  "clock_checks": 31,
+  "delivery_metadata_checks": 9,
+  "console_regression_seconds": 158.92,
+  "retained_export_regression_red": "One expected failure: inline checkpoint export omitted 12 actual graph messages. Fixed by replaying stored message-channel deltas; original exports kept.",
+  "readiness_checks": 7,
+  "director_cue_checks": 1,
+  "native_task_binding_checks": 14,
+  "actor_reviewer_api_checks": 12,
+  "current_full_regression": {
+    "date": "2026-11-10",
+    "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+    "tests": 1453,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 158.894,
+    "paid_requests": 0,
+    "new_checks": 30,
+    "private_junit_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/checks.xml",
+    "owned_postgres_cleanup": {
+      "owned_test_instance_removed": true,
+      "development_database_touched": false,
+      "paid_requests": 0
+    },
+    "targeted_checks": 63,
+    "fixture_failures_retained": true
+  },
+  "embedded_provider_error_checks": 7,
+  "current_total_covered_checks": 1453,
+  "daily_scene_checks": 9,
+  "retained_prior_source_two_pair_controls": {
+    "tests": 2,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "private_junit_reference": ".local/clock-runtime/0b4938922da04014b152e4f617279df5/full.xml"
+  },
+  "closed_seven_day_gate": {
+    "passed": true,
+    "provider_calls": 0,
+    "database_access": false,
+    "private_evidence": ".local/simple-meeting/closed-seven-day-gate.json"
+  },
+  "cue_response_checks": 30
+}

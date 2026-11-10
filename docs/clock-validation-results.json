@@ -1,0 +1,561 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-11-08",
+  "baseline_commit": "098b14204b3215a1d77df3946f70d4681a838559",
+  "branch": "codex/clock-validation",
+  "baseline_runtime_source_hash": "76c2e8935632e1143605f54e70c44e9e3dbeb466ab22aa24ac54d250a3d16106",
+  "fixed_runtime_source_hash": "98c0ca9ac724d57d90d79d8e6cb0426649022748309f47d564f09d5b07cb8ea6",
+  "execution_mode": "supplied decisions and isolated PostgreSQL; no model generation",
+  "provider_calls_added": 0,
+  "api_configuration_changed": false,
+  "production_migrations_added": false,
+  "validation": {
+    "baseline_focused": {
+      "tests": 81,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 7.093,
+      "failed_tests": [],
+      "passed": 81
+    },
+    "new_probes_before_fix": {
+      "tests": 7,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 2.352,
+      "failed_tests": [
+        "test_impossible_clock_prerequisite_is_rejected[False]",
+        "test_impossible_clock_prerequisite_is_rejected[True]"
+      ],
+      "passed": 5
+    },
+    "fixed_focused": {
+      "tests": 92,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 9.152,
+      "failed_tests": [],
+      "passed": 92
+    },
+    "final_full": {
+      "tests": 1198,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 104.004,
+      "failed_tests": [],
+      "passed": 1198
+    },
+    "counts_overlap": true
+  },
+  "environment_attempts": [
+    {
+      "action": "Run baseline with existing environment",
+      "result": "connection refused before test execution"
+    },
+    {
+      "action": "Check configured native cluster",
+      "result": "inherited AGENTRPG_PGDATA pointed to a directory without PG_VERSION; did not initialize it"
+    },
+    {
+      "action": "Create separate temporary PostgreSQL instance",
+      "result": "ready",
+      "original_configuration_changed": false
+    }
+  ],
+  "cleanup": {
+    "owned_test_server_stopped": true,
+    "owned_temp_cluster_removed": true,
+    "test_schemas_remaining": 0,
+    "original_configuration_changed": false,
+    "development_database_touched": false
+  },
+  "frozen_scenario_compatibility": {
+    "baseline": "098b14204b3215a1d77df3946f70d4681a838559",
+    "scenarios": [
+      {
+        "file": "scenarios/after_the_verdict.json",
+        "scenario_hash": "af0ef00dc3c913956537128beab7ad981c0d8c721cc25f9542a0e1a9a913499e",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/community_storm_exchange.json",
+        "scenario_hash": "4628cca8567281ed9ffe51494676d139eaa2b93436723025ad981aa56659192a",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/extension_control_15.json",
+        "scenario_hash": "8a410e10e1783c1becc65e714bc8d3aa28cd1cbeda1e25a19b70d4edf7c67a95",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/extension_control_2.json",
+        "scenario_hash": "51900b86fce16e78a32f0cecd663067ce416cf4ac2fcc609467f8cc94c2ba46c",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/friends_agent_renewal_funding.json",
+        "scenario_hash": "6f9fe38c4660c73c3d1e4d1ed83ca80f76f1a2fac45f2661e12ab1c50d1b2d5c",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/friends_lunch_actors.json",
+        "scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/friends_lunch_ambiguous.json",
+        "scenario_hash": "e097da30900c59c54c5b568af5910bd3dec27a0fc86d764b1ccfd11df3d181ba",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/friends_lunch_duplicate.json",
+        "scenario_hash": "d18c38444d9490374e85de5be49747733de9153a57024dd020cc5c43828425df",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/friends_lunch_insufficient.json",
+        "scenario_hash": "65bf566f3cce342474b44ba74e4c1e9a9133e23302aff5aaac7af83b6dc98820",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/generated-transport-reviewed.json",
+        "scenario_hash": "7a35d856cca45aa599ba9b6f0d6b6b9d8b167dc8ae0e61685bfaa4e92e0441a0",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/vehicle-conflict-15.json",
+        "scenario_hash": "cbccfa45dad80b973609f4693a0408ce2d1b3c3646cd355c6f92546a8e5b31c5",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/vehicle-conflict-2.json",
+        "scenario_hash": "93b0a93337f79036a1fc4181775bdc42ef2a1eafc3092daaf70a90eb0ee1c410",
+        "unchanged": true
+      },
+      {
+        "file": "scenarios/vehicle-control-15.json",
+        "scenario_hash": "4adebff94a0621fd24db265d2227f720d6415654b06d9485cb39d3ad7dec9fa1",
+        "unchanged": true
+      }
+    ],
+    "all_unchanged": true
+  },
+  "baseline_probe_observations": [
+    {
+      "test": "test_agent_failure_and_new_engine_preserve_successful_peer_and_clock",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "failed_window": 0,
+      "resumed_window": 1,
+      "preserved_job_ids": true,
+      "peer_reexecuted": false,
+      "completed_windows": [
+        0
+      ],
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_concurrent_conductor_cannot_double_advance_clock",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "current_window": 1,
+      "completed_windows": [
+        0
+      ],
+      "slow_participant_held_clock": true,
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_impossible_clock_prerequisite_is_rejected[False]",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "finding": "CLOCK-001",
+      "requirement": "Reject a cue whose clock deadline precedes its earliest prerequisite",
+      "recurring_parent": false,
+      "declared_beats": [
+        {
+          "id": "late-parent",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 5,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [],
+          "expires_window": null
+        },
+        {
+          "id": "early-child",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 2,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [
+            "late-parent"
+          ],
+          "expires_window": null
+        }
+      ],
+      "pytest_outcome": "failed"
+    },
+    {
+      "test": "test_impossible_clock_prerequisite_is_rejected[True]",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "finding": "CLOCK-001",
+      "requirement": "Reject a cue whose clock deadline precedes its earliest prerequisite",
+      "recurring_parent": true,
+      "declared_beats": [
+        {
+          "id": "late-root",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 5,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [],
+          "expires_window": null
+        },
+        {
+          "id": "late-parent",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 1,
+            "every_windows": 2
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [
+            "late-root"
+          ],
+          "expires_window": null
+        },
+        {
+          "id": "early-child",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 3,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [
+            "late-parent"
+          ],
+          "expires_window": null
+        }
+      ],
+      "pytest_outcome": "failed"
+    },
+    {
+      "test": "test_last_supported_window_is_reached_without_polling_waiting_assistants",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "completed_windows": 100,
+      "terminal_reason": "window_limit",
+      "clock_cue_windows": [
+        99
+      ],
+      "assistant_calls": {
+        "owner-1": [
+          0,
+          99
+        ],
+        "owner-2": [
+          0
+        ]
+      },
+      "interpretation": "100 logical windows; not seven simulated days or successful task completion",
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_last_window_post_settlement_events_are_explicitly_truncated",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "finding": "CLOCK-002",
+      "classification": "horizon truncation; not a settled-success result",
+      "status": "completed",
+      "reason": "window_limit",
+      "undelivered_final_cues": 1,
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_operator_pause_during_actor_preserves_window_and_saved_output",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "current_window": 0,
+      "pause_reason": "operator_pause",
+      "actor_outputs_retained": true,
+      "pytest_outcome": "passed"
+    }
+  ],
+  "fixed_probe_observations": [
+    {
+      "test": "test_agent_failure_and_new_engine_preserve_successful_peer_and_clock",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "failed_window": 0,
+      "resumed_window": 1,
+      "preserved_job_ids": true,
+      "peer_reexecuted": false,
+      "completed_windows": [
+        0
+      ],
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_concurrent_conductor_cannot_double_advance_clock",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "current_window": 1,
+      "completed_windows": [
+        0
+      ],
+      "slow_participant_held_clock": true,
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_impossible_clock_prerequisite_is_rejected[False]",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "finding": "CLOCK-001",
+      "requirement": "Reject a cue whose clock deadline precedes its earliest prerequisite",
+      "recurring_parent": false,
+      "declared_beats": [
+        {
+          "id": "late-parent",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 5,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [],
+          "expires_window": null
+        },
+        {
+          "id": "early-child",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 2,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [
+            "late-parent"
+          ],
+          "expires_window": null
+        }
+      ],
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_impossible_clock_prerequisite_is_rejected[True]",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "finding": "CLOCK-001",
+      "requirement": "Reject a cue whose clock deadline precedes its earliest prerequisite",
+      "recurring_parent": true,
+      "declared_beats": [
+        {
+          "id": "late-root",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 5,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [],
+          "expires_window": null
+        },
+        {
+          "id": "late-parent",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 1,
+            "every_windows": 2
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [
+            "late-root"
+          ],
+          "expires_window": null
+        },
+        {
+          "id": "early-child",
+          "trigger": {
+            "kind": "window_reached",
+            "window": 3,
+            "every_windows": null
+          },
+          "recipients": [
+            "owner-1"
+          ],
+          "cue": "A declared clock reminder arrived.",
+          "requires": [
+            "late-parent"
+          ],
+          "expires_window": null
+        }
+      ],
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_last_supported_window_is_reached_without_polling_waiting_assistants",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "completed_windows": 100,
+      "terminal_reason": "window_limit",
+      "clock_cue_windows": [
+        99
+      ],
+      "assistant_calls": {
+        "owner-1": [
+          0,
+          99
+        ],
+        "owner-2": [
+          0
+        ]
+      },
+      "interpretation": "100 logical windows; not seven simulated days or proof of task completion",
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_last_window_post_settlement_events_are_explicitly_truncated",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "finding": "CLOCK-002",
+      "classification": "horizon truncation; not a settled-success result",
+      "status": "completed",
+      "reason": "window_limit",
+      "undelivered_final_cues": 1,
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_operator_pause_during_actor_preserves_window_and_saved_output",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "current_window": 0,
+      "pause_reason": "operator_pause",
+      "actor_outputs_retained": true,
+      "pytest_outcome": "passed"
+    },
+    {
+      "test": "test_recurring_prerequisite_fires_before_same_window_child",
+      "decision_mode": "supplied_control",
+      "provider_calls": 0,
+      "storage": "isolated PostgreSQL test schema; removed after the test",
+      "clock_cues": [
+        [
+          "parent",
+          2
+        ],
+        [
+          "recurring-parent",
+          3
+        ],
+        [
+          "child",
+          3
+        ]
+      ],
+      "same_window_prerequisite_order_preserved": true,
+      "pytest_outcome": "passed"
+    }
+  ],
+  "findings": [
+    {
+      "id": "CLOCK-001",
+      "type": "defect",
+      "status": "fixed_locally",
+      "summary": "Scenario compilation accepted chronologically impossible fixed or recurring prerequisite schedules.",
+      "baseline_reproductions": 2
+    },
+    {
+      "id": "CLOCK-002",
+      "type": "horizon_interpretation",
+      "status": "documented_existing_behavior",
+      "summary": "A window-limit completed run can retain an undelivered final cue. It is not evidence of settled task success."
+    },
+    {
+      "id": "CLOCK-003",
+      "type": "capability_gap",
+      "status": "open",
+      "summary": "No explicit simulated-time epoch, duration, timed-wait or action-duration contract exists."
+    },
+    {
+      "id": "CLOCK-004",
+      "type": "capacity_gap",
+      "status": "open",
+      "summary": "Window, beat, snapshot and interface bounds do not support 168 hourly intervals; default owner activation limits are 20."
+    },
+    {
+      "id": "CLOCK-005",
+      "type": "experiment_configuration_gap",
+      "status": "open",
+      "summary": "No executable frozen medium-chaos profile, selected setting or centralised-object contract exists in the baseline."
+    }
+  ],
+  "claims": {
+    "current_window_clock_audited": true,
+    "impossible_time_dependency_validation_fixed_locally": true,
+    "all_committed_scenario_hashes_unchanged": true,
+    "new_continuous_time_clock_implemented": false,
+    "model_behavior_verified_by_this_audit": false,
+    "seven_simulated_day_run_started": false,
+    "seven_simulated_day_run_verified": false
+  },
+  "limits": [
+    "Integration run IDs belong to removed isolated test schemas; they are not local-console replay links.",
+    "The 100-window supplied control has no automatic conversion to simulated days.",
+    "Source and local fix are not pushed or merged by this task.",
+    "The later API migration is deferred."
+  ]
+}

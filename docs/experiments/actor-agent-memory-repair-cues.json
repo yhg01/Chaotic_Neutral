@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "private_cue",
+    "event_key": "initial-plan",
+    "at_seconds": 0,
+    "recipients": ["actor-alice"],
+    "payload": {
+      "owner_response_required": true,
+      "text": "Please save 14:00-15:00 UTC, Birch Room in my private file /plans/afternoon.md and read it back.",
+      "private_agenda": {
+        "day": "2026-11-10",
+        "slots": [{"start_minute": 840, "end_minute": 900, "activity": "Read in Birch"}]
+      }
+    }
+  },
+  {
+    "kind": "private_cue",
+    "event_key": "changed-plan",
+    "at_seconds": 1800,
+    "recipients": ["actor-alice"],
+    "payload": {
+      "owner_response_required": true,
+      "text": "Please save 16:00-17:00 UTC, Willow Room in my private file /plans/afternoon.md and read it back.",
+      "private_agenda": {
+        "day": "2026-11-10",
+        "slots": [{"start_minute": 960, "end_minute": 1020, "activity": "Read in Willow"}]
+      }
+    }
+  }
+]

@@ -24,6 +24,7 @@ from agentrpg.deep_agent import AgentRuntime
 from agentrpg.director import Director
 from agentrpg.environment_tools import EnvironmentTools
 from agentrpg.main import create_app
+from agentrpg.personal_agent_config import load_personal_agent_api
 from agentrpg.run_engine import RunEngine
 from agentrpg.scenario_schema import ScenarioSpec
 from agentrpg.transfer_validation import validation_scenario
@@ -86,10 +87,8 @@ async def main(args):
     if args.previous_activation_context and not args.owner_ack:
         raise SystemExit("--previous-activation-context requires --owner-ack.")
     env = {**dotenv_values(ROOT / ".env"), **os.environ}
-    key = env.get("OPENROUTER_API_KEY")
-    if not key:
-        raise SystemExit("Configure OPENROUTER_API_KEY locally.")
-    model_name = env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
+    personal_api = load_personal_agent_api(env, root=ROOT)
+    key, model_name = personal_api.api_key.get_secret_value(), personal_api.model
     prices = await fetch_model_prices({model_name})
     spec = probe_scenario(args.owner_ack)
     instructions = (
@@ -116,6 +115,7 @@ async def main(args):
         manifest["configuration"] = {
             "campaign_id": str(args.campaign),
             "model": model_name,
+            **personal_api.manifest_fields(),
             "mode": "one_real_assistant_supplied_actors",
             "require_explicit_finish": True,
             "guard_empty_scratch": args.owner_ack,

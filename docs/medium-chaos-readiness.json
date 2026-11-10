@@ -1,0 +1,105 @@
+{
+  "date": "2026-11-10",
+  "status": "protocol_frozen_free_mixed_controls_passed_no_paid_experiment_started",
+  "scope": "Three-friend mixed protocol preparation only; historical completed model run is separate.",
+  "eligible": false,
+  "technical_ready": false,
+  "free_integration_ready": true,
+  "operator_start_authorized": false,
+  "source_hash": "bfab7060600ae7e4ff0000809c0e704764d1ac349dbbc15dbd8a08e32feff3e7",
+  "plan_hash": "76f3a6d51fd8d4811c7efd3da1e9f9b74aa78d4eb0483bebeda2028d27601105",
+  "acceptance_hash": "5d971d82774f5c8b2028123e7d71828ff262af2557ce6b04538d3fb918577c64",
+  "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+  "ceiling_usd": "25",
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "name": "Recovered campaign; historical opening balance",
+    "limit_usd": "25",
+    "halted": false,
+    "created_at": "2026-11-08 18:26:53.912725+00:00",
+    "attempts": 4144,
+    "reported_usd": "17.3294633796",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "20.152809779600",
+    "opening_balance": {
+      "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+      "source_sha256": "20e81138052806eabb42fb723d4d1df39717bc3efc21c8760e3de5c62acc3f0b",
+      "snapshot": {
+        "halted": false,
+        "attempts": 1467,
+        "limit_usd": "5.5",
+        "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+        "reported_usd": "4.89333461",
+        "reserved_usd": "0",
+        "committed_usd": "5.301309810000",
+        "remaining_usd": "0.198690190000",
+        "uncertain_usd": "0.407975200000"
+      },
+      "attempts": 1467,
+      "reported_usd": "4.89333461",
+      "reserved_usd": "0",
+      "uncertain_usd": "0.407975200000",
+      "committed_usd": "5.301309810000",
+      "created_at": "2026-11-08 18:26:53.915068+00:00"
+    },
+    "local_attempts": 2677,
+    "remaining_usd": "4.847190220400",
+    "recent_attempts": [],
+    "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+  },
+  "current_participant_pairs": 3,
+  "protocol": "medium-chaos-protocol-v1.json",
+  "free_validation": "medium-chaos-free-validation-results.json",
+  "verified": {
+    "protocol_frozen": true,
+    "full_local_regression": 1473,
+    "three_mixed_free_controls": true,
+    "event_outcomes_audited": 42,
+    "negative_controls_rejected": 6,
+    "models_and_api_unchanged": true,
+    "old_fees_and_trajectories_preserved": true
+  },
+  "missing": [
+    "The paid runner has no selector for this new exact protocol yet; the older community candidate is distinct.",
+    "Mixed-profile all-role cost forecasting, semantic calibration and a separately authorized model experiment remain open."
+  ],
+  "medium_intensity_empirically_calibrated": false,
+  "next_authorized_paid_action": "None. User authorized scenario/acceptance freeze and free mixed validation only.",
+  "new_seven_day_run_started": false,
+  "new_paid_provider_calls": 0,
+  "historical_completed_daily_confirmation": {
+    "run_id": "3e4a89a9-974a-4e92-87c3-46477ed5cef7",
+    "source_hash": "5088da598a245e025b33dd762baf9bce61048a9091094e1021ac3ec163ffcf34",
+    "simulated_seconds": 604800,
+    "requests_closed": 7,
+    "participant_pairs": 2,
+    "result": "daily-confirmation-seven-day-results.json",
+    "scope": "4 confirmations, 3 declines, one effective change; prior schema recovery and budget pause retained."
+  },
+  "checkpoint_at_budget_limit": true,
+  "mixed_full_completion_predicted_funded": null,
+  "actor_memory_preparation": {
+    "report": "actor-memory-validation-results.json",
+    "source_hash": "0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8",
+    "control_plan_hash": "e97a0992e33d0128c900a09bf47acc230698b37fcd2b7643657903ad0b77d8e4",
+    "free_validation_passed": true,
+    "paid_execution_authorized": false,
+    "scope": "Optional Actor cognition control; the older frozen medium definition is unchanged."
+  },
+  "actor_memory_model_component": {
+    "status": "bounded_real_actor_component_passed",
+    "run_id": "31c2cf02-98b5-419a-bd02-9aa8a6642961",
+    "source_hash": "0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8",
+    "results": "docs/actor-memory-model-probe-results.json",
+    "paid_scope": "Three Actor component turns only; no personal Agent invocation or new seven-day authorization."
+  },
+  "actor_agent_memory_short_probe": {
+    "status": "native_actor_agent_workflow_closed_with_fidelity_gaps",
+    "run_id": "e4340fc6-dd9b-4ea2-bc59-9019629a2baa",
+    "functional_workflow_closed": true,
+    "strict_acceptance_passed": false,
+    "results": "docs/actor-agent-memory-probe-results.json",
+    "new_seven_day_start_authorized": false
+  }
+}

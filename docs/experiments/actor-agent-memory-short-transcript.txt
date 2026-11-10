@@ -1,0 +1,57 @@
+Publication copy: trailing line whitespace is normalized; the private original is unchanged.
+
+Real Actor + personal Agent short trajectory
+Run: e4340fc6-dd9b-4ea2-bc59-9019629a2baa
+File workflow: closed. Strict fidelity: not passed; see report issues.
+
+[t=58s] Alice Actor
+Please save my private afternoon plan for today in your persistent workspace file at /plans/afternoon.md. I intend to attend the free neighborhood reading session on 10 November 2026, from 14:00 to 15:00 UTC in the Birch Room. Record the date, the 14:00–15:00 time range in HH:MM format, the room, and note that this is my current intention. After saving, read the file back and tell me the saved time, room, and file path. If my plans change, I will let you know so you can revise the same file. No booking, payment, friend message, or public board post is needed. Also, keep your own private 14:00–15:00 Birch intention in your cognition agenda. Once you report the saved record, no further action is needed unless I send a material change.
+
+[t=104s] Alice personal Agent
+I have saved your afternoon plan to the persistent workspace file at `/plans/afternoon.md`.
+
+**Saved details:**
+- **Time:** 14:00–15:00 UTC
+- **Room:** Birch Room
+- **File path:** `/plans/afternoon.md`
+
+The file contains the date (10 November 2026), time range in HH:MM format, room location, and notes that this is your current intention. I have also noted my own private 14:00–15:00 Birch intention in my cognition agenda.
+
+No further action is needed unless you send a material change to your plans.
+
+[t=1863s] Alice Actor
+The coordinator has cancelled the 14:00–15:00 Birch Room session. Please update my private afternoon plan in your persistent workspace file at /plans/afternoon.md so that its only current intention is attending the replacement free reading session today, 10 November 2026, from 16:00 to 17:00 UTC in Willow Room. After saving, read the file back and tell me the saved time, room, and file path. Also, revise your own private intention in your cognition agenda to match this new plan. No booking, payment, peer message, or public post is needed. Once you have reported the saved change, no further action is required unless I send another material update.
+
+[t=1926s] Alice personal Agent
+I have updated your afternoon plan in the persistent workspace file at `/plans/afternoon.md` to reflect the cancellation of the Birch Room session and the replacement session.
+
+**Updated details:**
+- **Time:** 16:00–17:00 UTC
+- **Room:** Willow Room
+- **File path:** `/plans/afternoon.md`
+
+The file now shows the replacement free reading session with a note that the original Birch Room session was cancelled. I have also revised my own private intention in my cognition agenda to match this new 16:00–17:00 Willow Room plan.
+
+No further action is required unless you send another material update.
+
+Initial saved file:
+# Afternoon Plan - 10 November 2026
+
+**Date:** 10 November 2026
+**Time:** 14:00–15:00 UTC
+**Room:** Birch Room
+**Activity:** Free neighborhood reading session
+**Status:** Current intention
+
+*Note: This is my current intention. If plans change, I will revise this file.*
+
+Updated saved file:
+# Afternoon Plan - 10 November 2026
+
+**Date:** 10 November 2026
+**Time:** 16:00–17:00 UTC
+**Room:** Willow Room
+**Activity:** Replacement free reading session (original Birch Room session cancelled)
+**Status:** Current intention
+
+*Note: This is my current intention. If plans change, I will revise this file.*

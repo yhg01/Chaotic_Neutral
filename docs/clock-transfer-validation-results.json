@@ -1,0 +1,94 @@
+{
+  "date": "2026-11-09",
+  "profile": "clock-transfer-v1",
+  "source_hash": "722be720d50fc161f7fe74656a3c5be5ff0eb0ec55489c7089aab4ca06c8545b",
+  "status": "local_timed_payment_and_native_receipt_recovery_verified",
+  "initial_focused": {
+    "tests": 57,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0,
+    "time": 8.597
+  },
+  "initial_failures": {
+    "count": 2,
+    "cause": "Native UUID/timestamp account values were not JSON-ready when freezing a subsequent activation.",
+    "repair": "Use the HTTP JSON encoder before hashing/saving the scoped account input.",
+    "payment_authority_and_time_rules_changed_by_repair": false,
+    "original_diagnostics_preserved": true
+  },
+  "final_complete_regression": {
+    "tests": 1333,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "time": 119.898
+  },
+  "new_timed_transfer_tests": 20,
+  "controls_file": "clock-transfer-control-results.json",
+  "provider_calls": 0,
+  "new_cost_usd": "0",
+  "campaign": {
+    "limit_usd": "10",
+    "attempts": 1599,
+    "reported_usd": "5.3745078972",
+    "uncertain_usd": "0.407975200000",
+    "reserved_usd": "0",
+    "committed_usd": "5.782483097200",
+    "remaining_usd": "4.217516902800",
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "unchanged_since_previous_round": true,
+    "new_provider_calls": 0,
+    "development_latest_migration": "017_campaign_opening_balances.sql"
+  },
+  "isolated_postgres": {
+    "owned_test_instance_removed": true,
+    "development_database_touched": false,
+    "paid_requests": 0
+  },
+  "development_database_migrated": false,
+  "live_model_driver_verified": false,
+  "medium_chaos_model_experiment_started": false,
+  "verified": [
+    "Exact typed Actor grant commits with its actual owner message at generation completion.",
+    "Existing authenticated transfer_credits tool queues rather than paying early for an opted-in run.",
+    "Native ledger, debit/credit, bank notice, Clock event and operation result commit atomically.",
+    "Foreign role/grant/account, changed call payload and forged early completion contexts are rejected.",
+    "Same and new call IDs for one authorization produce one operation/payment.",
+    "Two actual owned worker kills prove rollback before commit and original-receipt replay after commit.",
+    "Insufficient funds and horizon cutoff do not publish false payment success.",
+    "A real Deep Agents graph uses supplied model responses to yield on pending and later read the actual receipt; checkpoint replay adds no calls.",
+    "Fifteen-owner ring uses common paths with conserved balances and exactly fifteen native transfers/notices."
+  ],
+  "remaining": [
+    "Live role-isolated model/graph Director driver under the same campaign.",
+    "Full owner task, report and assistant-mail closure in the elapsed profile.",
+    "Timed shopping/other world tools and elapsed recurring plots.",
+    "Intended setting/centralised objects, calibrated medium chaos and staged model rehearsals."
+  ],
+  "private_trace_exports": [
+    {
+      "run_id": "55678efb-2f01-48b9-ac0b-9faaac8cdd5c",
+      "path": ".local/clock-transfer/traces/55678efb-2f01-48b9-ac0b-9faaac8cdd5c/trace.json",
+      "sha256": "90da17dd3ea9e4882096a8cc727f2e3ac1a2fa07abe078381cab667265887b42"
+    },
+    {
+      "run_id": "52b71ab3-6f53-4445-981b-d0a9a072339e",
+      "path": ".local/clock-transfer/traces/52b71ab3-6f53-4445-981b-d0a9a072339e/trace.json",
+      "sha256": "3b9002860a51b6b0aa6afe854dcb5254c26d002ffbc53f52431fd12d20e96305"
+    },
+    {
+      "run_id": "e69378bf-bc9f-4a97-9a4c-a51140ec6904",
+      "path": ".local/clock-transfer/traces/e69378bf-bc9f-4a97-9a4c-a51140ec6904/trace.json",
+      "sha256": "7ac9ce4a77c65bdfeb298334f8e36e8900a354e4174cb7882e06fffa44b89ca1"
+    },
+    {
+      "run_id": "244a801e-9ff3-425b-aed9-f2147cc8e1ff",
+      "path": ".local/clock-transfer/traces/244a801e-9ff3-425b-aed9-f2147cc8e1ff/trace.json",
+      "sha256": "787fce295d922e3f5d59cee6ddf97a260af17841edde445199eb2b975b0637e4"
+    }
+  ],
+  "historical_evidence_files_unchanged": 346,
+  "personal_actor_and_review_api_env_files_unchanged": true,
+  "credential_scan_passed": true
+}

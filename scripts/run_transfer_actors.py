@@ -24,6 +24,7 @@ from agentrpg.director import Director
 from agentrpg.environment_tools import EnvironmentTools
 from agentrpg.main import create_app
 from agentrpg.migrate import migrate
+from agentrpg.personal_agent_config import load_personal_agent_api
 from agentrpg.run_engine import RunEngine
 from agentrpg.scenario_schema import ScenarioSpec
 from agentrpg.transfer_model_task import INSTRUCTIONS
@@ -98,8 +99,10 @@ async def main(args):
     env = {**dotenv_values(ROOT / ".env"), **os.environ}
     if not env.get("OPENROUTER_API_KEY"):
         raise SystemExit("Set OPENROUTER_API_KEY in the ignored .env file.")
+    personal_api = load_personal_agent_api(env, root=ROOT, require_key=False)
     config = {
-        "model": env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini",
+        "model": personal_api.model,
+        **personal_api.manifest_fields(),
         "actor_model": env.get("OPENROUTER_ACTOR_MODEL") or "openai/gpt-4.1",
         "campaign_id": str(uuid4()),
         "budget_usd": str(args.budget_usd),
@@ -215,6 +218,7 @@ async def main(args):
     if manifest:
         config = manifest["configuration"]
         config.setdefault("instructions", INSTRUCTIONS)
+    personal_api = load_personal_agent_api(env, root=ROOT, configuration=config)
     prices = await fetch_model_prices({config["model"], config["actor_model"]})
     settings = Settings()
     database_url = settings.database_url.get_secret_value()
@@ -253,7 +257,7 @@ async def main(args):
                 )
             )
             model = create_model(
-                env["OPENROUTER_API_KEY"],
+                personal_api.api_key.get_secret_value(),
                 config["model"],
                 budget=binding,
                 budget_role="assistant",

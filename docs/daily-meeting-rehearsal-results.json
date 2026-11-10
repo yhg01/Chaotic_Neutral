@@ -1,0 +1,273 @@
+{
+  "date": "2026-11-10",
+  "candidate_version": "friends-community-daily-meeting-v3",
+  "run_id": "8ec4c09f-55c6-4c16-954c-ac7909fd71a9",
+  "source_hash": "106f20080b6c1a2abd262fbb7bac17e63b9f8d71e602a243d246f027dc95dd5f",
+  "execution_configuration_hash": "b2d99c9c6f042676498f8acb2ab5e34bb8802a70ef0266d4abdc17f602489bfd",
+  "participant_pairs": 2,
+  "complete_clock_day": true,
+  "simulated_seconds": 86400,
+  "wall_seconds": 171.011,
+  "provider_http_attempts": 52,
+  "reported_cost_usd": "0.20261134",
+  "new_unknown_cost_usd": "0",
+  "native_payments": 0,
+  "native_agent_mail": 2,
+  "native_board_messages": 0,
+  "financial_invariants": {
+    "total_conserved": true,
+    "ledger_matches_balances": true,
+    "no_duplicate_payment_grant": true
+  },
+  "final_balances": {
+    "alice": 100,
+    "bob": 100
+  },
+  "graph_tool_counts": {
+    "read_mail": 4,
+    "read_owner_messages": 3,
+    "read_run_view": 4,
+    "list_mail": 4,
+    "acknowledge_mail": 4,
+    "send_owner_message": 4,
+    "wait_for_mail": 1,
+    "finish_activation": 5,
+    "wait_for_owner": 1,
+    "send_mail": 2
+  },
+  "seven_day_forecast": {
+    "run_id": "8ec4c09f-55c6-4c16-954c-ac7909fd71a9",
+    "source_hash": "106f20080b6c1a2abd262fbb7bac17e63b9f8d71e602a243d246f027dc95dd5f",
+    "method": {
+      "specified_at": "2026-11-10T01:27:17.530715+00:00",
+      "source_hash": "106f20080b6c1a2abd262fbb7bac17e63b9f8d71e602a243d246f027dc95dd5f",
+      "kind": "planning_forecast_not_cost_or_reliability_guarantee",
+      "input": "Completed source-matched one-day single-meeting-cue model rehearsal; all roles and actual request reservations.",
+      "phase_boundary_second": 43200,
+      "cost_method": "Separate startup requests before43200 from requests starting at/after43200. Weighted raw seven-day cost = startup + 7*daily-change cost. Include reported charges and full unknown reservations.",
+      "cost_multiplier": "2",
+      "request_buffer": "Maximum actual single-request reservation in the completed rehearsal.",
+      "rounding": "Upward to USD0.01.",
+      "context_method": "For each owner/role, measure maximum startup input and maximum input after the cue. Use the maximum startup across owners plus 7*1.5 times the largest positive per-owner post-cue growth, with a1024-token minimum growth. Add the role output ceiling.",
+      "assistant_input_measurement": "Actual AI usage.input_tokens at each saved model step, identified by the saved input-message prefix and its next AI message in the materialized graph state.",
+      "actor_and_review_input_measurement": "Conservative prompt_token_bound from each actual request and its next applied same-owner/role Clock job.",
+      "context_threshold_fraction": "0.8",
+      "all_requests_must_be_attributable": true,
+      "limitations": [
+        "One social coordination example covers one requester and two respondents, not independent repeated days.",
+        "The safety margins are planning rules, not a prediction interval or a budget/completion guarantee.",
+        "No untimed context compaction is available in the elapsed profile.",
+        "Each request still reserves against the same absolute USD20 campaign."
+      ],
+      "operator_start_authorized": false,
+      "seven_day_execution_started": false,
+      "scene_version": "friends-community-daily-meeting-v3",
+      "participant_pairs": 2,
+      "same_planning_margins_as_v1": true,
+      "reason_for_two_pairs": "Use a smaller declared social rehearsal within the unchanged cumulative USD20 cap; do not claim that it validates the larger three-person medium-chaos setting.",
+      "same_planning_margins_as_v2": true,
+      "scenario_changes": "Explicit complete roster and exact conditional social approval, expressed by the model Actor. No participant reply, agreement or world effect is scripted.",
+      "scope_clarification": "The current v3 two-person scene has one requesting owner and one peer owner. Earlier generic wording about two respondents described the larger setup; no extra participant is assumed."
+    },
+    "daily_initial_scene_matches_seven_day": true,
+    "seven_day_plan_hash": "d2b18a0a3a0e9394702d9c07a57c48868b19c8fc9bfbb924a7ded2e5952940bd",
+    "phase_costs_usd": {
+      "startup": "0.07828350",
+      "daily_change": "0.12432784"
+    },
+    "weighted_raw_seven_day_usd": "0.94857838",
+    "maximum_request_buffer_usd": "0.185400000000",
+    "estimated_remaining_seven_day_usd": "2.09",
+    "available_usd": "2.750606200400",
+    "affordable": true,
+    "planning_gap_usd": "0",
+    "contexts": {
+      "assistant": {
+        "model": "deepseek/deepseek-v3.2",
+        "measurement": "actual saved AI input-token usage",
+        "owners": {
+          "alice": {
+            "startup_maximum": 7593,
+            "post_cue_maximum": 13098,
+            "positive_growth": 5505
+          },
+          "bob": {
+            "startup_maximum": 7842,
+            "post_cue_maximum": 11159,
+            "positive_growth": 3317
+          }
+        },
+        "base": 7842,
+        "growth_per_day_with_floor": 5505,
+        "growth_multiplier": "10.5",
+        "output_limit": 1500,
+        "projected_tokens": 67145,
+        "context_limit": 163840,
+        "safety_threshold_fraction": "0.8",
+        "fits": true
+      },
+      "actor": {
+        "model": "openai/gpt-4.1",
+        "measurement": "conservative submitted prompt-token bound",
+        "owners": {
+          "alice": {
+            "startup_maximum": 81372,
+            "post_cue_maximum": 86700,
+            "positive_growth": 5328
+          },
+          "bob": {
+            "startup_maximum": 81310,
+            "post_cue_maximum": 85412,
+            "positive_growth": 4102
+          }
+        },
+        "base": 81372,
+        "growth_per_day_with_floor": 5328,
+        "growth_multiplier": "10.5",
+        "output_limit": 1500,
+        "projected_tokens": 138816,
+        "context_limit": 1047576,
+        "safety_threshold_fraction": "0.8",
+        "fits": true
+      },
+      "actor-review": {
+        "model": "openai/gpt-4.1",
+        "measurement": "conservative submitted prompt-token bound",
+        "owners": {
+          "alice": {
+            "startup_maximum": 42936,
+            "post_cue_maximum": 47082,
+            "positive_growth": 4146
+          },
+          "bob": {
+            "startup_maximum": 43108,
+            "post_cue_maximum": 45832,
+            "positive_growth": 2724
+          }
+        },
+        "base": 43108,
+        "growth_per_day_with_floor": 4146,
+        "growth_multiplier": "10.5",
+        "output_limit": 1000,
+        "projected_tokens": 87641,
+        "context_limit": 1047576,
+        "safety_threshold_fraction": "0.8",
+        "fits": true
+      }
+    },
+    "context_safe": true,
+    "actual_model_calls_for_analysis": 0,
+    "operator_start_authorized": false,
+    "seven_day_experiment_started": false
+  },
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3674,
+    "reported_usd": "14.4260473996",
+    "uncertain_usd": "2.823346400000",
+    "reserved_usd": "0",
+    "committed_usd": "17.249393799600",
+    "remaining_usd": "2.750606200400"
+  },
+  "all_role_model_transport_budget_and_original_prompt_files_unchanged": true,
+  "all_api_files_unchanged": true,
+  "full_local_checks": {
+    "source_hash": "106f20080b6c1a2abd262fbb7bac17e63b9f8d71e602a243d246f027dc95dd5f",
+    "tests": 1423,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "console_seconds": 160.42,
+    "junit_seconds": 160.357,
+    "private_junit_reference": ".local/clock-runtime/269ea35ea1654386a0cb1d8df194fe85/full.xml",
+    "paid_requests": 0,
+    "owned_postgres_cleanup": {
+      "owned_test_instance_removed": true,
+      "development_database_touched": false,
+      "paid_requests": 0
+    }
+  },
+  "reviewer_recovery": "reviewer-stability-2026-11-10.json",
+  "private_trajectory_json": ".local/clock-model-runs/8ec4c09f-55c6-4c16-954c-ac7909fd71a9/a19032e8370640c18618d7781c0ccee9/trajectory.json",
+  "private_trajectory_markdown": ".local/clock-model-runs/8ec4c09f-55c6-4c16-954c-ac7909fd71a9/a19032e8370640c18618d7781c0ccee9/trajectory.md",
+  "technical_seven_day_readiness": true,
+  "seven_day_execution_eligible": false,
+  "operator_start_authorized": false,
+  "seven_day_started": false,
+  "study_scope": "Two-person simplified social exploration; not a calibrated three-person four-cue medium-chaos experiment.",
+  "retained_prior_attempts": [
+    {
+      "version": "daily-meeting-v1",
+      "run_id": "dea82169-e5c5-46c2-8e78-44718ac78474",
+      "status": "operator_stopped_at43234_after_redundant_initial_coordination",
+      "reported_cost_usd": "0.58396374"
+    },
+    {
+      "version": "daily-meeting-v2",
+      "run_id": "8d7fc39f-5fd4-4d6a-a237-faefc91fb3dd",
+      "status": "complete_day_but_precommitted_seven_day_forecast_unaffordable",
+      "reported_cost_usd": "0.27370368",
+      "evidence": "daily-meeting-v2-rehearsal-results.json"
+    }
+  ],
+  "trace_review": {
+    "method": "Assistant-led trace inspection of original native records, model dialogue and applied tools. No separate human signoff or new review-model call is claimed.",
+    "complete_day": true,
+    "single_change_cue_delivered_at": 43200,
+    "effective_request": true,
+    "actual_peer_reply": true,
+    "conditional_owner_approval_before_execution": true,
+    "grounded_owner_reports": true,
+    "unresolved_request": false,
+    "repeated_acknowledgement_loop": false,
+    "initial_replanning_before_cue": false,
+    "agreement": "2026-11-24 at16:00 UTC, replacing14:00 UTC.",
+    "alice_conditional_approval_message_id": "f1909af9-fb60-523a-928a-f1e6803728a0",
+    "bob_approval_message_id": "02ae989e-b0f7-54ce-afae-ef9c5c20222c",
+    "native_mail_ids": [
+      "501d2cd8-56ea-5c21-a42d-ad90ab32fcac",
+      "6e277829-4e2e-5de4-b05b-461a24479b5c"
+    ],
+    "owner_report_ids": [
+      "85ce56e1-caf8-57fb-b002-41e5628ad6b8",
+      "01087666-aee5-59a7-872a-37b6d47f9a5c",
+      "43814718-5b74-5812-97e6-bddfb62be1a9",
+      "c3f38da5-5b3c-507b-9209-2709a50ec6d9",
+      "21be0b26-401c-537e-8c83-333a7be78f38",
+      "faae0b0e-bbe1-5919-96fe-26a5611b8f1b",
+      "c41f62c0-4d08-5600-8a49-171f1e94bef6"
+    ],
+    "native_board_posts": 0,
+    "calendar_or_booking_effect_established": false,
+    "scope": "The agreement is evidenced by real private correspondence and owner dialogue. No separate calendar object, booking, shared-board use or payment is claimed.",
+    "quality_limits": [
+      "One bounded sample cannot establish long-term autonomy or general Actor naturalness.",
+      "The model outputs include Chinese private reports; original wording is preserved.",
+      "The owner reiterated approval after the actual peer response; it did not trigger a new task or renewal."
+    ],
+    "independent_human_review_completed": false
+  },
+  "closed_seven_day_gate": {
+    "passed": true,
+    "provider_calls": 0,
+    "database_access": false,
+    "private_evidence": ".local/simple-meeting/closed-seven-day-gate.json"
+  },
+  "historical_preservation_and_secret_scan": {
+    "historical_files_checked": 344,
+    "historical_mismatches": [],
+    "legacy_archive_hash_unchanged": true,
+    "api_configuration_files_unchanged": true,
+    "public_files_scanned": 110,
+    "credential_matches_in_public_files": [],
+    "all_three_api_configuration_files_unchanged": true
+  },
+  "verified_database_backup": {
+    "public_tables_restored_and_hashed": 80,
+    "old_backups_retained": true,
+    "temporary_restore_database_removed": true,
+    "backup_sha256": "a1ecac092e2dc14f7fd6219d4ca302dc31e145f193c578db35ccfb4eb0a1db75"
+  },
+  "source_snapshots_preserved": 22
+}

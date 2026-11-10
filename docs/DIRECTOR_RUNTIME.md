@@ -1,5 +1,14 @@
 # Director and Actor runtime
 
+The opt-in [Actor memory and agenda profile](ACTOR_MEMORY.md) enriches a new run's
+exact saved Actor view with the same generation/reviewer objects. Private
+cognition is promoted only after native job application. Agendas are intentions;
+existing Clock events alone wake the Actor. Old runs are not retrofitted.
+
+The opt-in [elapsed Actor/Agent profile](CLOCK_RUNTIME.md) adds model/tool
+boundaries, released native writes and frozen role bindings for new elapsed
+runs. It preserves existing window profiles and historical records.
+
 The Director conducts a frozen conditional scenario. Owner Actors express their
 assigned goals and respond to their assistants. Personal assistant Agents retain
 control of their decisions. The environment includes transport reservations,
@@ -226,6 +235,33 @@ pending action, queued cue or future beat remains, the Director pauses with
 task completion or an infrastructure failure. Resume before injecting new mail,
 or queue a cue and resume through the existing control interface. The separate
 wall-clock scheduler is not implemented by this change.
+
+## Clock audit and chronological validation
+
+The [Clock audit](CLOCK_VALIDATION.md) records deterministic PostgreSQL tests
+against the current window scheduler. Scenario compilation now computes a
+conservative earliest firing window in prerequisite order and rejects fixed
+deadlines or expiries that cannot be reached. Recurring triggers round that
+bound to the next declared occurrence. This does not guarantee that event-based
+conditions will occur, add real-time scheduling, or change valid scenario hashes.
+
+`completed` with `result.reason=window_limit` is a horizon cutoff and may retain
+undelivered final cues. Check the evidence and remaining work before interpreting
+that status as task success. A seven-day simulation requires a separate explicit
+time and chaos contract; 100 logical windows have no automatic day conversion.
+
+The opt-in [elapsed-seconds Clock component](SIMULATION_CLOCK.md) now has local
+one-hour, one-day and seven-day supplied controls. It is not yet an execution
+mode of this Director or its console. Existing scenario commands continue to
+use the window contract above. Its future adapter must preserve durable jobs,
+owner scope, actual settlement receipts and cumulative model costs.
+
+The subsequent [Director–Clock dispatch profile](DIRECTOR_CLOCK.md) adds a
+backend-only binding for new pending runs, frozen owner-scoped jobs, saved
+outputs and timed private-chat delivery. It passes supplied-response and actual
+worker-termination controls. Bound runs reject legacy window execution and
+remain paused for legacy world mutations. This profile has no console controls,
+provider adapter or timed payment/market integration yet.
 
 ## World effects and recovery
 

@@ -1,0 +1,216 @@
+{
+  "checked_at": "2026-11-09T23:24:02.495367+00:00",
+  "status": "intermittent_upstream_error_reproduced_stability_gate_not_passed",
+  "source_hash": "4896bcf9f65dd314f9e5f380763efa3028a7e299bd3ac387afa6cf8b4d0e8d92",
+  "runtime_source_changed": false,
+  "dependencies_changed": false,
+  "all_three_api_configuration_files_unchanged": true,
+  "models": {
+    "personal_agent": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "current_role_transport": {
+    "sdk_retries_explicitly_disabled": true,
+    "sdk_timeout_ms": 45000,
+    "wrapper_max_retries": 2,
+    "wrapper_timeout_ms": 45000,
+    "review_generation_timeout_seconds": 60,
+    "review_output_tokens": 1000
+  },
+  "native_request_policy": {
+    "require_parameters": true,
+    "allow_fallbacks": false,
+    "max_price": {
+      "prompt": 2.0,
+      "completion": 8.0,
+      "request": 0.0,
+      "image": 0
+    }
+  },
+  "free_checks": {
+    "auth_http_status": 200,
+    "key_has_remaining_allowance": true,
+    "credit_http_status": 200,
+    "positive_credit": true
+  },
+  "endpoint_samples": [
+    {
+      "checked_at": "2026-11-09T23:18:04.591571+00:00",
+      "endpoints": [
+        {
+          "provider_name": "Azure",
+          "tag": "azure",
+          "status": 0,
+          "uptime_last_5m": 100,
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "OpenAI",
+          "tag": "openai",
+          "status": -5,
+          "uptime_last_5m": 0,
+          "uptime_last_30m": 33.33333333333333
+        },
+        {
+          "provider_name": "Azure",
+          "tag": "azure/swedencentral",
+          "status": 0,
+          "uptime_last_5m": 100,
+          "uptime_last_30m": 100
+        }
+      ]
+    },
+    {
+      "checked_at": "2026-11-09T23:20:07.772419+00:00",
+      "endpoints": [
+        {
+          "provider_name": "Azure",
+          "tag": "azure",
+          "status": 0,
+          "uptime_last_5m": 100,
+          "uptime_last_30m": 100
+        },
+        {
+          "provider_name": "OpenAI",
+          "tag": "openai",
+          "status": -5,
+          "uptime_last_5m": 0,
+          "uptime_last_30m": 23.333333333333332
+        },
+        {
+          "provider_name": "Azure",
+          "tag": "azure/swedencentral",
+          "status": 0,
+          "uptime_last_5m": 100,
+          "uptime_last_30m": 100
+        }
+      ]
+    }
+  ],
+  "historical_success_metadata": {
+    "model_calls": 0,
+    "lookups": 3,
+    "providers": [
+      "OpenAI",
+      "OpenAI",
+      "OpenAI"
+    ],
+    "reported_fees_match_metadata": true,
+    "ledger_modified": false
+  },
+  "diagnostic": {
+    "input_source": "Saved real Actor candidates match their saved review candidates. Original views and unchanged source-matched review-construction code reconstruct the diagnostic inputs; historical wire bodies are unavailable for byte comparison.",
+    "planned_logical_reviews": 6,
+    "completed_logical_reviews": 1,
+    "actual_http_attempts": 2,
+    "embedded_502_responses": 1,
+    "schema_valid_responses": 1,
+    "semantic_review_accepted": true,
+    "stable_gate_passed": false,
+    "stopped_after_first_non_clean_logical_review": true,
+    "no_further_probes_started": true,
+    "maximum_added_occupied_usd": "0.40",
+    "reported_cost_usd": "0.0033080000",
+    "added_uncertain_exposure_usd": "0.102948000000",
+    "added_occupied_usd": "0.106256000000",
+    "wire_results": [
+      {
+        "attempt": 1,
+        "started_at": "2026-11-09T23:23:01.673092+00:00",
+        "http_status": 200,
+        "error_code": 502,
+        "error_type": "provider_unavailable",
+        "provider": null,
+        "choices": 0,
+        "wall_seconds": 1.002
+      },
+      {
+        "attempt": 2,
+        "started_at": "2026-11-09T23:23:03.206862+00:00",
+        "http_status": 200,
+        "error_code": null,
+        "error_type": null,
+        "provider": "OpenAI",
+        "choices": 1,
+        "wall_seconds": 1.446
+      }
+    ],
+    "world_effects": false,
+    "original_unknown_job_resumed": false,
+    "private_evidence_directory": ".local/reviewer-502-diagnostics/4281464453c44b6690888f67bdf45e5f"
+  },
+  "finding": "The exact production reviewer request still receives a provider_unavailable error body before SDK output parsing. A permitted retry succeeds through OpenAI. This supports an intermittent upstream availability failure, not a schema-parser or key-authentication diagnosis. The failed body does not identify an upstream provider, so attribution of that individual failed attempt cannot be proven.",
+  "limits": [
+    "Endpoint uptime is a dated aggregate; an endpoint marked unhealthy can still serve a later individual request.",
+    "allow_fallbacks=false disables backup-provider recovery within a failed request. Healthy Azure metadata alone does not establish that the complete frozen request is eligible there.",
+    "Parameter alias compatibility and per-account routing policy were not changed or live-tested as alternate configurations.",
+    "A single successful retry does not establish stability or long-run reliability.",
+    "Historical wire bodies were not saved; reconstruction verifies saved candidates and original views under unchanged review-construction code, not byte equality with an old HTTP request."
+  ],
+  "research": [
+    {
+      "repository": "https://github.com/OpenRouterTeam/python-sdk",
+      "license": "Apache-2.0",
+      "installed_version": "0.11.46",
+      "verified_recent_commit": "https://github.com/OpenRouterTeam/python-sdk/commit/1d654b1909630abbe0f2d270204903512254f112",
+      "commit_date": "2026-11-09",
+      "approach": "Typed HTTP client with SDK retries explicitly disabled in the existing factory."
+    },
+    {
+      "repository": "https://github.com/langchain-ai/langchain/tree/master/libs/partners/openrouter",
+      "license": "MIT",
+      "installed_version": "0.2.9",
+      "verified_recent_repository_commit": "https://github.com/langchain-ai/langchain/commit/bc027f2f8527d0bd968585236178172b127acc71",
+      "commit_date": "2026-11-09",
+      "dependencies": [
+        "langchain-core>=1.5.5,<2.0.0",
+        "openrouter>=0.9.2"
+      ],
+      "reported_issues": [
+        "https://github.com/langchain-ai/langchain/issues/40379",
+        "https://github.com/langchain-ai/langchain/issues/39812"
+      ],
+      "approach": "Existing LangChain adapter supplies history/JSON integration. Current factory already compensates for timeout units and hidden SDK retry defaults."
+    }
+  ],
+  "reuse_decision": "Retain installed integrations; no upstream source copied and no dependency/model/API/routing change.",
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3417,
+    "reported_usd": "13.3275766396",
+    "uncertain_usd": "2.823346400000",
+    "reserved_usd": "0",
+    "committed_usd": "16.150923039600",
+    "remaining_usd": "3.849076960400"
+  },
+  "historical_fees_and_trajectories_retained": true,
+  "one_day_retest_started": false,
+  "seven_day_model_experiment_started": false,
+  "operator_start_authorized_for_seven_days": false,
+  "next_gate": "After recovery evidence, re-run bounded exact-review checks. Require six schema-valid first-attempt responses with no transport/embedded errors, spaced at least 30 seconds. Only then recheck current same-campaign headroom for a fresh one-day four-cue retest. This is a bounded admission check, not a reliability guarantee.",
+  "sources": [
+    "https://openrouter.ai/docs/api/api-reference/endpoints/list-endpoints",
+    "https://openrouter.ai/docs/guides/routing/provider-selection",
+    "https://status.openrouter.ai/"
+  ],
+  "preservation": {
+    "checked_at": "2026-11-09T23:25:48.816408+00:00",
+    "original_public_table_histories_compared": 80,
+    "all_original_rows_unchanged": true,
+    "only_added_rows": "two reviewer diagnostic spend attempts",
+    "added_diagnostic_attempts": 2,
+    "native_world_data_unchanged": true,
+    "original_trajectory_hashes_verified": 17,
+    "all_three_api_files_unchanged": true,
+    "source_hash": "4896bcf9f65dd314f9e5f380763efa3028a7e299bd3ac387afa6cf8b4d0e8d92",
+    "provider_secrets_in_private_diagnostic_files": [],
+    "new_verified_backup_tables": 80,
+    "new_backup_restored_and_hashed": true,
+    "backup_sha256": "f4f890ae66f4f3098deebb0708c7ca5828bf6c524ab72e8bdbf91470c1724bf9",
+    "historical_provider_reservations_released": 0,
+    "old_backups_and_archives_retained": true,
+    "public_credential_matches": []
+  }
+}

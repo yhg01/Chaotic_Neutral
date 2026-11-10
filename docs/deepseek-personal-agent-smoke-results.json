@@ -1,0 +1,104 @@
+{
+  "date": "2026-11-08",
+  "timezone": "Europe/London",
+  "probe_id": "81b2d355-fda3-4dcc-bc06-3639547de6d8",
+  "source_hash": "25a99171b457f5e2ec539693cec546b2f0fea60b8201b743097bd835b2328905",
+  "personal_model": "deepseek/deepseek-v3.2",
+  "scope": "One personal Agent board component; Actor and review models unchanged and not invoked.",
+  "passed_after_recorded_compatibility_repair": true,
+  "checks": {
+    "no_runtime_error": true,
+    "one_saved_post": true,
+    "correct_author_and_code": true,
+    "model_read_actual_saved_thread": true,
+    "answer_reports_actual_id_and_code": true,
+    "completed_replay_without_new_request": true,
+    "at_most_three_provider_attempts": true,
+    "only_personal_model_invoked": true,
+    "original_uncertain_cost_retained": true,
+    "within_original_ceiling": true
+  },
+  "actual_provider_attempts": 3,
+  "logical_attempts": 4,
+  "initial_local_failure": {
+    "after_provider_attempts": 1,
+    "saved_post_retained": true,
+    "cause": "Returned historical reasoning text was rejected by local request validation before the next HTTP request.",
+    "false_budget_error_message_retained_in_raw_report": true
+  },
+  "repair": {
+    "history_text_is_validated_and_reserved_as_input": true,
+    "reasoning_activation_options_still_rejected": true,
+    "original_task_session_cluster_and_campaign_preserved": true,
+    "counters_not_reset": true,
+    "logical_limit": 4,
+    "hard_provider_attempt_cap": 3
+  },
+  "conversation_tokens": {
+    "input_tokens": 6467,
+    "output_tokens": 267,
+    "total_tokens": 6734
+  },
+  "observed_tools": [
+    "post_thread",
+    "read_thread"
+  ],
+  "saved_thread_id": "c1fdb372-83fd-43a4-b3b2-610b20c62c4f",
+  "saved_post_count": 1,
+  "final_answer": "Created and verified one board thread (no other posts).\n\n- **Thread UUID:** `c1fdb372-83fd-43a4-b3b2-610b20c62c4f`\n- **Title:** DeepSeek check 87c20a412da3\n- **Saved verification code:** `87c20a412da3`\n\nRead-back confirmed the title and body match exactly, with no replies.",
+  "separate_process_replay_model_calls": 0,
+  "new_confirmed_cost_usd": "0.0010495872",
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "5.5",
+    "carried_reported_usd": "4.89333461",
+    "carried_uncertain_usd": "0.407975200000",
+    "reported_usd": "4.8943841972",
+    "uncertain_usd": "0.407975200000",
+    "reserved_usd": "0",
+    "committed_usd": "5.302359397200",
+    "remaining_usd": "0.197640602800",
+    "carried_attempts": 1467,
+    "local_provider_attempts": 3
+  },
+  "storage_recovery": {
+    "partial": true,
+    "legacy_files_archived_and_hash_checked": 346,
+    "raw_historical_attempt_records_found": 1398,
+    "raw_historical_attempt_records_unavailable": 69,
+    "old_checkpoint_restored": false,
+    "old_trajectory_files_unchanged": true,
+    "new_database_dump_restore_table_count": 62,
+    "new_database_dump_restore_hashes_match": true
+  },
+  "verification": {
+    "full_regression_before_history_text_repair": {
+      "tests": 1243,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 101.2
+    },
+    "focused_after_history_text_repair": {
+      "tests": 93,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 5.607
+    },
+    "api_health": 200,
+    "observer_budget_matches_ledger": true,
+    "browser_checks": {
+      "desktop_observer_connected_empty_state": true,
+      "narrow_390px_empty_state": true,
+      "old_missing_run_shows_unavailable_error": true,
+      "temporary_viewport_reset": true,
+      "model_calls_from_browser": 0
+    }
+  },
+  "limits": [
+    "Not a full model-Actor task, transfer or shopping retest.",
+    "No repeated independent DeepSeek trials, seven-day simulation or long-duration autonomy evidence.",
+    "Old full database and old graph checkpoints were not recovered. Historical costs are labelled immutable opening balances, not fabricated request rows."
+  ]
+}

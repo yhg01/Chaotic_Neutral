@@ -1,0 +1,264 @@
+{
+  "date": "2026-11-10",
+  "status": "optional_actor_memory_agenda_integrated_free_controls_passed",
+  "source": {
+    "source_hash": "0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8",
+    "snapshot": ".local/clock-runtime/source-v30",
+    "file_count": 155,
+    "paid_experiments_authorized": false,
+    "scope": "Optional Actor memory and agenda; Clock algorithms and role/API configuration unchanged."
+  },
+  "control_plan_hash": "e97a0992e33d0128c900a09bf47acc230698b37fcd2b7643657903ad0b77d8e4",
+  "profile": {
+    "protocol": "actor-memory-agenda-v1",
+    "selection_limit": 8,
+    "context_chars": 6000,
+    "observation_ttl_seconds": 604800,
+    "thought_ttl_limit_seconds": 86400,
+    "recency_half_life_seconds": 86400,
+    "max_memories_per_owner": 10000
+  },
+  "new_paid_provider_calls": 0,
+  "new_paid_experiments_started": 0,
+  "additional_model_cost_usd": "0",
+  "models_and_api_files_unchanged": true,
+  "configured_models": {
+    "personal": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "configured_models_field_scope": "Existing user configuration only. All new control choices are supplied; no provider model is invoked.",
+  "campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "name": "Recovered campaign; historical opening balance",
+    "limit_usd": "25",
+    "halted": false,
+    "created_at": "2026-11-08 18:26:53.912725+00:00",
+    "attempts": 4116,
+    "reported_usd": "17.1171614996",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "19.940507899600",
+    "opening_balance": {
+      "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+      "source_sha256": "20e81138052806eabb42fb723d4d1df39717bc3efc21c8760e3de5c62acc3f0b",
+      "snapshot": {
+        "halted": false,
+        "attempts": 1467,
+        "limit_usd": "5.5",
+        "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+        "reported_usd": "4.89333461",
+        "reserved_usd": "0",
+        "committed_usd": "5.301309810000",
+        "remaining_usd": "0.198690190000",
+        "uncertain_usd": "0.407975200000"
+      },
+      "attempts": 1467,
+      "reported_usd": "4.89333461",
+      "reserved_usd": "0",
+      "uncertain_usd": "0.407975200000",
+      "committed_usd": "5.301309810000",
+      "created_at": "2026-11-08 18:26:53.915068+00:00"
+    },
+    "local_attempts": 2649,
+    "remaining_usd": "5.059492100400",
+    "recent_attempts": [],
+    "accounting": "Reported cost plus full reservations for outstanding or uncertain attempts."
+  },
+  "preservation": {
+    "same_campaign_ledger_unchanged": true,
+    "all_three_api_files_unchanged": true,
+    "old_trajectory_files_unchanged": 933,
+    "development_tables_unchanged": 83,
+    "development_schema_not_upgraded": true,
+    "core_clock_file_hashes_unchanged": true,
+    "clock_runtime_changed_methods": [
+      "bindings"
+    ],
+    "clock_timing_scheduling_dispatch_settlement_unchanged": true,
+    "new_paid_provider_calls": 0,
+    "new_development_worlds": 0
+  },
+  "regression": {
+    "tests": 1489,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": "384.754",
+    "junit": ".local/cue-response-repair/de1e6db2459242ecb641e7e751a63334/checks.xml",
+    "real_isolated_postgresql": true,
+    "cleanup": {
+      "owned_test_instance_removed": true,
+      "development_database_touched": false,
+      "paid_requests": 0
+    }
+  },
+  "focused_checks": 16,
+  "verified_mechanisms": [
+    "Legacy disabled schemas and JSON remain compatible.",
+    "The same Actor and independent reviewer receive the same frozen private context without an additional planner or embedding request.",
+    "Owner/run scope, exact original native view and immutable context/accepted-decision checks.",
+    "Empty, equal-score, recency-only, expired and future retrieval inputs.",
+    "Persisted last-access time after store recreation and exact snapshot read in an independent Python process.",
+    "Known committed response loss reuses original decision/review and carries its generated tokens without another call.",
+    "Unknown generation is not retried or promoted into cognition.",
+    "Thought evidence, expiry, foreign supersession and invalid agenda intervals are rejected.",
+    "Removing the memory wrapper on resume fails native frozen role-binding validation."
+  ],
+  "mixed_free_control": {
+    "run_id": "7a69dceb-65bd-45cb-ac7e-4d5b32b0fb78",
+    "simulated_seconds": 604800,
+    "memory_snapshots": 44,
+    "memory_records": 109,
+    "agenda_versions": 23,
+    "native_payment_count": 2,
+    "balances": {
+      "alice": 90,
+      "bob": 118,
+      "charlie": 92
+    },
+    "event_outcomes": [
+      {
+        "task_key": "MC-01",
+        "kind": "plan_change",
+        "status": "accepted",
+        "owner_request_id": "e576b092-758a-582a-863a-e2e07fe9386a",
+        "owner_report_id": "6fb2724d-da4a-5db6-9b30-7583b9327a59",
+        "report_seconds": 18047
+      },
+      {
+        "task_key": "MC-02",
+        "kind": "unclear_repayment",
+        "status": "paid",
+        "owner_request_id": "1fd9df39-68b0-5dc6-b3c1-1e0a27c005a1",
+        "owner_report_id": "e0480b42-10c9-564f-83e4-59493ccc41f5",
+        "report_seconds": 18070
+      },
+      {
+        "task_key": "MC-03",
+        "kind": "payment_followup",
+        "status": "paid",
+        "owner_request_id": "bdb586ef-b5ee-5248-9adf-9c536f474e3b",
+        "owner_report_id": "0f9bccaa-a67d-527d-bc85-d0e592dea1d2",
+        "report_seconds": 104411
+      },
+      {
+        "task_key": "MC-04",
+        "kind": "social_invitation",
+        "status": "accepted",
+        "owner_request_id": "8899fa1d-30f2-5d69-aded-4ede3e2a6d19",
+        "owner_report_id": "6cef0bf6-fbf7-5ad3-8e3e-e57c40d18d7e",
+        "report_seconds": 104440
+      },
+      {
+        "task_key": "MC-05",
+        "kind": "plan_change",
+        "status": "accepted",
+        "owner_request_id": "862575ce-f9fb-5d9f-a063-7474a674d9fd",
+        "owner_report_id": "f5af4d02-5408-56ff-842c-4500fda46389",
+        "report_seconds": 190843
+      },
+      {
+        "task_key": "MC-06",
+        "kind": "unclear_repayment",
+        "status": "paid",
+        "owner_request_id": "daf34822-a0a9-5bc5-bc7c-3d2f2f948329",
+        "owner_report_id": "73bb946b-905f-5c89-9b50-52e625082510",
+        "report_seconds": 190808
+      },
+      {
+        "task_key": "MC-07",
+        "kind": "payment_followup",
+        "status": "paid",
+        "owner_request_id": "708bcd80-cd3c-5665-8efd-904a7f217ce9",
+        "owner_report_id": "d6806fcb-8d1b-51a6-8f4b-33f5b18f2116",
+        "report_seconds": 277209
+      },
+      {
+        "task_key": "MC-08",
+        "kind": "social_invitation",
+        "status": "accepted",
+        "owner_request_id": "67ec0df0-1285-5a2d-bcce-714312c527dd",
+        "owner_report_id": "41df724a-3817-5b7a-a005-520cc6bc4a4f",
+        "report_seconds": 277245
+      },
+      {
+        "task_key": "MC-09",
+        "kind": "plan_change",
+        "status": "accepted",
+        "owner_request_id": "be1e93d1-5892-55c2-b305-b29c836d4652",
+        "owner_report_id": "acd8e2cc-6f19-5d52-b420-1f5a26b56328",
+        "report_seconds": 363644
+      },
+      {
+        "task_key": "MC-10",
+        "kind": "unclear_repayment",
+        "status": "paid",
+        "owner_request_id": "4b436bcf-c93a-53f2-be70-3b4d82c45463",
+        "owner_report_id": "a741b828-090d-5567-8691-e8141529f340",
+        "report_seconds": 363614
+      },
+      {
+        "task_key": "MC-11",
+        "kind": "payment_followup",
+        "status": "paid",
+        "owner_request_id": "7788be39-8102-5f3c-809a-8fad908652d2",
+        "owner_report_id": "36ebda3b-af5a-5be9-b6ce-f3b7df850c14",
+        "report_seconds": 450010
+      },
+      {
+        "task_key": "MC-12",
+        "kind": "social_invitation",
+        "status": "accepted",
+        "owner_request_id": "308bfe52-19c8-5e30-9964-3359f40eb6a2",
+        "owner_report_id": "baf30410-e202-5773-b86f-b14e4a06d97e",
+        "report_seconds": 450044
+      },
+      {
+        "task_key": "MC-13",
+        "kind": "plan_change",
+        "status": "accepted",
+        "owner_request_id": "f3f0dfb4-5af8-55f8-b931-a2aee85e1385",
+        "owner_report_id": "c130cf53-3429-523a-955d-16d8fc708557",
+        "report_seconds": 536449
+      },
+      {
+        "task_key": "MC-14",
+        "kind": "social_invitation",
+        "status": "accepted",
+        "owner_request_id": "7a60e5d5-e1bf-51be-912c-827cd4b0c4e5",
+        "owner_report_id": "217136e6-6a8d-540f-b286-72d320983c7f",
+        "report_seconds": 536445
+      }
+    ],
+    "checks": {
+      "seven_day_horizon": true,
+      "fourteen_mixed_outcomes_grounded": true,
+      "exactly_two_real_payments": true,
+      "only_own_private_memory": true,
+      "no_expired_or_future_memory": true,
+      "frozen_context_hashes_match": true,
+      "retrieval_count_and_text_bounded": true,
+      "only_current_or_next_day_agendas": true,
+      "native_application_before_cognition_promotion": true,
+      "all_three_owners_have_plans": true,
+      "agenda_revisions_retained": true,
+      "no_uncertain_native_jobs": true
+    },
+    "raw_trajectory": ".local/cue-response-repair/de1e6db2459242ecb641e7e751a63334/traces/actor-memory-seven-day/7a69dceb-65bd-45cb-ac7e-4d5b32b0fb78/trajectory.json",
+    "private_memory_evidence": ".local/cue-response-repair/de1e6db2459242ecb641e7e751a63334/traces/actor-memory-seven-day/7a69dceb-65bd-45cb-ac7e-4d5b32b0fb78/actor-memory.json",
+    "scope": "Supplied choices through real Clock, Actor/reviewer adapter, Agent graph, HTTP tools and PostgreSQL. Not new real-model evidence."
+  },
+  "remaining_limits": [
+    "Lexical retrieval is not semantic embedding retrieval; recall quality is not established.",
+    "Real GPT-4.1 agenda adherence, reflection fidelity, naturalness and task improvement are not measured.",
+    "Agenda slots are private intentions, not completed activities, native bookings or peer consent.",
+    "Existing Clock events alone wake Actors; no autonomous daily/slot trigger or new world-action engine was added.",
+    "The existing observer has no dedicated memory panel; use the separate per-job actor-memory.json with the native trajectory.",
+    "The new migration was tested only in isolated databases. Existing development DB/history were not upgraded or backfilled.",
+    "Paid CLI defaults are unchanged; future use needs explicit profile binding, source/configuration freeze, affordability check and execution authorization."
+  ],
+  "historical_medium_control": "medium-chaos-free-validation-results.json",
+  "historical_completed_real_model_run": "daily-confirmation-seven-day-results.json",
+  "next_paid_action_authorized": false
+}

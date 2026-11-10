@@ -1,5 +1,38 @@
 # Personal Agent runtime
 
+The [Actor memory profile](ACTOR_MEMORY.md) belongs to simulated human owners.
+It changes no personal Agent tool, model/API selection or transaction authority.
+Private memories/agendas are not copied to an assistant workspace; the assistant
+receives actual owner dialogue through the existing channel.
+
+The opt-in [confirmation profile](CONFIRMATION_CLOSEOUT.md) offers
+`list_confirmations`, `request_confirmation`, `ask_confirmation_owner`,
+`reply_confirmation` and `report_confirmation`. The native service preserves
+declared terms and conditions and rejects replies without the peer Actor's
+actual decision. The graph corrects premature yields before they become final
+results, including standby chatter before incoming mail. The requester must
+read and acknowledge the exact reply before the native owner report can succeed.
+This dedicated profile uses empty final text; reports are already delivered
+through its tool. It is separate from seven-day acceptance.
+
+The opt-in [elapsed Actor/Agent profile](CLOCK_RUNTIME.md) adds model/tool
+boundaries, released native writes and frozen role bindings for new elapsed
+runs. It preserves existing window profiles and historical records.
+
+The [current-cue protocol](CUE_RESPONSE_REPAIR.md) can require the Actor to convey
+a trusted new Director instruction before Agent work begins. It does not change
+the personal Agent model, provider credentials, tool permissions or its decisions.
+The two-event short test verifies request propagation; its final confirmation
+exchange remains incomplete and is retained as a separate conduct finding.
+
+The opt-in [timed transfer adapter](CLOCK_TRANSFERS.md) uses
+`EnvironmentTools(..., timed_transfers=True)`. Its pending transfer result yields
+the activation; a later activation reads the original committed receipt with
+`read_transfer_operation`. The flag is preserved in private adapter copies and
+session policy hashes. Default legacy tool sets/hashes stay unchanged. Local
+graph/HTTP/checkpoint checks use supplied model responses; no new live-provider
+or full elapsed Director/model driver verification is claimed.
+
 The local runtime uses Deep Agents 0.7.32, LangChain 1.4.7, LangGraph 1.2.18,
 and the LangGraph PostgreSQL checkpointer 3.2.0. The OpenRouter integration is
 langchain-openrouter 0.2.9. These dependencies are pinned in the lock file.
@@ -92,6 +125,11 @@ review, actual live-path exercise, and remaining waiting/wording problems.
 
 ## Run a task
 
+An optional [assistant-only API profile](PERSONAL_AGENT_API.md) selects DeepSeek
+V3.2 and a separate key from `.env.personal-agent.local`. Actors and review roles
+keep the original configuration. Missing personal credentials fail before any
+provider call. Historical scenario runs keep their frozen route and model.
+
 Start PostgreSQL and the API, then run `scripts/seed_demo.py` as described in the
 [README](../README.md). Configure `OPENROUTER_API_KEY` in the ignored `.env` file.
 The CLI uses the Agent credentials in `.local/demo-credentials.json`.
@@ -121,8 +159,9 @@ a new task can start in that session. Agent instructions are fixed per session.
 Use a new session if those instructions change.
 
 The CLI reads task text from standard input when `--task` is absent. It accepts
-up to 20,000 characters and a loopback HTTP board URL. `--model` overrides
-`OPENROUTER_MODEL`. The default model is `openai/gpt-4.1-mini`.
+up to 20,000 characters and a loopback HTTP board URL. `--model` overrides the
+enabled personal Agent profile, then the legacy `OPENROUTER_MODEL` default.
+Without either setting the default is `openai/gpt-4.1-mini`.
 
 ## State, identity, and concurrency
 

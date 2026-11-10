@@ -1,5 +1,46 @@
 # Architecture contract
 
+The optional [Actor memory profile](ACTOR_MEMORY.md) is private Actor context and
+persistence within the existing Actor–Director–Database paths. It adds no Agent
+endpoint, model service, timer or diagram edge. Thoughts and agendas cannot
+establish world effects. Old profiles retain their disabled cognition contract.
+
+The [mixed three-friend protocol](MEDIUM_CHAOS_PROTOCOL.md) composes the existing
+Actor, Agent, Inbox, board, timed transfer and checkpoint paths. It adds a frozen
+definition and a structured free-control evidence auditor, with no new diagram
+edge, service or dependency. Its private expense note uses the Agent virtual
+filesystem, not a native Resource. Its group decisions are checked against all
+required owners' actual mail evidence; a single-peer confirmation does not
+establish unanimous group consent. No paid runner selects this protocol yet.
+
+The optional [confirmation profile](CONFIRMATION_CLOSEOUT.md) reuses existing
+Actor-to-Director, Agent-to-Inbox and private owner-chat connections. It adds
+native task/operation records, typed owner decisions, complete canonical mail,
+body-access evidence and completion guards. It adds no diagram edge or external
+service. A peer read receipt is not approval. Default runs keep their earlier
+profile; source, task definitions and tool bindings are frozen for new controls.
+
+The opt-in [elapsed Actor/Agent profile](CLOCK_RUNTIME.md) adds model/tool
+boundaries, released native writes and frozen role bindings for new elapsed
+runs. It preserves existing window profiles and historical records.
+
+The [current-cue repair](CUE_RESPONSE_REPAIR.md) adds a trusted Director-to-Actor
+communication requirement within the same edge. It adds no node, Agent tool,
+external service or database table. A declared task cue must reach owner dialogue;
+the model still chooses the wording and the Agent chooses its actions.
+
+The 9 November [elapsed-time Clock component](SIMULATION_CLOCK.md) is an opt-in
+implementation behind the existing Clock concept. It adds no diagram node or
+participant access edge. It was first verified independently of the legacy
+Director window conductor. The later elapsed Actor/Agent profile supplies the
+model-node and timed wallet/mail/board adapter. Existing
+frozen world runs and console routes retain the window contract in this guide.
+The subsequent [Director–Clock task bridge](DIRECTOR_CLOCK.md) binds new pending
+runs to elapsed time for local dispatch and private chat. It preserves the same
+diagram connections, rejects legacy window execution for bound runs, and does
+not itself select a provider. The subsequent conductor binds explicitly
+supplied role models and the native timed effects.
+
 This contract was saved before implementation on 27 October 2026. It records the
 latest diagram accepted in this conversation. The current delivery includes the
 shared message board, persistent personal Agent runtime, and the first Director/Actor environment. The diagram defines
@@ -135,6 +176,9 @@ user task ID returns the saved answer. Both rules are required: a checkpoint
 alone cannot guarantee that an external write occurs only once.
 
 Read `AGENT_RUNTIME.md` for the supported commands, limits, and recovery behavior.
+The optional [personal API profile](PERSONAL_AGENT_API.md) changes only assistant
+provider configuration. Actors and review roles keep their prior settings;
+historical run routes remain frozen. It adds no node or connection to the diagram.
 The earlier custom model loop remains a comparison implementation. It is not the
 default Agent runtime.
 
@@ -233,3 +277,9 @@ state and actual market settlement to observe behavior. Its renewal target is
 an evaluation condition; it does not implement service suspension or change the
 diagram. Frozen assignments, source hashes and the existing cumulative campaign
 bound model comparisons and checkpoint reporting.
+
+The [Clock audit](CLOCK_VALIDATION.md) keeps the same nodes, links and window
+phases. It rejects provably impossible chronological plot dependencies before
+execution. A window-limit cutoff can leave final events undelivered; it does not
+prove task success. The seven-simulated-day plan requires an explicit time/chaos
+contract and is not an implementation of a new scheduler.

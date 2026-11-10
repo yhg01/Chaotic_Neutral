@@ -1,0 +1,56 @@
+{
+  "status": "blocked_before_generation",
+  "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+  "limit_usd": "5.5",
+  "reported_usd": "4.8943841972",
+  "uncertain_usd": "0.407975200000",
+  "remaining_usd": "0.197640602800",
+  "personal_models": {
+    "alice": "deepseek/deepseek-v3.2",
+    "bob": "deepseek/deepseek-v3.2"
+  },
+  "actor_model": "openai/gpt-4.1",
+  "reviewer_model": "openai/gpt-4.1",
+  "reference_policy": "reviewed-transfer-authority-v11",
+  "reference_run": "f4c83fac-c156-4e51-bc3f-d70d1dc76650",
+  "reference_scenario_hash": "0918b9e9fc8d6979adab167501474e955e33b43bbfe5f142445a9e14268cca6c",
+  "reference_initial_packets_only": true,
+  "first_actor_requests": [
+    {
+      "owner": "alice",
+      "role": "actor",
+      "model": "openai/gpt-4.1",
+      "prompt_token_bound": 72812,
+      "output_token_bound": 1500,
+      "maximum_reserved_usd": "0.157624000000",
+      "request_not_dispatched": true
+    },
+    {
+      "owner": "bob",
+      "role": "actor",
+      "model": "openai/gpt-4.1",
+      "prompt_token_bound": 72534,
+      "output_token_bound": 1500,
+      "maximum_reserved_usd": "0.157068000000",
+      "request_not_dispatched": true
+    }
+  ],
+  "first_actor_phase_concurrent_reservation_usd": "0.314692000000",
+  "shortfall_to_cover_only_first_actor_pair_usd": "0.117051397200",
+  "excludes_later_costs": [
+    "Actor response reviews",
+    "DeepSeek assistant activations",
+    "Later Actor windows",
+    "Repairs or retries"
+  ],
+  "model_generation_requests": 0,
+  "ledger_reservations_added": 0,
+  "new_run_created": false,
+  "budget_changed": false,
+  "source_hash": "25a99171b457f5e2ec539693cec546b2f0fea60b8201b743097bd835b2328905",
+  "budget_remaining_is_not_a_complete_run_cost_estimate": true,
+  "checked_at": "2026-11-08T23:12:41.219530+00:00",
+  "current_scenario_hash_matches_reference": true,
+  "pricing_source": "https://openrouter.ai/api/v1/models",
+  "decision": "Do not start or spend. Preserve the approved 5.5 USD ceiling, actor/reviewer models, historical costs and all trajectories."
+}

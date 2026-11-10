@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-09",
+  "source_hash": "05d027c696253e1a42a52072d29888f17863cf08f5203a20cf6634c0d81c9a23",
+  "contract": "elapsed-seconds-v1",
+  "status": "clock_component_verified_world_model_adapter_pending",
+  "initial_focused": {
+    "tests": 114,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "time": 9.619
+  },
+  "final_complete_regression": {
+    "tests": 1290,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "time": 109.289
+  },
+  "new_clock_test_cases": 39,
+  "controls_file": "simulation-clock-control-results.json",
+  "provider_calls": 0,
+  "new_cost_usd": "0",
+  "campaign": {
+    "limit_usd": "10",
+    "attempts": 1599,
+    "reported_usd": "5.3745078972",
+    "uncertain_usd": "0.407975200000",
+    "reserved_usd": "0",
+    "committed_usd": "5.782483097200",
+    "remaining_usd": "4.217516902800",
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "unchanged_since_transfer": true,
+    "new_provider_calls": 0
+  },
+  "isolated_postgres": {
+    "owned_test_instance_removed": true,
+    "development_database_touched": false,
+    "paid_requests": 0
+  },
+  "legacy_clock_runtime_and_frozen_scenarios_unchanged_this_round": true,
+  "development_migration_applied": false,
+  "model_world_adapter_integrated": false,
+  "medium_chaos_experiment_started": false,
+  "local_checks": [
+    "Strict seconds, explicit UTC epoch and fifteen distinct owner pairs.",
+    "Parallel work completes at seconds 7 and 60 without summed duration.",
+    "Targeted wait interruption atomically cancels only the old timer.",
+    "Stable same-time ordering; no retroactive insert.",
+    "Concurrent exact replay, scoped identities and independent clock locks.",
+    "Injected receipt-storage failure rolls back time, wakeup and delivery.",
+    "Saved pause and original step replay in independent processes.",
+    "Exact horizon cutoff retains pending work without claiming task success."
+  ],
+  "remaining": [
+    "Durable Director/world/model dispatch adapter.",
+    "Scoped notification consumption, committed tool receipt linkage and timed world effects.",
+    "Versioned recurring event producer.",
+    "Intended setting and centralised-object contract.",
+    "Frozen and calibrated medium-chaos profile.",
+    "Supplied world control and short/one-day model rehearsals before seven-day experiment."
+  ]
+}

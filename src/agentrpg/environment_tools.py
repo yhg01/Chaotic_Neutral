@@ -34,6 +34,10 @@ class _ReadAction(_Arguments):
     action_id: Identifier
 
 
+class _ReadTransferOperation(_Arguments):
+    operation_id: Identifier
+
+
 ENVIRONMENT_TOOLS = {
     "inspect_transfer_account": (
         _Empty,
@@ -116,7 +120,9 @@ class EnvironmentTools:
         operation_namespace: UUID | None = None,
         *,
         track_transfer_tasks: bool = False,
+        timed_transfers: bool = False,
         shop_browser=None,
+        confirmations: bool = False,
     ) -> None:
         self.client = client
         self.run_id = str(UUID(str(run_id)))
@@ -126,7 +132,47 @@ class EnvironmentTools:
         if not isinstance(track_transfer_tasks, bool):
             raise ValueError("track_transfer_tasks must be a boolean.")
         self.track_transfer_tasks = track_transfer_tasks
+        if not isinstance(timed_transfers, bool):
+            raise ValueError("timed_transfers must be a boolean.")
+        if timed_transfers and shop_browser is not None:
+            raise ValueError("Timed transfers require the dedicated transfer profile.")
+        self.timed_transfers = timed_transfers
+        if not isinstance(confirmations, bool) or (confirmations and not timed_transfers):
+            raise ValueError("Confirmation tools require the elapsed profile.")
+        self.confirmations = confirmations
         self.tools = {**ENVIRONMENT_TOOLS, **(TRANSFER_TASK_TOOLS if track_transfer_tasks else {})}
+        if timed_transfers:
+            self.tools = {
+                k: v
+                for k, v in self.tools.items()
+                if k
+                in {
+                    "read_run_view",
+                    "read_owner_messages",
+                    "inspect_transfer_account",
+                    "transfer_credits",
+                    "send_owner_message",
+                    *INBOX_TOOLS,
+                    *TRANSFER_TASK_TOOLS,
+                }
+            }
+            self.tools["transfer_credits"] = (
+                TransferArguments,
+                "Queue an exact authorized simulated credit transfer. A pending admission is "
+                "not payment. "
+                "Yield until completion, then read_transfer_operation for the actual "
+                "committed receipt. "
+                "Repeating an authorization cannot pay twice.",
+            )
+            self.tools["read_transfer_operation"] = (
+                _ReadTransferOperation,
+                "Read your own timed transfer. Pending is not success. Applied includes the actual "
+                "committed payment receipt; rejected means no payment from this operation.",
+            )
+        if confirmations:
+            from agentrpg.confirmation_schema import CONFIRMATION_TOOLS
+
+            self.tools.update(CONFIRMATION_TOOLS)
         if shop_browser is not None and (
             shop_browser.client is not client or shop_browser.run_id != self.run_id
         ):
@@ -206,17 +252,28 @@ class EnvironmentTools:
             "list_transfer_tasks": "transfer-tasks",
             "defer_transfer_task": "transfer-tasks/defer",
             "complete_transfer_task": "transfer-tasks/complete",
+            "list_confirmations": "confirmations",
+            "request_confirmation": "confirmations/request",
+            "ask_confirmation_owner": "confirmations/ask-owner",
+            "reply_confirmation": "confirmations/reply",
+            "report_confirmation": "confirmations/report",
         }.get(name)
         if name in RESOURCE_TOOLS:
             method, suffix, payload = resource_route(name, payload)
         if name == "read_world_action":
             suffix += "/" + payload.pop("action_id")
+        if name == "read_transfer_operation":
+            suffix = "transfer-operations/" + payload.pop("operation_id")
         if name in {
             "send_owner_message",
             "submit_world_action",
             "transfer_credits",
             "defer_transfer_task",
             "complete_transfer_task",
+            "request_confirmation",
+            "ask_confirmation_owner",
+            "reply_confirmation",
+            "report_confirmation",
         }:
             method = "POST"
         if method in {"POST", "PUT"}:
@@ -235,6 +292,16 @@ class EnvironmentTools:
             else:
                 if response.status_code != 503 or attempt == 2:
                     if not response.is_success:
+                        if self.confirmations and response.status_code == 409:
+                            try:
+                                detail = response.json().get("detail")
+                            except (ValueError, AttributeError):
+                                detail = None
+                            if (
+                                isinstance(detail, dict)
+                                and detail.get("code") == "confirmation_protocol"
+                            ):
+                                return {"ok": False, "error": detail}
                         if name in TRANSFER_TASK_TOOLS and response.status_code == 403:
                             try:
                                 task_code = response.json().get("detail", {}).get("code")

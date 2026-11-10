@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -206,6 +206,13 @@ async def write_message(
     replay = False
     async with pool.connection() as connection:
         await require_cluster(connection, principal, cluster_id)
+        from agentrpg.clock_runtime import lock_profile, notify, tool_context
+        from agentrpg.director import DirectorError
+
+        run_identity = await one(
+            connection, "SELECT id FROM environment_runs WHERE cluster_id=%s", (cluster_id,)
+        )
+        elapsed = await lock_profile(connection, run_identity["id"]) if run_identity else None
         existing = await one(
             connection,
             "SELECT id, payload_hash FROM messages WHERE author_id = %s AND request_id = %s",
@@ -217,7 +224,28 @@ async def write_message(
             (cluster_id,),
         )
         if existing is None:
-            if run is not None and run["status"] != "running":
+            if elapsed:
+                participant = await one(
+                    connection,
+                    "SELECT owner_id FROM run_participants WHERE run_id=%s AND agent_id=%s",
+                    (run["id"], author["id"]),
+                )
+                arguments = {"body": payload.body}
+                arguments.update(
+                    {"title": payload.title} if parent_id is None else {"thread_id": str(parent_id)}
+                )
+                try:
+                    await tool_context(
+                        connection,
+                        run["id"],
+                        participant["owner_id"],
+                        "post_thread" if parent_id is None else "reply",
+                        arguments,
+                        payload.request_id,
+                    )
+                except DirectorError as error:
+                    raise HTTPException(409, str(error)) from None
+            if run is not None and run["status"] != "running" and not elapsed:
                 raise HTTPException(409, "The environment run is not running.")
             if parent_id is not None:
                 root = await one(
@@ -279,6 +307,28 @@ async def write_message(
                 },
                 f"board:{message_id}",
             )
+            if elapsed and not replay:
+                peers = await (
+                    await connection.execute(
+                        "SELECT owner_id FROM run_participants WHERE run_id=%s AND "
+                        "agent_id<>%s ORDER BY owner_id",
+                        (run["id"], author["id"]),
+                    )
+                ).fetchall()
+                for peer in peers:
+                    await notify(
+                        connection,
+                        pool,
+                        run["id"],
+                        peer["owner_id"],
+                        "board_posted",
+                        uuid5(message_id, peer["owner_id"]),
+                        {
+                            "message_id": str(message_id),
+                            "thread_id": str(result["thread_id"]),
+                            "author_id": str(author["id"]),
+                        },
+                    )
     # Exiting the connection context commits before the route reports success.
     return message(result), replay
 
@@ -579,6 +629,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(console_router)
     app.include_router(execution_router)
     app.include_router(branches_router)
+    from agentrpg.confirmation_api import router as confirmation_router
+
+    app.include_router(confirmation_router)
     app.include_router(transfer_router)
     app.include_router(shop_router)
 

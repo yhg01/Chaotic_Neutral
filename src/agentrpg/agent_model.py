@@ -16,7 +16,13 @@ from openrouter.errors.openroutererror import OpenRouterError
 from openrouter.utils.logger import NoOpLogger
 from pydantic import PrivateAttr
 
-from agentrpg.budget import BudgetBinding, BudgetError, BudgetTransport, NoSyncBudgetTransport
+from agentrpg.budget import (
+    BudgetBinding,
+    BudgetError,
+    BudgetTransport,
+    NoSyncBudgetTransport,
+    ProviderResponseError,
+)
 
 
 class ProviderCallError(RuntimeError):
@@ -50,13 +56,16 @@ class LocalChatOpenRouter(ChatOpenRouter):
                 return await super()._agenerate(messages, stop, run_manager, **kwargs)
             except BudgetError:
                 raise
-            except OpenRouterError as error:
+            except (OpenRouterError, ProviderResponseError) as error:
                 status = error.status_code
                 retryable = status in {408, 429, 500, 502, 503, 504, 529}
                 if not retryable or attempt == self.max_retries:
-                    raise ProviderCallError(
-                        f"Model provider returned HTTP {status}.", retryable=retryable
-                    ) from None
+                    message = (
+                        str(error)
+                        if isinstance(error, ProviderResponseError)
+                        else f"Model provider returned HTTP {status}."
+                    )
+                    raise ProviderCallError(message, retryable=retryable) from None
             except httpx.TransportError:
                 if attempt == self.max_retries:
                     raise ProviderCallError(
@@ -140,6 +149,9 @@ def create_model(
         session_id=None,
         trace=None,
         openrouter_provider={"require_parameters": True},
+        # The pinned SDK drops the newer `enabled` field. `effort=none` survives
+        # serialization and is OpenRouter's explicit reasoning opt-out.
+        **({"reasoning": {"effort": "none"}} if model.strip() == "deepseek/deepseek-v3.2" else {}),
     )
     result._budget_clients = list(http_clients.values())
     return result

@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-09",
+  "source_hash": "17deb19c7fd5be22f24be17652e91c7d2750f5c35ba3d2ccfd1ce4de5b274f28",
+  "controls": [
+    {
+      "run_id": "d05c6c18-ee7d-4399-b242-f825f92dc202",
+      "clock_id": "89d7dabf-6bb6-5fe4-935b-2a8d7315afab",
+      "profile": "supplied_director_dispatch_control",
+      "owner_pairs": 2,
+      "simulated_seconds": 3600,
+      "elapsed_wall_seconds": 0.765,
+      "jobs": 2,
+      "dispatch_attempts": 2,
+      "clock_steps": 5,
+      "private_messages_saved": 1,
+      "faults": [
+        {
+          "phase": "saved",
+          "owned_child_terminated": true,
+          "return_code": -9
+        },
+        {
+          "phase": "running",
+          "owned_child_terminated": true,
+          "return_code": -9
+        }
+      ],
+      "saved_reply_delivery_second": 1,
+      "same_step_replayed_without_duplicate_message": true,
+      "unknown_attempt_blocked_until_supplied_reconciliation": true,
+      "pending_events_at_horizon": 6,
+      "model_provider_calls": 0,
+      "new_cost_usd": "0",
+      "task_success": null,
+      "passed": true
+    },
+    {
+      "run_id": "2d2c361a-3e1f-42bd-a190-7fb3ce2c444e",
+      "clock_id": "590aa6cc-6c1f-5b74-b32a-843b784ac11d",
+      "profile": "supplied_director_dispatch_control",
+      "owner_pairs": 15,
+      "simulated_seconds": 604800,
+      "elapsed_wall_seconds": 1.869,
+      "jobs": 197,
+      "dispatch_attempts": 197,
+      "clock_steps": 366,
+      "private_messages_saved": 0,
+      "faults": [],
+      "saved_reply_delivery_second": null,
+      "same_step_replayed_without_duplicate_message": false,
+      "unknown_attempt_blocked_until_supplied_reconciliation": false,
+      "pending_events_at_horizon": 32,
+      "model_provider_calls": 0,
+      "new_cost_usd": "0",
+      "task_success": null,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "owned_schema_removed": true,
+  "development_database_touched": false,
+  "provider_calls": 0,
+  "new_cost_usd": "0",
+  "limits": [
+    "Supplied dispatch and private chat only; no live provider adapter.",
+    "Unknown recovery uses a labelled local fixture, not provider reconciliation.",
+    "No timed transfer/shop/mail tools, elapsed recurring compiler or medium-chaos calibration.",
+    "Run IDs belong to a deleted test schema, not console trajectory URLs."
+  ]
+}

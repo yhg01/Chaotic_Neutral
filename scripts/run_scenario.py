@@ -27,6 +27,7 @@ from agentrpg.director import Director, emit, rows
 from agentrpg.environment_tools import EnvironmentTools
 from agentrpg.evaluation import ModelEvaluator, evaluate_trace
 from agentrpg.model_assignments import owner_models, validate_owner_models
+from agentrpg.personal_agent_config import PersonalAgentConfigError, load_personal_agent_api
 from agentrpg.resources import ResourceService
 from agentrpg.run_engine import RunEngine
 from agentrpg.scenario_schema import ScenarioSpec, vehicle_scenario
@@ -671,11 +672,12 @@ async def collect_report(
     }
 
 
-def new_run_configuration(args, env):
-    model_name = args.model or env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
+def new_run_configuration(args, env, *, root=None):
+    legacy_model = args.model or env.get("OPENROUTER_MODEL") or "openai/gpt-4.1-mini"
+    api = load_personal_agent_api(env, root=root, model=args.model, require_key=False)
     config = {
-        "model": model_name,
-        "actor_model": args.actor_model or env.get("OPENROUTER_ACTOR_MODEL") or model_name,
+        "model": api.model,
+        "actor_model": args.actor_model or env.get("OPENROUTER_ACTOR_MODEL") or legacy_model,
         "actors": args.actors or "model",
         "actor_review": True,
         "actor_max_repairs": 3,
@@ -683,6 +685,7 @@ def new_run_configuration(args, env):
         "timeout_seconds": args.timeout_seconds or 240,
         "instructions": INSTRUCTIONS,
         "base_url": args.base_url or "http://127.0.0.1:8000",
+        **api.manifest_fields(),
     }
     if getattr(args, "owner_model", None):
         config["owner_models"] = owner_models(args.owner_model)
@@ -710,7 +713,8 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         if missing_timeout:
             save_private(credentials_path, manifest)
     else:
-        config = new_run_configuration(args, env)
+        config = new_run_configuration(args, env, root=root)
+    personal_api = load_personal_agent_api(env, root=root, configuration=config)
     try:
         base_url = loopback_url(args.base_url or config.get("base_url", "http://127.0.0.1:8000"))
     except (argparse.ArgumentTypeError, TypeError, AttributeError):
@@ -825,7 +829,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 )
             )
             model = create_model(
-                env["OPENROUTER_API_KEY"],
+                personal_api.api_key.get_secret_value(),
                 assignments.get(owner, config["model"]),
                 max_tokens=2000,
                 **({"budget": binding, "budget_role": "assistant"} if binding else {}),
@@ -1032,6 +1036,8 @@ def main(argv=None):
     except KeyboardInterrupt:
         raise SystemExit("Run interrupted. Resume with the saved credentials.json file.") from None
     except ScenarioRunError as error:
+        raise SystemExit(str(error)) from None
+    except PersonalAgentConfigError as error:
         raise SystemExit(str(error)) from None
     except Exception:
         raise SystemExit(

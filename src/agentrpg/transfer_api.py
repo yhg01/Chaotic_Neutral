@@ -5,8 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request
 
 from agentrpg.agent_tools import Identifier
+from agentrpg.director import DirectorError, row
 from agentrpg.environment_api import identity
 from agentrpg.main import AUTH
+from agentrpg.simulation_clock import ClockConflict
 from agentrpg.transfer_task_schema import CompleteTransferTask, DeferTransferTask
 from agentrpg.transfer_tasks import TransferTaskError, TransferTaskService
 from agentrpg.transfers import TransferArguments, TransferService
@@ -76,8 +78,59 @@ async def transfer(run_id: UUID, payload: TransferBody, request: Request, princi
     member = await identity(request, run_id, principal)
     arguments = TransferArguments.model_validate(payload.model_dump(exclude={"request_id"}))
     try:
+        from agentrpg.clock_transfers import TimedTransfers, enabled
+
+        async with request.app.state.pool.connection() as conn:
+            profile = await enabled(conn, run_id)
+            lane = (
+                await row(
+                    conn,
+                    """SELECT p.process_id FROM simulation_clock_processes p
+                JOIN director_clock_bindings b ON b.clock_id=p.clock_id
+                WHERE b.run_id=%s AND p.owner_id=%s AND p.role='agent'""",
+                    (run_id, member["owner_id"]),
+                )
+                if profile
+                else None
+            )
+        if profile:
+            if lane is None:
+                raise DirectorError("No Agent lane is bound to this account.")
+            admission = await TimedTransfers(request.app.state.pool).schedule(
+                run_id, lane["process_id"], payload.request_id, arguments
+            )
+            actual = await TimedTransfers(request.app.state.pool).operation(
+                run_id, lane["process_id"], admission["operation_id"]
+            )
+            # Completed operations must not cause another pending wait or payment.
+            return actual["result"] if actual["status"] != "pending" else admission
         return await TransferService(request.app.state.pool).transfer(
             run_id, member["owner_id"], payload.request_id, arguments
+        )
+    except WorldError as error:
+        raise HTTPException(error.status_code, str(error)) from None
+    except (ClockConflict, DirectorError) as error:
+        raise HTTPException(409, str(error)) from None
+
+
+@router.get("/transfer-operations/{operation_id}")
+async def transfer_operation(run_id: UUID, operation_id: UUID, request: Request, principal: AUTH):
+    member = await identity(request, run_id, principal)
+    from agentrpg.clock_transfers import TimedTransfers
+
+    async with request.app.state.pool.connection() as conn:
+        lane = await row(
+            conn,
+            """SELECT p.process_id FROM simulation_clock_processes p
+            JOIN director_clock_bindings b ON b.clock_id=p.clock_id
+            WHERE b.run_id=%s AND p.owner_id=%s AND p.role='agent'""",
+            (run_id, member["owner_id"]),
+        )
+    if lane is None:
+        raise HTTPException(404, "Timed transfer account not found.")
+    try:
+        return await TimedTransfers(request.app.state.pool).operation(
+            run_id, lane["process_id"], operation_id
         )
     except WorldError as error:
         raise HTTPException(error.status_code, str(error)) from None

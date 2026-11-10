@@ -41,6 +41,7 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import ValidationError, create_model
 
 from agentrpg.activation import ActivationEnvelope, ActivationResult, WaitReply
+from agentrpg.actor_memory_schema import mentions_private_cognition
 from agentrpg.agent_model import ProviderCallError
 from agentrpg.agent_tools import _TOOLS, BoardTools
 from agentrpg.budget import BudgetError
@@ -200,6 +201,8 @@ class _ActivationYield(AgentMiddleware):
                 "read_world_action",
                 "submit_market_action",
                 "read_market_action",
+                "transfer_credits",
+                "read_transfer_operation",
             }:
                 data = payload.get("data", {})
                 if payload.get("ok") and isinstance(data, dict) and data.get("status") == "pending":
@@ -249,6 +252,41 @@ class _ActivationYield(AgentMiddleware):
                                             "code": "unobserved_inbox_notifications",
                                             "message_ids": missing,
                                             "detail": _UNOBSERVED_MAIL_DETAIL,
+                                        },
+                                    }
+                                )
+                            }
+                        )
+                    ]
+                }
+        if (
+            explicit is not None
+            and self.agent.environment is not None
+            and self.agent.environment.confirmations
+        ):
+            from agentrpg.confirmations import yield_error
+
+            async with self.agent.runtime.pool.connection() as conn:
+                participant = await (
+                    await conn.execute(
+                        "SELECT owner_id FROM run_participants WHERE run_id=%s AND agent_id=%s",
+                        (self.agent.environment.run_id, self.agent.agent_id),
+                    )
+                ).fetchone()
+                detail = await yield_error(
+                    conn, self.agent.environment.run_id, participant["owner_id"], explicit
+                )
+            if detail:
+                return {
+                    "messages": [
+                        finish_message.model_copy(
+                            update={
+                                "content": json.dumps(
+                                    {
+                                        "ok": False,
+                                        "error": {
+                                            "code": "confirmation_protocol",
+                                            "detail": detail,
                                         },
                                     }
                                 )
@@ -539,6 +577,7 @@ class AgentRuntime:
         guard_empty_scratch: bool = False,
         include_previous_activation_context: bool = False,
         guard_transfer_task_yield: bool = False,
+        guard_actor_private_planning: bool = False,
     ) -> PersonalAgent:
         if not self._open:
             raise AgentRuntimeError("Open the Agent runtime before creating an Agent.")
@@ -557,6 +596,7 @@ class AgentRuntime:
             guard_empty_scratch=guard_empty_scratch,
             include_previous_activation_context=include_previous_activation_context,
             guard_transfer_task_yield=guard_transfer_task_yield,
+            guard_actor_private_planning=guard_actor_private_planning,
         )
         if agent.environment is not None and agent.environment.shop_browser is not None:
             self._browser_adapters.append(agent.environment.shop_browser)
@@ -583,6 +623,7 @@ class PersonalAgent:
         guard_empty_scratch: bool = False,
         include_previous_activation_context: bool = False,
         guard_transfer_task_yield: bool = False,
+        guard_actor_private_planning: bool = False,
     ) -> None:
         if not isinstance(instructions, str) or not instructions.strip():
             raise ValueError("Agent instructions must be nonblank text.")
@@ -609,6 +650,8 @@ class PersonalAgent:
                 environment.run_id,
                 self._session_namespace,
                 track_transfer_tasks=environment.track_transfer_tasks,
+                timed_transfers=environment.timed_transfers,
+                confirmations=environment.confirmations,
                 shop_browser=environment.shop_browser.bind(self._session_namespace)
                 if environment.shop_browser is not None
                 else None,
@@ -633,6 +676,9 @@ class PersonalAgent:
         ):
             raise ValueError("guard_transfer_task_yield requires tracked environment tools.")
         self.guard_transfer_task_yield = guard_transfer_task_yield
+        if not isinstance(guard_actor_private_planning, bool):
+            raise ValueError("guard_actor_private_planning must be a boolean.")
+        self.guard_actor_private_planning = guard_actor_private_planning
         # Preserve hashes for existing board-only sessions. Environment sessions
         # additionally bind a run and tool contract, so they cannot change scope.
         self._instructions_hash = _digest(
@@ -640,12 +686,23 @@ class PersonalAgent:
             if environment is None
             and not guard_empty_scratch
             and not include_previous_activation_context
+            and not guard_actor_private_planning
             else json.dumps(
                 {
                     "instructions": instructions,
                     "run_id": environment.run_id if environment is not None else None,
                     "tools_version": 1,
+                    **(
+                        {"confirmation_protocol": "owner-confirmation-receipt-v1"}
+                        if self.environment is not None and self.environment.confirmations
+                        else {}
+                    ),
                     **({"guard_transfer_task_yield": True} if guard_transfer_task_yield else {}),
+                    **(
+                        {"guard_actor_private_planning": True}
+                        if guard_actor_private_planning
+                        else {}
+                    ),
                     **(
                         {"browser_shop_profile": self.environment.shop_browser.profile}
                         if self.environment is not None
@@ -655,6 +712,11 @@ class PersonalAgent:
                     **(
                         {"track_transfer_tasks": True}
                         if environment is not None and environment.track_transfer_tasks
+                        else {}
+                    ),
+                    **(
+                        {"timed_transfers": True}
+                        if environment is not None and environment.timed_transfers
                         else {}
                     ),
                     **({"require_explicit_finish": True} if require_explicit_finish else {}),
@@ -777,6 +839,10 @@ class PersonalAgent:
                 raise AgentLimitError("The task reached its model-call limit.")
 
     async def _summarize(self, messages) -> str:
+        if getattr(self, "_elapsed_mode", False):
+            raise AgentLimitError(
+                "Elapsed context requires a separately timed compaction boundary; pause this run."
+            )
         # The default summarizer calls the model outside model middleware.
         # Supplying this public hook gives compaction the same durable budget.
         await self._reserve_model_call()
@@ -795,6 +861,20 @@ class PersonalAgent:
             ) from None
 
     def _tools(self) -> list[StructuredTool]:
+        def planning_error(text):
+            if self.guard_actor_private_planning and mentions_private_cognition(
+                text, actor_speaking=False
+            ):
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "unsupported_private_planning_claim",
+                        "detail": "Report the actual tool or file result without claiming that "
+                        "you changed the Actor's or your own private cognition agenda.",
+                    },
+                }
+            return None
+
         result = []
         available = {**_TOOLS, **(self.environment.tools if self.environment is not None else {})}
         for name, (arguments_model, description) in available.items():
@@ -809,6 +889,10 @@ class PersonalAgent:
                     # UUID fields have been validated by LangChain; serialize
                     # them to the same JSON types used by the existing adapter.
                     plain = json.loads(json.dumps(arguments, default=str))
+                    if tool_name == "send_owner_message":
+                        error = planning_error(plain["content"])
+                        if error:
+                            return error
                     adapter = self.board if tool_name in _TOOLS else self.environment
                     response = await adapter.execute(tool_name, plain, tool_call_id)
                     event = {
@@ -861,7 +945,8 @@ class PersonalAgent:
         if self.environment is not None:
 
             async def finish_activation(**arguments):
-                return ActivationResult.model_validate(arguments).model_dump(mode="json")
+                result = ActivationResult.model_validate(arguments)
+                return planning_error(result.text) or result.model_dump(mode="json")
 
             result.append(
                 StructuredTool(
@@ -905,7 +990,7 @@ class PersonalAgent:
                     def bind_wait(expected_event):
                         async def wait(**arguments):
                             reply = WaitReply.model_validate(arguments)
-                            return ActivationResult(
+                            return planning_error(reply.text) or ActivationResult(
                                 status="waiting", wait_for=[expected_event], text=reply.text
                             ).model_dump(mode="json")
 

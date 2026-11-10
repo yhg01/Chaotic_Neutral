@@ -51,6 +51,95 @@ async def test_actor_uses_explicit_frozen_generation_and_review_policies():
     assert "Frozen review policy." not in model.calls[0][0].content
 
 
+@pytest.mark.parametrize(
+    "kind,text", [("wait", ""), ("wait", "Thank you; keep monitoring."), ("reply", "Thank you.")]
+)
+@pytest.mark.parametrize("accepted", [True, False])
+async def test_delivery_metadata_distinguishes_silence_without_bypassing_review(
+    kind, text, accepted
+):
+    model = Responses([{"kind": kind, "text": text}])
+    reviewer = Responses(
+        [
+            {
+                "accepted": accepted,
+                "issues": [] if accepted else ["A consequential question still needs an answer."],
+                "owner_dialogue_emitted": kind != "wait",
+            }
+        ]
+    )
+    actor = ModelActor(
+        model,
+        reviewer=reviewer,
+        max_repairs=0,
+        describe_output_delivery=True,
+        prompt="Frozen owner policy.",
+        review_prompt="Frozen review policy.",
+    )
+    if accepted:
+        assert (await actor.respond(view())).kind == kind
+    else:
+        with pytest.raises(ActorContractError, match="repair allowance"):
+            await actor.respond(view("Which date should I propose?"))
+    assert len(model.calls) == len(reviewer.calls) == 1
+    assert "Frozen review policy." in reviewer.calls[0][0].content
+    payload = json.loads(reviewer.calls[0][1].content)
+    assert payload["candidate_delivery"]["owner_dialogue_emitted"] == (kind != "wait")
+    assert payload["candidate_delivery"]["silent_scheduler_yield"] == (kind == "wait")
+    assert payload["candidate"]["text"] == ("" if kind == "wait" else text)
+    assert actor.last_attempts[-1]["candidate"]["text"] == text
+    assert actor.last_attempts[-1]["review_input_candidate"] == payload["candidate"]
+    assert actor.last_attempts[-1]["accepted"] == accepted
+
+
+@pytest.mark.parametrize("intent", ["owner_direct", "assistant_delegated"])
+async def test_visible_delivery_keeps_world_effects_in_independent_review(intent):
+    mail = {
+        "recipient_owner_id": "owner-1",
+        "subject": "A private question",
+        "body": "Can you confirm the amount?",
+    }
+    text = "I am sending the other owner a private question."
+    model = Responses([{"kind": "reply", "text": text, "mail_requests": [mail]}])
+    reviewer = Responses(
+        [{"accepted": True, "issues": [], "owner_dialogue_emitted": True, "mail_intent": intent}]
+    )
+    actor = ModelActor(
+        model,
+        reviewer=reviewer,
+        max_repairs=0,
+        describe_output_delivery=True,
+        require_mail_intent_review=True,
+    )
+    if intent == "owner_direct":
+        assert (await actor.respond(view())).mail_requests[0].body == mail["body"]
+    else:
+        with pytest.raises(ActorContractError, match="repair allowance"):
+            await actor.respond(view())
+    payload = json.loads(reviewer.calls[0][1].content)
+    assert payload["candidate"]["text"] == text
+    assert payload["candidate"]["mail_requests"] == [{**mail, "in_reply_to": None}]
+    assert payload["candidate_delivery"]["world_effect_fields"] == ["mail_requests"]
+    assert actor.last_attempts[-1]["candidate"]["text"] == text
+    assert actor.last_attempts[-1]["accepted"] == (intent == "owner_direct")
+
+
+async def test_silent_delivery_does_not_hide_forbidden_effects():
+    mail = {"recipient_owner_id": "owner-1", "subject": "Question", "body": "Please reply."}
+    reviewer = Responses([])
+    actor = ModelActor(
+        Responses([{"kind": "wait", "text": "Unsent prose.", "mail_requests": [mail]}]),
+        reviewer=reviewer,
+        max_repairs=0,
+        describe_output_delivery=True,
+    )
+    with pytest.raises(ActorContractError, match="repair allowance"):
+        await actor.respond(view())
+    assert not reviewer.calls
+    assert "cannot request effects" in actor.last_attempts[0]["reason"]
+    assert actor.last_attempts[0]["generated_candidate"]["mail_requests"] == [mail]
+
+
 def view(question=None, **kwargs):
     conversation = [{"id": "message-1", "role": "assistant", "text": question}] if question else []
     return build_actor_view(

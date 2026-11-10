@@ -1,0 +1,224 @@
+{
+  "date": "2026-11-10",
+  "status": "cue_response_repair_verified_short_test_closeout_incomplete",
+  "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+  "execution_configuration_hash": "99892438435d22eb77feca8fbbae4bb57cab2a4b3e600ab5d4708c8d249081b3",
+  "protocol": "independent-current-cue-v2-declared-response",
+  "scene_version": "friends-community-daily-meeting-v4",
+  "local_validation": {
+    "date": "2026-11-10",
+    "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+    "tests": 1453,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 158.894,
+    "paid_requests": 0,
+    "new_checks": 30,
+    "private_junit_reference": ".local/cue-response-repair/b6e122e4663e4d3e9ecedd6eb2aeb33c/checks.xml",
+    "owned_postgres_cleanup": {
+      "owned_test_instance_removed": true,
+      "development_database_touched": false,
+      "paid_requests": 0
+    },
+    "targeted_checks": 63,
+    "fixture_failures_retained": true
+  },
+  "repair_scope": "Trusted Director declarations require owner communication; classify before seeing the Actor candidate, validate exact cue coverage, and reject silent delivery before world effects.",
+  "models": {
+    "personal": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "models_api_files_and_original_generation_review_prompt_strings_unchanged": true,
+  "new_dependencies": false,
+  "new_database_schema": false,
+  "new_validation_contract_and_classifier_prompt": true,
+  "retained_prior_component": {
+    "source_hash": "4b66dd96377335b6e2488a7e33294af37749229ac35170537297b88d1c74d042",
+    "local_tests": 1447,
+    "task_acceptance_passed": false,
+    "reported_cost_usd": "0.040232",
+    "evidence": ".local/cue-response-repair/v1-component-behavior-audit.json"
+  },
+  "repaired_component": {
+    "source_hash": "b569eb300598b3c1657a7e3ee5b8cd58845314907f00b053af49bb3d099a2e31",
+    "task_acceptance_passed": true,
+    "provider_http_attempts": 3,
+    "reported_cost_usd": "0.032690",
+    "input_adaptation": "Preserve original role/context and cue words; add the new declared owner_response_required flag. This is not a byte-identical input replay.",
+    "world_effects_applied": false,
+    "private_evidence": ".local/cue-response-repair/component-f955c8e1c6054352a49c19fd02a4b482/result.json"
+  },
+  "short_test": {
+    "run_id": "9d6a6aaf-7c3e-4014-a628-ce0cb7a14623",
+    "simulated_days": 2,
+    "simulated_seconds": 172800,
+    "wall_seconds": 245.078,
+    "clock_status": "horizon",
+    "failure_kind": null,
+    "stop_reason": "horizon",
+    "scheduled_cues": 2,
+    "new_requests_emitted": 2,
+    "cue_response_acceptance_passed": true,
+    "final_coverage_review_passed": true,
+    "per_cue_evidence": [
+      {
+        "event_key": "meeting-change-0000",
+        "at_seconds": 43200,
+        "owner_id": "alice",
+        "target_time_utc": "16:00",
+        "owner_response_required": true,
+        "actor_job_id": "4543253d-24e2-549c-a047-aba5e56db63c",
+        "actor_output_kind": "reply",
+        "native_owner_message_id": "76628bd0-967f-5374-9ecc-ed891edcabca",
+        "owner_dialogue_emitted": true,
+        "classifier_rejected_attempts": 0,
+        "final_independent_coverage_passed": true
+      },
+      {
+        "event_key": "meeting-change-0001",
+        "at_seconds": 129600,
+        "owner_id": "bob",
+        "target_time_utc": "14:00",
+        "owner_response_required": true,
+        "actor_job_id": "7bb383c8-6270-5857-8f36-9c20382bdba2",
+        "actor_output_kind": "reply",
+        "native_owner_message_id": "26e67307-098b-5268-8183-5d62275d0d1d",
+        "owner_dialogue_emitted": true,
+        "classifier_rejected_attempts": 1,
+        "final_independent_coverage_passed": true
+      }
+    ],
+    "genuine_peer_approval_exchanges": 2,
+    "fully_closed_exchange_count": 1,
+    "end_to_end_social_closeout_passed": false,
+    "mail_evidence": [
+      {
+        "id": "3e3d337c-bb06-53e4-a26a-92b131a47dc9",
+        "sender_owner_id": "alice",
+        "recipient_owner_id": "bob",
+        "at_seconds": 43281
+      },
+      {
+        "id": "30f36759-2ede-5679-b6dd-63dddb8a276c",
+        "sender_owner_id": "bob",
+        "recipient_owner_id": "alice",
+        "at_seconds": 43377
+      },
+      {
+        "id": "965aef4d-2ee3-5a43-b95a-588c22baebb7",
+        "sender_owner_id": "bob",
+        "recipient_owner_id": "alice",
+        "at_seconds": 129701
+      },
+      {
+        "id": "65c8fc84-a8b1-5f5b-b712-24ce32eb5b37",
+        "sender_owner_id": "alice",
+        "recipient_owner_id": "bob",
+        "at_seconds": 129804
+      }
+    ],
+    "final_agent_waits": {
+      "alice": {
+        "status": "waiting",
+        "wait_for": [
+          "inbox_received"
+        ]
+      },
+      "bob": {
+        "status": "responded",
+        "wait_for": []
+      }
+    },
+    "provider_http_attempts": 80,
+    "provider_attempts_by_role": {
+      "actor": 15,
+      "actor-review": 18,
+      "assistant": 47
+    },
+    "reported_cost_usd": "0.3982503600",
+    "new_unknown_cost_usd": "0",
+    "native_agent_mail": 4,
+    "native_board_messages": 0,
+    "native_payments": 0,
+    "financial_invariants": {
+      "total_conserved": true,
+      "ledger_matches_balances": true,
+      "no_duplicate_payment_grant": true
+    },
+    "final_balances": {
+      "alice": 100,
+      "bob": 100
+    },
+    "checkpoint_blob_versions": 148,
+    "checkpoint_blob_bytes": 110479,
+    "largest_observed_personal_input_tokens": 18152,
+    "private_trajectory_json": ".local/clock-model-runs/9d6a6aaf-7c3e-4014-a628-ce0cb7a14623/8ab7e48183544e519c833ada076593f3/trajectory.json",
+    "private_trajectory_markdown": ".local/clock-model-runs/9d6a6aaf-7c3e-4014-a628-ce0cb7a14623/8ab7e48183544e519c833ada076593f3/trajectory.md",
+    "original_trajectory_sha256": "a53ffbcc84bf96d88d7b8e08530d5fccea5cc33fe882ce3954961816e464abc7"
+  },
+  "remaining_closeout_issue": {
+    "conditional_owner_message_id": "f6a0fdf3-6ee8-55f0-b351-4223f6ca39f2",
+    "omitting_reply_mail_id": "65c8fc84-a8b1-5f5b-b712-24ce32eb5b37",
+    "finding": "Alice requested Bob acknowledgment before final confirmation. Her assistant omitted this condition from its reply, asserted the time was final, and remained waiting for an acknowledgment never requested from Bob. Bob was told both had agreed.",
+    "scope": "New request propagation is verified; complete bilateral closeout and condition-preserving reporting are not established. No calendar or booking record exists."
+  },
+  "campaign_before_repair": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3750,
+    "reported_usd": "14.7755277196",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "17.598874119600",
+    "remaining_usd": "2.401125880400",
+    "halted": false
+  },
+  "campaign_after": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3836,
+    "reported_usd": "15.2467000796",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "18.070046479600",
+    "remaining_usd": "1.929953520400",
+    "halted": false
+  },
+  "new_reported_cost_this_repair_usd": "0.4711723600",
+  "new_provider_http_attempts_this_repair": 86,
+  "new_unknown_exposure_usd": "0",
+  "cumulative_ceiling_respected": true,
+  "new_seven_day_run_started": false,
+  "seven_day_restart_authorized": false,
+  "historical_fees_unknown_reservations_and_trajectories_retained": true,
+  "original_seven_day_run_unchanged": true,
+  "trace_review_method": "Assistant-led inspection of the two actual cue responses, independent classifications and coverage reviews, native correspondence and final activation state. No new reviewer call or independent human signoff.",
+  "independent_human_review_completed": false,
+  "limitations": [
+    "The first model-only classifier attempt failed on the real saved context; that failure and its fee remain.",
+    "The repaired case adds declared-response metadata and changes the validation protocol. This is not a byte-identical replay or matched causal model comparison.",
+    "Unmarked informational cues retain ordinary model classification and may legitimately wait. The stronger mandatory-communication guarantee requires the trusted declaration.",
+    "Semantic reviewers can still make content errors; structured coverage does not prove universal naturalness or fidelity.",
+    "One two-event short test is not a long-term reliability rate, complete medium-chaos calibration or seven-day completion.",
+    "The second exchange lacks its requested acknowledgment; no full workflow-success claim.",
+    "Original Chinese model messages remain unchanged."
+  ],
+  "historical_preservation_and_secret_scan": {
+    "historical_files_checked": 344,
+    "historical_mismatches": [],
+    "legacy_archive_hash_unchanged": true,
+    "api_configuration_files_unchanged": true,
+    "public_files_scanned": 115,
+    "credential_matches_in_public_files": [],
+    "all_three_api_configuration_files_unchanged": true
+  },
+  "verified_database_backup": {
+    "public_tables_restored_and_hashed": 80,
+    "temporary_restore_database_removed": true,
+    "old_backups_retained": true,
+    "backup_sha256": "dc1d7b1fb8c1eb5840c0894480cde96b0afa5f2f7e926654e91315161b49f3a9"
+  },
+  "source_snapshots_preserved": 24
+}

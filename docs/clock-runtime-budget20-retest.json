@@ -1,0 +1,106 @@
+{
+  "date": "2026-11-09",
+  "request": "Raise the same cumulative ceiling to USD20, retain history, retest one corrected four-cue day with unchanged models/APIs, and do not start seven days.",
+  "status": "one_day_incomplete_blocked_by_upstream_review_service",
+  "campaign_id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+  "new_campaign_created": false,
+  "ceiling_before_usd": "15",
+  "ceiling_after_usd": "20",
+  "campaign_after_authorization_before_testing": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3347,
+    "reported_usd": "13.1037876196",
+    "reserved_usd": "0",
+    "uncertain_usd": "0.969742400000",
+    "committed_usd": "14.073530019600",
+    "remaining_usd": "5.926469980400"
+  },
+  "campaign_after_testing": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "attempts": 3415,
+    "reported_usd": "13.3242686396",
+    "reserved_usd": "0",
+    "uncertain_usd": "2.720398400000",
+    "committed_usd": "16.044667039600",
+    "remaining_usd": "3.955332960400"
+  },
+  "this_round_reported_cost_usd": "0.2204810200",
+  "this_round_added_uncertain_exposure_usd": "1.750656000000",
+  "this_round_added_occupied_usd": "1.971137020000",
+  "models": {
+    "personal_agent": "deepseek/deepseek-v3.2",
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "all_three_api_files_unchanged": true,
+  "original_actor_reviewer_prompts_gates_and_repair_allowance_unchanged": true,
+  "original_retry_counts_unchanged": true,
+  "endpoint_fallback_enabled": false,
+  "retained_worlds_this_round": [
+    "7150f1d5-28b3-4c50-97fa-7a1a034b1fa9",
+    "c3e193b9-d3ed-477e-93bb-634bbf40bada",
+    "cdde387c-d013-41e9-b86f-6cc06a56e4d5"
+  ],
+  "separate_component_diagnostic": {
+    "world_effects": false,
+    "private_reference": ".local/clock-runtime/startup-diagnostic-v18.json",
+    "result": "HTTP200 error502 provider_unavailable; no accepted model output or cost receipt"
+  },
+  "changes": [
+    "Use the authorized USD20 limit on the existing persistent campaign.",
+    "Classify numeric errors in HTTP-success bodies, preserve their generation IDs, apply existing retry limits, and keep uncertain fees reserved."
+  ],
+  "complete_local_regression": {
+    "tests": 1410,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "wall_seconds": 156.32,
+    "paid_requests": 0,
+    "owned_test_database_removed": true
+  },
+  "new_provider_error_controls": 7,
+  "source_hash": "4896bcf9f65dd314f9e5f380763efa3028a7e299bd3ac387afa6cf8b4d0e8d92",
+  "latest_world": {
+    "run_id": "cdde387c-d013-41e9-b86f-6cc06a56e4d5",
+    "simulated_seconds": 153,
+    "requested_horizon_seconds": 86400,
+    "cue_status": {
+      "payment_followup": "not_delivered",
+      "social_invitation": "not_delivered",
+      "plan_change": "not_delivered",
+      "unclear_repayment": "not_delivered"
+    },
+    "native_payments": 1,
+    "amount": 10,
+    "sender": "alice",
+    "recipient": "bob",
+    "duplicate_native_payments": 0,
+    "completed_business_tasks": 0,
+    "active_business_tasks": 1,
+    "failure": "Actor-review repair exhausted three actual attempts with embedded provider502; no durable accepted repair exists.",
+    "financial_invariants": {
+      "total_conserved": true,
+      "ledger_matches_balances": true,
+      "no_duplicate_payment_grant": true
+    },
+    "private_trajectory_markdown": ".local/clock-model-runs/cdde387c-d013-41e9-b86f-6cc06a56e4d5/836efeb672a142c3a3cefc7e500d6db0/trajectory.md"
+  },
+  "billing_verification": {
+    "model_calls": 0,
+    "lookups": 7,
+    "http_status": 404,
+    "charges_set_to_zero": 0,
+    "reservations_released": 0,
+    "rule": "A missing generation record is not zero-cost proof.",
+    "documentation": "https://openrouter.ai/docs/api/api-reference/generations/get-generation"
+  },
+  "historical_fees_and_trajectories_retained": true,
+  "all_retained_world_cohorts": 17,
+  "one_day_four_cue_acceptance": false,
+  "seven_day_experiment_started": false,
+  "operator_start_authorized": false,
+  "next": "Keep paid testing stopped while upstream failures persist. After service stabilizes, recheck unchanged routes and campaign headroom before a fresh full one-day four-cue rehearsal."
+}

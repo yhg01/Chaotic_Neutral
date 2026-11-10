@@ -10,7 +10,7 @@ from uuid import UUID, uuid5
 
 from psycopg.types.json import Jsonb
 
-from agentrpg.director import emit, fingerprint, row, rows
+from agentrpg.director import DirectorError, emit, fingerprint, row, rows
 from agentrpg.transfer_task_schema import TransferTaskRequest
 from agentrpg.world import WorldError, WorldService
 
@@ -34,13 +34,26 @@ class TransferTaskService:
             async with self.pool.connection() as conn, conn.transaction():
                 yield conn
 
-    async def enable(self, run_id):
+    async def enable(self, run_id, *, connection=None, clock_runtime=False):
         """Operator setup before execution. Existing runs cannot change profile."""
-        async with self._connection() as conn:
+        async with self._connection(connection) as conn:
             run = await self.world._run(conn, run_id)
             if await self.enabled(conn, run_id):
                 return
-            if run["status"] != "pending":
+            if clock_runtime:
+                if connection is None or run["status"] != "paused":
+                    raise WorldError("Elapsed task setup requires its Director transaction.", 403)
+                clock = await row(
+                    conn,
+                    "SELECT id FROM simulation_clocks WHERE manager_run_id=%s AND "
+                    "now_seconds=0 AND status='active'",
+                    (run_id,),
+                )
+                if not clock or await row(
+                    conn, "SELECT id FROM director_clock_jobs WHERE run_id=%s LIMIT 1", (run_id,)
+                ):
+                    raise WorldError("Enable elapsed task tracking before the first job.")
+            elif run["status"] != "pending":
                 raise WorldError("Enable task tracking before starting a new run.")
             await conn.execute("INSERT INTO transfer_task_tracking VALUES (%s)", (run_id,))
 
@@ -116,6 +129,7 @@ class TransferTaskService:
         request: TransferTaskRequest,
         *,
         connection=None,
+        clock_job_id=None,
     ):
         """Trusted typed owner instruction; never an assistant HTTP operation."""
         payload = {"owner_message_id": str(owner_message_id), **request.model_dump(mode="json")}
@@ -123,7 +137,16 @@ class TransferTaskService:
             run = await self.world._run(conn, run_id)
             if prior := await self._prior(conn, run_id, owner_id, request_id, payload):
                 return prior
-            self.world._active(run)
+            if clock_job_id is not None:
+                if connection is None or run["status"] != "paused":
+                    raise WorldError("Elapsed owner tasks require their Director transaction.", 403)
+                from agentrpg.clock_runtime import actor_task_context
+
+                await actor_task_context(
+                    conn, run_id, owner_id, owner_message_id, request_id, request, clock_job_id
+                )
+            else:
+                self.world._active(run)
             if not await self.enabled(conn, run_id):
                 raise WorldError("Transfer task tracking is not enabled.")
             message = await row(
@@ -250,10 +273,26 @@ class TransferTaskService:
     async def update(self, run_id, owner_id, request_id, kind, arguments):
         payload = {"kind": kind, **arguments.model_dump(mode="json")}
         async with self._connection() as conn:
+            from agentrpg.clock_runtime import lock_profile, tool_context
+
+            elapsed = await lock_profile(conn, run_id)
             run = await self.world._run(conn, run_id)
             if prior := await self._prior(conn, run_id, owner_id, request_id, payload):
                 return prior
-            self.world._active(run)
+            if elapsed:
+                try:
+                    await tool_context(
+                        conn,
+                        run_id,
+                        owner_id,
+                        "defer_transfer_task" if kind == "defer" else "complete_transfer_task",
+                        arguments.model_dump(mode="json"),
+                        request_id,
+                    )
+                except DirectorError as error:
+                    raise WorldError(str(error), 403) from None
+            else:
+                self.world._active(run)
             task = await self._task(conn, run_id, owner_id, arguments.task_id)
             if task["status"] in {"completed", "cancelled"}:
                 raise WorldError("This task is already terminal.")

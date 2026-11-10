@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-09",
+  "kind": "retained_component_diagnostics",
+  "original_run_id": "6c62b8b9-9d2c-45f0-a428-50afa47c8f89",
+  "models": {
+    "actor": "openai/gpt-4.1",
+    "reviewer": "openai/gpt-4.1"
+  },
+  "original_models_prompt_strings_review_gates_and_one_repair_unchanged": true,
+  "protocol_changes": "Opt-in required tracked task key, atomic task/consent input and complete open/cancel generation shapes. Native validation and semantic gates remain strict.",
+  "diagnostics": {
+    "15": {
+      "source_hash": "456964825764698ca580c9bb4c47636add0e048afec73beda740d73fc6c5252c",
+      "failure_kind": "ActorContractError",
+      "logical_requests": 3,
+      "confirmed_cost_usd": "0.0316140000",
+      "world_effects_applied": false,
+      "original_output_replaced": false,
+      "diagnostic_not_a_world_resume": true
+    },
+    "16": {
+      "source_hash": "d53cdff21f3b1b5e6948f835dd2b0be92affb81edfed3db8bbf48501cfe9e215",
+      "failure_kind": "ActorContractError",
+      "logical_requests": 2,
+      "confirmed_cost_usd": "0.0176680000",
+      "world_effects_applied": false,
+      "original_output_replaced": false,
+      "diagnostic_not_a_world_resume": true
+    },
+    "17": {
+      "source_hash": "f15e23ce93c9fc5332da8feeede6f12c8b2b7fac79f16b32afb21fc2f61b73b3",
+      "failure_kind": null,
+      "logical_requests": 2,
+      "confirmed_cost_usd": "0.0304180000",
+      "world_effects_applied": false,
+      "original_output_replaced": false,
+      "diagnostic_not_a_world_resume": true
+    }
+  },
+  "latest_pass": true,
+  "latest_pass_first_generation": true,
+  "world_effects_applied": false,
+  "full_world_retest_pending": true,
+  "private_evidence": ".local/clock-runtime/actor-schema-diagnostic-v17.json"
+}

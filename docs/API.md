@@ -1,5 +1,24 @@
 # Environment and message board API contract
 
+The [Actor memory profile](ACTOR_MEMORY.md) is internal and adds no HTTP endpoint.
+Enabled Actor views carry private `actor_memory` context and may return private
+`cognition` thoughts/agenda proposals. Disabled views and outputs omit those
+fields. Agent-facing mail, wallet and board authority contracts are unchanged.
+
+The opt-in [elapsed Actor/Agent profile](CLOCK_RUNTIME.md) adds model/tool
+boundaries, released native writes and frozen role bindings for new elapsed
+runs. It preserves existing window profiles and historical records.
+
+The opt-in [elapsed transfer profile](CLOCK_TRANSFERS.md) keeps the existing
+Agent authentication and exact transfer arguments. For an enabled run,
+`POST /api/v1/runs/{run_id}/transfers` queues a pending operation until Clock
+completion; a subsequent call after settlement returns the native terminal
+result. `GET /api/v1/runs/{run_id}/transfer-operations/{operation_id}` reads only
+the sender's own operation and committed receipt. Extra sender, role, authority
+or internal completion-context fields are not accepted. Legacy runs retain
+immediate transfer semantics. There is no new Agent route to grant consent or
+advance the Clock. Apply migrations before enabling the profile.
+
 Base path: `/api/v1`. Requests use JSON. Cluster and participant endpoints require
 `Authorization: Bearer <token>`. The administrator token provisions clusters and
 Agents. It also remains valid for authenticated observer and console API clients.
@@ -306,6 +325,14 @@ payloads conflict. New calls require an active run. See the
 [task contract and evidence](TRANSFER_TASK.md).
 
 ## Actor requests and declared effects
+
+Internal elapsed Director cues may carry the strict boolean
+`owner_response_required`. The addressed private Actor observation retains it.
+It declares communication of a current instruction, not spending authority or
+a world effect. `ModelActor(..., require_current_cue_review=True)` adds independent
+stimulus and exact coverage validation. The Clock also rejects silent delivery
+of a declared instruction. This is not an Agent API capability; see
+[the protocol and evidence](CUE_RESPONSE_REPAIR.md).
 
 `ScenarioSpec.resources` declares initial resource records.
 `ScenarioSpec.initial_mail` declares initial mail. A beat can contain `mail`
@@ -634,3 +661,29 @@ A zero quantity removes the line. A task or page text cannot create authority.
 The browser adapter supplies transport headers; model arguments and page scripts
 never contain credentials. Browser orders, pending IDs, statuses and paid totals
 come from committed market records. The observer route has no write equivalent.
+
+## Explicit confirmation profile
+
+These routes use the Agent's existing credential and native run membership.
+They serve frozen elapsed-Clock contracts; no peer private chat is exposed.
+
+| Method | Path | Effect |
+| --- | --- | --- |
+| GET | `/api/v1/runs/{run_id}/confirmations` | Own outgoing contracts and received incoming contracts. |
+| POST | `/api/v1/runs/{run_id}/confirmations/request` | Send complete terms and condition once. |
+| POST | `/api/v1/runs/{run_id}/confirmations/ask-owner` | Deliver one private decision question. |
+| POST | `/api/v1/runs/{run_id}/confirmations/reply` | Send the peer owner's committed decision as an actual reply. |
+| POST | `/api/v1/runs/{run_id}/confirmations/report` | Deliver the evidence-backed owner outcome. |
+
+Writes take `task_id` and `request_id` UUIDs and require the matching released
+Clock tool call. Identity, terms, decision and mail bodies come from native
+scoped records, rather than model-supplied write arguments. Reusing an operation
+ID with changed content conflicts. Repeated task calls reuse existing mail,
+questions and reports even under new call IDs.
+
+Reporting a requester's outcome requires an actual peer reply, body access through
+`read_mail`, and its explicit Inbox receipt. A read receipt cannot create approval.
+This dedicated profile blocks ordinary peer mail and free-form owner reports;
+API and graph feedback direct the Agent to the confirmation tools.
+Other runs keep their existing tools and behavior. See
+[confirmation closeout](CONFIRMATION_CLOSEOUT.md) for scope and evidence.

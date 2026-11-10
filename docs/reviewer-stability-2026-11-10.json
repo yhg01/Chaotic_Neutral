@@ -1,0 +1,32 @@
+{
+  "checked_at": "2026-11-10T00:53:42.358701+00:00",
+  "status": "six_spaced_first_attempt_reviews_passed",
+  "same_source_hash_before_scene_extension": "4896bcf9f65dd314f9e5f380763efa3028a7e299bd3ac387afa6cf8b4d0e8d92",
+  "logical_reviews": 6,
+  "actual_http_attempts": 6,
+  "schema_valid_reviews": 6,
+  "embedded_errors": 0,
+  "transport_retries": 0,
+  "minimum_interval_seconds": 30,
+  "added_reported_usd": "0.0381920000",
+  "new_unknown_exposure_usd": "0",
+  "same_campaign": {
+    "id": "635aa42e-386f-43dc-b679-b73cd0cd276f",
+    "limit_usd": "20",
+    "reported_usd": "13.3657686396",
+    "uncertain_usd": "2.823346400000",
+    "committed_usd": "16.189115039600",
+    "remaining_usd": "3.810884960400"
+  },
+  "all_api_files_unchanged": true,
+  "frozen_reviewer_file_hashes": {
+    "src/agentrpg/actor.py": "f22b17841e44517c553d1ab69597d72c7a6156df3046efcd7805dcc98e149881",
+    "src/agentrpg/agent_model.py": "c037819579ce9c2c87351c1d41fd9c0cd3ee81b34099d3f8cf262e7b073a92fc",
+    "src/agentrpg/budget.py": "936a524f98103aaff8549d743e85d58fae87697b4c9094994468873463da4518",
+    "docs/clock-runtime-model-baseline.json": "cedbb3a135712c705056b8f0b15e21ae81490c8f340d468b11c86ed65399c00b"
+  },
+  "private_evidence_directory": ".local/reviewer-502-diagnostics/9a317de9e4054945bc031ea33caad086",
+  "bounded_health_check_not_long_term_reliability": true,
+  "world_effects": false,
+  "seven_day_started": false
+}

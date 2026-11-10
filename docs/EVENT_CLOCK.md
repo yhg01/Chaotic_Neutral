@@ -367,7 +367,22 @@ stated balance that differs from the account is asked again once. A person pays 
 `try_to_make_happen`, and the Director answers with `pay_bills`. Code checks that the bill is theirs,
 open and covered. Clocked summaries keep no history file, because the library wrote it during the model
 step and a failed summary then ended the task with no answer. A cut-off summary stands. Summaries start
-at 60,000 tokens and keep 20,000. Assistant replies may use 4,000 tokens, and a task may use 40 model calls.
+at 60,000 tokens and keep 20,000. Assistant replies may use 4,000 tokens. A task may use 40 model calls
+in the bill week and 60 in the five-lives week.
+
+The five-lives runs of 8 to 10 November found more faults:
+
+- The clocked summarizer used a different middleware name, so the library added its own as well. The
+  second one cut an already shortened list, and the model saw only the summary, without its latest
+  messages. Commit `91e2582` names it `SummarizationMiddleware`, so it replaces the library's. In
+  run4 to run6, 14 to 21% of assistant tasks reached the call limit before the fix and 1 to 4% after.
+  The later part is also the end of the week, so this is not a controlled comparison.
+- A summary reads at most 400,000 characters of the history it replaces, marked "[Earlier messages
+  are left out.]". A routed model's byte bound above its context limit is clamped to the limit.
+- Two model calls before the call limit, the assistant is asked to report to its owner and end its
+  turn. A reply cut off at the output limit is retried once with a note to send a shorter version.
+- `scripts/raise_campaign_ceiling.py` raises one run's ceiling. It only raises, and refuses a
+  halted campaign or a wrong old limit.
 
 ## Limits stated plainly
 
@@ -375,7 +390,8 @@ Determinism holds given the same saved model outputs and seed; fresh paid runs d
 models differ. Tool calls of one run execute one at a time. Actual overlap of model calls
 is unmeasured until the runs. Branching from clocked runs is not implemented.
 
-Replies that reach the output limit still abandon tasks after three tries, and the cause is not
-established. Quillmere reminders are timeline items, so they go out after the bill is paid. Some owner
+Replies that reach the output limit can still abandon tasks after the retries, and the cause is not
+established. Owner models often state an approval in prose without the typed field, so bookings and
+payments that need it fail; the five-lives Director then used off-system routes such as cash. Quillmere reminders are timeline items, so they go out after the bill is paid. Some owner
 spending stays in prose, so balances are upper limits. A failed job saves a class and a place, or a
 fixed sentence, and no model text, so a cut-off reply cannot be read afterwards.

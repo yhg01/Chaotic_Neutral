@@ -159,7 +159,7 @@ async def test_model_actor_and_reviewer_see_same_memory_with_no_extra_call(pool)
             }
         ]
     )
-    reviewer = Responses([{"accepted": True, "issues": []}])
+    reviewer = Responses([{"accepted": True, "issues": [], "private_planning_respected": True}])
     delegate = ModelActor(model, reviewer=reviewer, max_repairs=0)
     actor = RememberingActor(store, run, "alice", delegate)
     original = await actor.respond(view)
@@ -312,7 +312,9 @@ async def test_lost_accepted_response_replays_review_and_tokens_without_new_gene
             }
         ]
     )
-    reviewer = MeteredResponses([{"accepted": True, "issues": []}])
+    reviewer = MeteredResponses(
+        [{"accepted": True, "issues": [], "private_planning_respected": True}]
+    )
     delegate = ModelActor(model, reviewer=reviewer, max_repairs=0)
     original = store.accept
 

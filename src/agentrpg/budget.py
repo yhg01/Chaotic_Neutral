@@ -184,8 +184,9 @@ async def fetch_model_prices(models, *, client: httpx.AsyncClient | None = None)
 
 
 class CampaignLedger:
-    def __init__(self, pool):
+    def __init__(self, pool, *, expected_limit_usd=None):
         self.pool = pool
+        self.expected_limit_usd = None if expected_limit_usd is None else amount(expected_limit_usd)
 
     async def ensure_campaign(self, campaign_id, limit_usd, *, name="Environment test"):
         campaign_id = UUID(str(campaign_id))
@@ -233,6 +234,11 @@ class CampaignLedger:
             ).fetchone()
             if campaign is None or campaign["halted"]:
                 raise BudgetExceeded("The model campaign is absent or halted.")
+            if (
+                self.expected_limit_usd is not None
+                and campaign["limit_usd"] != self.expected_limit_usd
+            ):
+                raise BudgetExceeded("The saved campaign ceiling changed after runner startup.")
             if max_role_attempts is not None:
                 used = await (
                     await conn.execute(

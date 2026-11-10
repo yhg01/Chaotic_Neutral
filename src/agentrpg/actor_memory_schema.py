@@ -1,5 +1,6 @@
 """Private Actor cognition; intentions and inferences never authorize world effects."""
 
+import re
 from datetime import date
 from typing import Literal, Self
 from uuid import UUID
@@ -66,6 +67,13 @@ class CognitionUpdate(Contract):
 
 
 def validate_cognition(context, update):
+    for requirement in (context or {}).get("required_agendas", []):
+        expected = DailyAgenda.model_validate(requirement["agenda"])
+        if update is None or expected not in update.agendas:
+            raise ValueError(
+                f"Current cue {requirement['cue_id']} requires its exact private agenda for "
+                f"{expected.day.isoformat()} in cognition.agendas. Dialogue cannot satisfy it."
+            )
     if update is None:
         return
     if not context or context.get("protocol") != MEMORY_PROTOCOL:
@@ -82,3 +90,23 @@ def validate_cognition(context, update):
     for agenda in update.agendas:
         if agenda.day.isoformat() not in context["planning_days"]:
             raise ValueError("Agenda revisions are limited to the current or next UTC day.")
+
+
+def mentions_private_cognition(text: str, *, actor_speaking: bool) -> bool:
+    """Catch explicit internal identifiers and the known role-confused phrasing."""
+    target = (
+        r"\b(?:actor_memory|cognition\.(?:agendas|thoughts)|cognition agenda|"
+        r"actor[- ]private (?:agenda|planning|memory))\b"
+    )
+    pronoun = "your" if actor_speaking else "my"
+    target += rf"|\b{pronoun} own (?:private|internal) (?:agenda|planning state)\b"
+    if actor_speaking:
+        return bool(re.search(target, text, re.I))
+    return bool(
+        re.search(
+            r"\b(?:updated|revised|saved|noted|recorded|created|maintained|changed)\b"
+            r"[^.!?\n]{0,220}(?:" + target + ")",
+            text,
+            re.I,
+        )
+    )

@@ -15,10 +15,16 @@ from uuid import UUID, uuid5
 from fastapi.encoders import jsonable_encoder
 from psycopg.types.json import Jsonb
 
-from agentrpg.actor import ActorOutput, ActorView, validate_current_cue_dialogue
+from agentrpg.actor import (
+    ActorOutput,
+    ActorView,
+    validate_actor_cognition,
+    validate_current_cue_dialogue,
+)
 from agentrpg.actor_memory_schema import (
     MEMORY_PROTOCOL,
     CognitionUpdate,
+    DailyAgenda,
     MemoryProfile,
     validate_cognition,
 )
@@ -36,7 +42,9 @@ POLICY = (
     "from a memory. You may use the current Actor response to propose evidence-linked "
     "thoughts and today's or tomorrow's UTC agenda in cognition. An empty agenda "
     "explicitly replaces that day's previous intention. No extra call is needed. "
-    "Respond to the actual owner cue first; planning does not require extra dialogue. "
+    "Keep private planning separate from owner dialogue. A required_agendas entry belongs "
+    "only in cognition.agendas; never ask the assistant to maintain its own private cognition. "
+    "A genuine request to update your file remains owner dialogue. "
     "An elapsed slot is unverified, not completed. Existing Clock events alone wake you."
 )
 
@@ -87,7 +95,7 @@ class ActorMemoryStore:
     def binding(self):
         return {"protocol": MEMORY_PROTOCOL, "configuration_hash": self.configuration_hash}
 
-    async def enable(self, run_id):
+    async def enable(self, run_id, *, require_existing=False):
         """Enable only a new elapsed world; old runs are never retrofitted."""
         run_id = UUID(str(run_id))
         async with DirectorClock(self.pool)._locked(run_id) as (conn, binding, clock, run):
@@ -98,6 +106,8 @@ class ActorMemoryStore:
                 if existing["configuration_hash"] != self.configuration_hash:
                     raise ClockConflict("The Actor memory profile is frozen.")
                 return self.binding
+            if require_existing:
+                raise DirectorError("The saved Actor memory profile is missing on resume.")
             if clock["now_seconds"] or await row(
                 conn, "SELECT 1 FROM director_clock_jobs WHERE run_id=%s", (run_id,)
             ):
@@ -193,8 +203,8 @@ class ActorMemoryStore:
                     "Private cognition differs from the saved accepted Actor output."
                 )
             output = ActorOutput.model_validate(saved["accepted_output"])
+            validate_cognition(saved["context"], output.cognition)
             update = output.cognition or CognitionUpdate()
-            validate_cognition(saved["context"], update)
             now = saved["applied_at_seconds"]
             for index, thought in enumerate(update.thoughts):
                 await self._remember(
@@ -316,6 +326,16 @@ class ActorMemoryStore:
                     (now, memory["id"]),
                 )
             today = datetime.fromisoformat(job["input"]["simulated_at"]).date()
+            required_agendas = {}
+            for event in job["input"]["notifications"]:
+                if event["kind"] != "private_cue" or "private_agenda" not in event["payload"]:
+                    continue
+                agenda = DailyAgenda.model_validate(event["payload"]["private_agenda"])
+                if agenda.day not in {today, today + timedelta(days=1)}:
+                    raise DirectorError(
+                        "A required agenda must be for the current or next UTC day."
+                    )
+                required_agendas[agenda.day] = {"cue_id": event["event_key"], "agenda": agenda}
             plans = await rows(
                 conn,
                 "SELECT DISTINCT ON (day) * FROM actor_agendas WHERE run_id=%s AND owner_id=%s "
@@ -346,6 +366,11 @@ class ActorMemoryStore:
                     "agendas": plans,
                     "planning_days": [today.isoformat(), (today + timedelta(days=1)).isoformat()],
                     "planning_needed": not any(p["day"] == today for p in plans),
+                    **(
+                        {"required_agendas": list(required_agendas.values())}
+                        if required_agendas
+                        else {}
+                    ),
                     "thought_ttl_limit_seconds": self.profile.thought_ttl_limit_seconds,
                     "allowed_evidence": [
                         "request",
@@ -379,7 +404,7 @@ class ActorMemoryStore:
             )
             if not saved or digest(view.actor_memory) != saved["context_hash"]:
                 raise DirectorError("Actor cognition requires its frozen private context.")
-            validate_cognition(saved["context"], output.cognition)
+            validate_actor_cognition(view, output)
             data = output.model_dump(mode="json")
             if saved["accepted_output"] is not None:
                 if saved["accepted_output"] != data:

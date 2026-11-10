@@ -30,7 +30,9 @@ omits key values and account-wide billing totals. Use a funded account: a second
 key on the same low-balance account shares that balance.
 
 Provider credit is separate from the same cumulative application campaign,
-`635aa42e-386f-43dc-b679-b73cd0cd276f`. Its user-approved ceiling is USD20. All prior
+`635aa42e-386f-43dc-b679-b73cd0cd276f`. The tests below used the prior USD20
+ceiling. The current USD25 ceiling is checked by the
+[public runner](CLOCK_RUNNER_MEMORY_REPAIR.md). All prior
 reported fees and unknown reservations remain. Each actual Actor, reviewer or
 personal request reserves against that same ledger before transmission. A funded
 new account does not authorize a higher campaign ceiling or a seven-day launch.
@@ -52,7 +54,7 @@ across all roles and two native mails. See the
 [rehearsal report](DAILY_MEETING_REHEARSAL.md). This is a smaller profile, not
 completion of the older three-person four-cue calibration or a long-term API
 availability guarantee. Model and API configuration remained unchanged. The
-same cumulative ceiling is USD20. The later user-authorized
+same cumulative ceiling at this stage was USD20. The later user-authorized
 [seven-day run](SEVEN_DAY_SIMPLIFIED_RESULTS.md) reached its Clock horizon with
 all 76 requests reported and no new unknown cost, but missed effective daily
 requests at the Actor/review stage. API authentication and runtime completion

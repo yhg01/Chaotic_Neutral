@@ -18,10 +18,12 @@ its three checks: expiry filtering, replanning and store/client recreation.
 The subsequent full Actor/Agent short test closes the real file-update workflow,
 but strict planning fidelity fails. Keep this distinction in reports.
 
-The current runtime fingerprint is source-v30:
+The two prior paid probes used source-v30:
 `0a238c1737a7cd578f39f0f94c605f098d9999c6f11835fcbfd131672b6abfb8`.
-The latest two paid probes use this same runtime source. Publication adds this
-handoff and shareable protocol/transcript records; it does not change that code.
+The [public runner and private agenda repair](CLOCK_RUNNER_MEMORY_REPAIR.md)
+is a later source revision verified with supplied responses. It adds a USD25
+existing-ledger check, an opt-in memory switch and a typed private agenda
+contract. The prior model evidence retains its original fingerprint and result.
 
 ## Ownership and execution flow
 
@@ -90,12 +92,12 @@ Nineteen native functional checks pass. Strict acceptance is **false**:
 3. Both assistant reports add an unsupported claim about their own cognition
    agenda. The file changes are verified; that additional state claim is not.
 
-The current reviewer accepts these outputs. Review must inspect the required
-structured fields and the Actor/Agent boundary, not only cue words in dialogue.
-The next work should first reproduce these exact failures with free supplied
-responses, separate private planning requirements from owner speech, and reject
-missing structured plans or unsupported completion claims. Preserve the original
-failed evidence. Do not silently fill in model output or rewrite old messages.
+The reviewer in the prior model run accepted these outputs. The follow-up
+[repair](CLOCK_RUNNER_MEMORY_REPAIR.md) separates private agenda requirements
+from owner speech, validates structured output and checks the independent review.
+It reproduces the failures with supplied responses and blocks the unsupported
+claims before delivery. The original findings remain; real-model retesting
+and strict live acceptance are still open.
 
 Shareable inputs and original dialogue are included:
 
@@ -173,9 +175,10 @@ uv run python scripts/test_local.py
 
 `TEST_DATABASE_URL`, when supplied, must identify a distinct database with `test`
 in its name. Fixtures create and remove only their owned schemas. No live model
-experiment is part of those checks. The PR's fresh full regression passes **1489 tests in 366.20 seconds**, with
-zero failures, errors or skips. Its isolated instance was removed and the native
-campaign stayed unchanged. See [pr-handoff-validation.json](pr-handoff-validation.json).
+experiment is part of those checks. The original PR snapshot passed 1489 free tests; its
+[validation record](pr-handoff-validation.json) remains. The current repair passes
+**1501 free tests**, with zero failures, errors or skips. See the
+[repair verification](clock-runner-memory-repair-results.json).
 
 Focused free coverage is available in `test_simulation_clock.py`,
 `test_director_clock.py`, `test_clock_transfers.py`, `test_clock_runtime.py`,
@@ -185,14 +188,10 @@ without credentials or generation; it does not launch the experiment.
 
 ## Operational gaps and stop conditions
 
-- `scripts/run_clock_actors.py` still declares the historical USD20 ceiling.
-  The later USD25 resumes/probes used private operator drivers. Do not assume
-  this CLI can resume the current USD25 campaign without reconciling its frozen
-  configuration and budget checks. Do not change a ceiling merely to make it run.
-- Memory is opt-in through `ActorMemoryStore` and `RememberingActor`; the public
-  paid CLI does not enable it by default. The exact latest paid probe drivers
-  remain under ignored `.local/`; their hashes and public input definitions are
-  recorded. A clean clone has free controls, not those private operators/run IDs.
+- The public runner now checks the same existing USD25 campaign and supports
+  `--actor-memory`. A conflicting budget or memory mode on resume is rejected.
+  The older paid probes used frozen private drivers. Their old source and
+  configuration still apply; a clean clone does not contain their run database.
 - The memory retriever is lexical and local. There is no embedding service,
   Director-wide log RAG, automatic day-plan wakeup or activity-completion engine.
   Agendas remain intentions. The elapsed profile does not support every legacy
@@ -223,7 +222,7 @@ chain retains prior costs, unsuccessful attempts and source snapshots 1–30.
 Public reports contain evidence hashes and local locations, not a portable copy
 of those runtime databases. A fresh clone cannot open their localhost run links.
 
-After the local fidelity fix, reassess a bounded same-configuration paid retest
+With the local fidelity fix verified, reassess a bounded same-model paid retest
 against the current ledger and explicit execution scope. Only then consider
 mixed-scene calibration and a separately authorized seven-day experiment. Do
 not treat a merged PR, a reached Clock horizon or a correct file as proof of

@@ -17,7 +17,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import Field, ValidationError, create_model, model_validator
 
 from agentrpg.activation import WaitEvent
-from agentrpg.actor_memory_schema import CognitionUpdate, validate_cognition
+from agentrpg.actor_memory_schema import (
+    CognitionUpdate,
+    mentions_private_cognition,
+    validate_cognition,
+)
 from agentrpg.agent_model import (
     LocalChatOpenRouter,
     ProviderCallError,
@@ -316,14 +320,17 @@ def _candidate_schema(
         "ScopedActorCandidate", __base__=ActorCandidate, fact_ids=(annotation, field)
     )
     if view.actor_memory is not None:
+        required = bool(view.actor_memory.get("required_agendas"))
         candidate = create_model(
             "RememberingActorCandidate",
             __base__=candidate,
             cognition=(
-                CognitionUpdate | None,
+                CognitionUpdate if required else CognitionUpdate | None,
                 Field(
-                    default=None,
-                    description="Optional private reflection and current/next-day UTC agenda. "
+                    default=... if required else None,
+                    description="Private reflection and current/next-day UTC agenda. "
+                    "Include the exact agendas in view.actor_memory.required_agendas, if present. "
+                    "Keep private planning out of the spoken request. "
                     "Use only "
                     "view.actor_memory.allowed_evidence. These are fallible thoughts and "
                     "intentions, never receipts, consent or completed activity. No extra call "
@@ -749,6 +756,22 @@ def validate_current_cue_dialogue(view: ActorView, output: ActorOutput) -> None:
         raise ActorContractError("A declared current Director instruction requires owner dialogue.")
 
 
+def validate_actor_cognition(view: ActorView, output: ActorOutput) -> None:
+    try:
+        validate_cognition(view.actor_memory, output.cognition)
+    except ValueError as error:
+        raise ActorContractError(str(error)) from None
+    if (
+        view.actor_memory is not None
+        and output.kind != "wait"
+        and mentions_private_cognition(output.text, actor_speaking=True)
+    ):
+        raise ActorContractError(
+            "Keep private Actor cognition in its structured field. Speak only the owner's "
+            "actual request; do not delegate the Actor's private planning to the assistant."
+        )
+
+
 def validate_actor_output(
     view: ActorView,
     output: ActorOutput,
@@ -758,10 +781,7 @@ def validate_actor_output(
 ) -> ActorOutput:
     from agentrpg.confirmations import validate_actions
 
-    try:
-        validate_cognition(view.actor_memory, output.cognition)
-    except ValueError as error:
-        raise ActorContractError(str(error)) from None
+    validate_actor_cognition(view, output)
 
     try:
         validate_actions(view, output)
@@ -1678,7 +1698,9 @@ class ModelActor:
                     CurrentCueStimulusReview,
                     CURRENT_CUE_STIMULUS_PROMPT,
                     {
-                        "view": view.model_dump(mode="json", exclude={"source_event_id"}),
+                        "view": view.model_dump(
+                            mode="json", exclude={"source_event_id", "actor_memory"}
+                        ),
                         "current_cues": [o.model_dump(mode="json") for o in cues],
                         "repair_reason": error,
                     },
@@ -2164,6 +2186,24 @@ class ModelActor:
                                 ),
                             ),
                         )
+                    if view.actor_memory is not None:
+                        review_schema = create_model(
+                            "ActorPrivatePlanningFidelityReview",
+                            __base__=review_schema,
+                            private_planning_respected=(
+                                bool,
+                                Field(
+                                    description=(
+                                        "Check required_agendas against "
+                                        "candidate.cognition.agendas "
+                                        "as structured data, never against spoken dialogue. Reject "
+                                        "delegation of private Actor planning or endorsement of an "
+                                        "unsupported assistant claim of private cognition. "
+                                        "Requests to update the owner's workspace are permitted."
+                                    )
+                                ),
+                            ),
+                        )
                     review_candidate = output.model_dump(mode="json")
                     if delivery is not None and not delivery["owner_dialogue_emitted"]:
                         # Review the actual delivered dialogue. Retain the raw
@@ -2188,6 +2228,11 @@ class ModelActor:
                         timeout_seconds=self.timeout_seconds,
                         usage=self.usage,
                     )
+                    if view.actor_memory is not None and not review.private_planning_respected:
+                        raise ActorContractError(
+                            "Independent review rejected private planning. Supply any required "
+                            "structured agenda and keep private planning out of delegated speech."
+                        )
                     if view.confirmations.get("enabled") and not (
                         review.confirmation_actions_match_dialogue
                         and review.confirmation_conditions_preserved

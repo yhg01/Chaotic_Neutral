@@ -160,10 +160,12 @@ uv run python scripts/run_clock_actors.py \
 ```
 
 The runner requires the existing cumulative campaign
-`635aa42e-386f-43dc-b679-b73cd0cd276f` and its user-approved USD 20 ceiling. It does not create
-another campaign or reset historical/uncertain exposure. Every actual provider
-attempt reserves against the same ledger. Model roles use their separate
-configured keys. Credentials are never written into a provider-run report.
+`635aa42e-386f-43dc-b679-b73cd0cd276f` and its stored ceiling, currently USD25.
+`--budget-usd` checks that ceiling and cannot change it. `--actor-memory` opts
+in to the private agenda profile for new runs. See
+[runner configuration](CLOCK_RUNNER_MEMORY_REPAIR.md). Every actual provider
+attempt reserves against the same ledger, retaining historical and uncertain
+charges. The model roles use their separate configured keys; reports omit them.
 
 Each invocation exports `trajectory.json`, readable `trajectory.md`, native
 records, latest graph state, review diagnostics, source/configuration identities,

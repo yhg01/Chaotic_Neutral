@@ -137,8 +137,11 @@ await runtime.enable(run_id, frozen_operator_configuration)
 ```
 
 Provider models, API clients and budget bindings remain the existing instances.
-The paid CLI does not select this profile by default. Any future paid experiment
-needs its own frozen configuration, affordability check and execution authority.
+The public CLI enables this profile explicitly with `--actor-memory` and
+preserves the saved mode on resume. See the
+[runner and private agenda contract](CLOCK_RUNNER_MEMORY_REPAIR.md). Any future
+paid experiment still needs its frozen configuration, affordability check and
+execution authority.
 
 After stopping a free control, export the existing Clock trajectory and
 `await store.export(run_id, directory)`. This adds a separate private

@@ -11,6 +11,9 @@ supports up to 15 Agents.
 
 Start with the [current handoff](docs/HANDOFF.md) for changes after upstream
 `098b142`, evidence, setup, budget, known fidelity failures and the next work.
+The [public Clock runner and agenda repair](docs/CLOCK_RUNNER_MEMORY_REPAIR.md)
+documents `--budget-usd`, `--actor-memory`, and the free regression for the
+private planning failures found in the earlier real-model run.
 
 The opt-in [Actor memory and agenda profile](docs/ACTOR_MEMORY.md) adds private
 bounded retrieval, persisted access history and revisable day plans through the

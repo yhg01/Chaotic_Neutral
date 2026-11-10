@@ -11,20 +11,24 @@ import json
 import os
 import time
 from contextlib import AsyncExitStack
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import httpx
 from dotenv import dotenv_values
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
+from pydantic import TypeAdapter, ValidationError
 
 from agentrpg.actor import CURRENT_CUE_REVIEW_PROTOCOL, ModelActor
+from agentrpg.actor_memory import ActorMemoryStore, RememberingActor
+from agentrpg.actor_memory_schema import DailyAgenda, MemoryProfile, mentions_private_cognition
 from agentrpg.actor_reviewer_config import load_actor_reviewer_api
 from agentrpg.agent_model import UsageTracker, create_model
 from agentrpg.agent_tools import BoardTools
-from agentrpg.budget import BudgetBinding, BudgetError, CampaignLedger, fetch_model_prices
+from agentrpg.budget import BudgetBinding, BudgetError, CampaignLedger, amount, fetch_model_prices
 from agentrpg.clock_evidence import export_clock_evidence
 from agentrpg.clock_runtime import ClockRuntime
 from agentrpg.clock_transfers import TimedTransfers
@@ -42,12 +46,12 @@ from agentrpg.main import create_app
 from agentrpg.migrate import migrate
 from agentrpg.personal_agent_config import load_personal_agent_api
 from agentrpg.scenario_schema import ScenarioSpec
-from agentrpg.simulation_clock import digest
+from agentrpg.simulation_clock import ClockContract, Schedule, digest
 from agentrpg.trial_audit import source_fingerprint
 
 ROOT = Path(__file__).resolve().parents[1]
 CAMPAIGN = UUID("635aa42e-386f-43dc-b679-b73cd0cd276f")
-CUMULATIVE_CEILING = Decimal("20")
+CUMULATIVE_CEILING = Decimal("25")
 PERSONAL_TRANSPORT = {"timeout_seconds": 120, "max_retries": 0}
 ELAPSED_INSTRUCTIONS = (
     "\nELAPSED CLOCK PROFILE. The world has an explicit simulated clock. Legacy current_window "
@@ -70,6 +74,11 @@ ELAPSED_INSTRUCTIONS = (
     "Use empty finish text when there is no new owner-facing information. Read actual new "
     "mail and board evidence, then decide whether further action is useful; never poll on "
     "empty time intervals."
+)
+PRIVATE_PLANNING_INSTRUCTIONS = (
+    "\nThe owner's private cognition is not an assistant tool. Handle actual owner requests "
+    "such as updating a workspace file; report only what you can verify from tool results. "
+    "Never claim to have changed a private cognition agenda."
 )
 GATES = (
     "require_mail_intent_review",
@@ -97,7 +106,15 @@ def compact_budget(value):
 
 
 def execution_configuration_hash(
-    baseline, personal, actor_reviewer=None, *, confirmation_short=False, daily_confirmation=None
+    baseline,
+    personal,
+    actor_reviewer=None,
+    *,
+    confirmation_short=False,
+    daily_confirmation=None,
+    ceiling=CUMULATIVE_CEILING,
+    memory_profile=None,
+    private_cues=(),
 ):
     return digest(
         {
@@ -111,10 +128,87 @@ def execution_configuration_hash(
             "personal_transport": PERSONAL_TRANSPORT,
             "native_task_binding_validation": "live-owner-task-v4-open-schema",
             "current_cue_review_protocol": CURRENT_CUE_REVIEW_PROTOCOL,
+            "campaign_ceiling_usd": usd(ceiling),
+            **(
+                {"actor_memory_profile": memory_profile.model_dump(mode="json")}
+                if memory_profile
+                else {}
+            ),
+            **({"private_cues": list(private_cues)} if private_cues else {}),
             **({"confirmation_control": control_manifest()} if confirmation_short else {}),
             **({"daily_confirmation": daily_confirmation} if daily_confirmation else {}),
         }
     )
+
+
+def usd(value):
+    return format(value.normalize(), "f")
+
+
+def runner_options(args, resume):
+    try:
+        requested = getattr(args, "budget_usd", None)
+        saved = amount(resume.get("ceiling_usd", "20")) if resume else CUMULATIVE_CEILING
+        ceiling = saved if requested is None else amount(requested)
+    except BudgetError:
+        raise SystemExit("--budget-usd must be a finite USD amount.") from None
+    if not 0 < ceiling <= CUMULATIVE_CEILING or ceiling != ceiling.quantize(
+        Decimal("0.000000000001")
+    ):
+        raise SystemExit("The cumulative budget must be positive and no greater than USD25.")
+    if resume and (ceiling != saved or resume.get("campaign_id") != str(CAMPAIGN)):
+        raise SystemExit("Keep the saved campaign and budget ceiling when resuming.")
+    memory_flag = getattr(args, "actor_memory", None)
+    if resume:
+        saved_profile = resume.get("actor_memory_profile")
+        if memory_flag is not None and memory_flag != (saved_profile is not None):
+            raise SystemExit("Keep the saved Actor memory mode when resuming.")
+        return ceiling, MemoryProfile.model_validate(
+            saved_profile
+        ) if saved_profile is not None else None
+    return ceiling, MemoryProfile() if memory_flag else None
+
+
+def load_private_cues(path, contract):
+    try:
+        cues = TypeAdapter(list[Schedule]).validate_json(path.read_bytes())
+        if not 1 <= len(cues) <= 100 or len({c.event_key for c in cues}) != len(cues):
+            raise ValueError("Use one to 100 unique cue keys.")
+        actors = {p.id for p in contract.processes if p.role == "actor"}
+        for cue in cues:
+            payload = cue.payload
+            if (
+                cue.kind != "private_cue"
+                or not set(cue.recipients) <= actors
+                or cue.at_seconds >= contract.horizon_seconds
+                or set(payload) - {"text", "owner_response_required", "private_agenda"}
+                or not isinstance(payload.get("text"), str)
+                or not payload["text"].strip()
+                or mentions_private_cognition(payload["text"], actor_speaking=True)
+                or type(payload.get("owner_response_required", False)) is not bool
+            ):
+                raise ValueError(
+                    "Cues must address Actor lanes within the horizon and use typed payloads."
+                )
+            if "private_agenda" in payload:
+                agenda = DailyAgenda.model_validate(payload["private_agenda"])
+                day = (contract.epoch + timedelta(seconds=cue.at_seconds)).date()
+                if agenda.day not in {day, day + timedelta(days=1)}:
+                    raise ValueError("A private agenda must be for the current or next UTC day.")
+        return tuple(c.model_dump(mode="json") for c in cues)
+    except (OSError, ValidationError, ValueError):
+        raise SystemExit(
+            "Invalid --private-cues file; check the documented cue contract."
+        ) from None
+
+
+def check_campaign(before, ceiling, *, for_execution):
+    if before["limit_usd"] != ceiling:
+        raise SystemExit(
+            "The existing campaign does not match --budget-usd; no ceiling was changed."
+        )
+    if for_execution and (before["halted"] or before["remaining_usd"] <= 0):
+        raise SystemExit("The existing cumulative campaign cannot fund a new invocation.")
 
 
 def create_role_models(personal, actor_reviewer, binding):
@@ -176,12 +270,62 @@ async def main(args):
             else (1 if daily_meeting or confirmation_daily else 2)
         ),
     )
-    if args.prepare:
-        args.prepare.parent.mkdir(parents=True, exist_ok=True)
-        args.prepare.write_text(
-            json.dumps(control_manifest() if confirmation_short else plan.manifest(), indent=2)
-            + "\n"
+    resume_path = getattr(args, "resume", None)
+    resume = json.loads(resume_path.read_text()) if resume_path else None
+    ceiling, memory_profile = runner_options(args, resume)
+    cue_path = getattr(args, "private_cues", None)
+    if cue_path and (resume or not args.scenario or plan.days != 1 or not memory_profile):
+        raise SystemExit(
+            "--private-cues requires a new --scenario with --days 1 and --actor-memory."
         )
+    spec = (
+        ScenarioSpec.model_validate_json(args.scenario.read_text())
+        if args.scenario and not resume
+        else control_spec()[0]
+        if confirmation_short
+        else plan.scene()
+    )
+    contract = plan.clock()
+    if confirmation_short:
+        contract = contract.model_copy(update={"horizon_seconds": 3600})
+    if args.scenario and not resume:
+        contract = ClockContract.model_validate(
+            {
+                **contract.model_dump(mode="json"),
+                "processes": [
+                    {"id": f"{r}-{o.id}", "owner_id": o.id, "role": r}
+                    for o in spec.owners
+                    for r in ("actor", "agent")
+                ],
+            }
+        )
+    private_cues = (
+        tuple(resume.get("private_cues", ()))
+        if resume
+        else load_private_cues(cue_path, contract)
+        if cue_path
+        else ()
+    )
+    candidate = control_manifest() if confirmation_short else plan.manifest()
+    if args.scenario and not resume:
+        candidate.update(
+            {
+                "scenario": spec.model_dump(mode="json"),
+                "clock": contract.model_dump(mode="json"),
+                "events": list(private_cues),
+            }
+        )
+    if args.prepare:
+        if resume:
+            raise SystemExit("--prepare is for new run configurations.")
+        prepared = dict(candidate)
+        prepared.update(
+            campaign_id=str(CAMPAIGN),
+            ceiling_usd=usd(ceiling),
+            actor_memory_profile=memory_profile.model_dump(mode="json") if memory_profile else None,
+        )
+        args.prepare.parent.mkdir(parents=True, exist_ok=True)
+        args.prepare.write_text(json.dumps(prepared, indent=2) + "\n")
         print("Prepared candidate only; no model calls: " + str(args.prepare.resolve()))
         return
     readiness = None
@@ -207,7 +351,7 @@ async def main(args):
             raise SystemExit("The daily confirmation profile needs its free seven-day control.")
         if readiness.get("campaign_id") != str(CAMPAIGN) or str(
             readiness.get("ceiling_usd")
-        ) != str(CUMULATIVE_CEILING):
+        ) != usd(ceiling):
             raise SystemExit("The readiness campaign or cumulative ceiling differs.")
         try:
             experiment_estimate = Decimal(str(readiness["estimated_remaining_experiment_usd"]))
@@ -220,7 +364,6 @@ async def main(args):
             "Supply --baseline-manifest for a new run, or --resume for its saved manifest."
         )
     env = {**dotenv_values(ROOT / ".env", interpolate=False), **os.environ}
-    resume = json.loads(args.resume.read_text()) if args.resume else None
     if resume and bool(resume.get("confirmation_control")) != confirmation_short:
         raise SystemExit("Keep the original confirmation profile when resuming this run.")
     if resume and bool(resume.get("daily_confirmation")) != confirmation_daily:
@@ -256,6 +399,9 @@ async def main(args):
         actor_reviewer,
         confirmation_short=confirmation_short,
         daily_confirmation=plan.manifest() if confirmation_daily else None,
+        ceiling=ceiling,
+        memory_profile=memory_profile,
+        private_cues=private_cues,
     )
     if readiness and readiness.get("execution_configuration_hash") != execution_hash:
         raise SystemExit("The readiness execution configuration differs.")
@@ -284,14 +430,15 @@ async def main(args):
             != resume["baseline_actor_hash"]
         ):
             raise SystemExit("The original Actor/reviewer configuration has changed.")
-    prices = await fetch_model_prices({personal.model, baseline["actor_model"]})
     settings = Settings()
     database_url = settings.database_url.get_secret_value()
+    async with AsyncConnectionPool(
+        database_url, min_size=1, max_size=2, kwargs={"row_factory": dict_row}
+    ) as pool:
+        before = await CampaignLedger(pool).summary(CAMPAIGN, recent_limit=0)
+    check_campaign(before, ceiling, for_execution=not args.preflight)
+    prices = await fetch_model_prices({personal.model, baseline["actor_model"]})
     if args.preflight:
-        async with AsyncConnectionPool(
-            database_url, min_size=1, max_size=2, kwargs={"row_factory": dict_row}
-        ) as pool:
-            before = await CampaignLedger(pool).summary(CAMPAIGN, recent_limit=0)
         report = {
             "execution_configuration_hash": execution_hash,
             "campaign": compact_budget(before),
@@ -304,8 +451,20 @@ async def main(args):
                 "model": actor_reviewer.model,
                 **actor_reviewer.manifest_fields(),
             },
-            "candidate": control_manifest() if confirmation_short else plan.manifest(),
+            "candidate": candidate
+            if not resume
+            else {
+                "run_id": resume["run_id"],
+                "scenario_hash": resume["scenario_hash"],
+                "plan": resume["plan"],
+                "private_cues": list(private_cues),
+            },
             "source_hash": source_hash,
+            "ceiling_usd": usd(ceiling),
+            "actor_memory_profile": memory_profile.model_dump(mode="json")
+            if memory_profile
+            else None,
+            "private_cues": list(private_cues),
         }
         save_private(args.preflight, report)
         print("Read-only budget preflight: " + str(args.preflight.resolve()))
@@ -313,17 +472,9 @@ async def main(args):
     await migrate(database_url)
     app = create_app(settings)
     async with app.router.lifespan_context(app), AsyncExitStack() as stack:
-        ledger = CampaignLedger(app.state.pool)
+        ledger = CampaignLedger(app.state.pool, expected_limit_usd=ceiling)
         before = await ledger.summary(CAMPAIGN, recent_limit=0)
-        if (
-            before["limit_usd"] != CUMULATIVE_CEILING
-            or before["halted"]
-            or before["remaining_usd"] <= 0
-        ):
-            raise SystemExit(
-                f"The existing cumulative USD {CUMULATIVE_CEILING} campaign "
-                "cannot fund a new invocation."
-            )
+        check_campaign(before, ceiling, for_execution=True)
         allow_budget_checkpoint = bool(
             confirmation_daily
             and readiness
@@ -340,32 +491,18 @@ async def main(args):
             manifest = resume
             run_id = UUID(manifest["run_id"])
         else:
-            spec = (
-                ScenarioSpec.model_validate_json(args.scenario.read_text())
-                if args.scenario
-                else control_spec()[0]
-                if confirmation_short
-                else plan.scene()
-            )
             manifest = await Director(app.state.pool).create_run(spec)
             run_id = UUID(manifest["run_id"])
-            contract = plan.clock()
-            if confirmation_short:
-                contract = contract.model_copy(update={"horizon_seconds": 3600})
-            if args.scenario:
-                contract = contract.model_copy(
-                    update={
-                        "processes": tuple(
-                            type(contract.processes[0])(id=f"{r}-{o.id}", owner_id=o.id, role=r)
-                            for o in spec.owners
-                            for r in ("actor", "agent")
-                        )
-                    }
-                )
-            await DirectorClock(app.state.pool).bind(run_id, contract, max_jobs=10000)
+            director_clock = DirectorClock(app.state.pool)
+            await director_clock.bind(run_id, contract, max_jobs=10000)
             await TimedTransfers(app.state.pool).enable(run_id)
             if not args.scenario and not args.no_chaos:
                 await install_community_events(app.state.pool, run_id, plan)
+            for value in private_cues:
+                cue = Schedule.model_validate(value)
+                await director_clock.control(
+                    run_id, uuid5(run_id, "private-cue:" + cue.event_key), cue
+                )
             manifest.update(
                 {
                     "source_hash": source_hash,
@@ -382,6 +519,13 @@ async def main(args):
                         }
                     ),
                     "campaign_id": str(CAMPAIGN),
+                    "ceiling_usd": usd(ceiling),
+                    **(
+                        {"actor_memory_profile": memory_profile.model_dump(mode="json")}
+                        if memory_profile
+                        else {}
+                    ),
+                    **({"private_cues": list(private_cues)} if private_cues else {}),
                     "no_chaos": args.no_chaos,
                     **({"confirmation_control": control_manifest()} if confirmation_short else {}),
                     "scenario_hash": spec.content_hash(),
@@ -395,9 +539,14 @@ async def main(args):
                     },
                 }
             )
+        store = ActorMemoryStore(app.state.pool, memory_profile) if memory_profile else None
+        if store:
+            await store.enable(run_id, require_existing=bool(resume))
         directory = ROOT / ".local/clock-model-runs" / str(run_id)
-        save_private(directory / "credentials.json", manifest)
-        print(f"Run: {run_id}\nResume: {directory / 'credentials.json'}", flush=True)
+        credentials = resume_path if resume else directory / "credentials.json"
+        if not resume:
+            save_private(credentials, manifest)
+        print(f"Run: {run_id}\nResume: {credentials}", flush=True)
         runtime = await stack.enter_async_context(AgentRuntime(database_url))
         binding = BudgetBinding(ledger, CAMPAIGN, prices)
         actors, agents = {}, {}
@@ -429,7 +578,8 @@ async def main(args):
                 instructions=baseline["instructions"]
                 + ELAPSED_INSTRUCTIONS
                 + (CONFIRMATION_INSTRUCTIONS if confirmations_enabled else "")
-                + (DAILY_CONFIRMATION_INSTRUCTIONS if confirmation_daily else ""),
+                + (DAILY_CONFIRMATION_INSTRUCTIONS if confirmation_daily else "")
+                + (PRIVATE_PLANNING_INSTRUCTIONS if store else ""),
                 max_model_calls=16,
                 timeout_seconds=240,
                 callbacks=[usage],
@@ -437,6 +587,7 @@ async def main(args):
                 guard_empty_scratch=True,
                 include_previous_activation_context=True,
                 guard_transfer_task_yield=True,
+                guard_actor_private_planning=store is not None,
             )
             actors[owner] = ModelActor(
                 actor_model,
@@ -449,13 +600,16 @@ async def main(args):
                 require_current_cue_review=True,
                 **{k: baseline.get(k, False) for k in GATES},
             )
+            if store:
+                actors[owner] = RememberingActor(store, run_id, owner, actors[owner])
         conductor = ClockRuntime(app.state.pool, actors=actors, agents=agents)
         await conductor.enable(
             run_id,
             {
                 "profile": "deepseek-personal-gpt41-actor-review-clock-v1",
                 "campaign_id": str(CAMPAIGN),
-                "ceiling_usd": str(CUMULATIVE_CEILING),
+                "ceiling_usd": usd(ceiling),
+                **({"actor_memory": store.binding} if store else {}),
                 "source_hash": source_hash,
                 "execution_configuration_hash": execution_hash,
                 "scenario_hash": manifest["scenario_hash"],
@@ -488,6 +642,8 @@ async def main(args):
             )
         finally:
             summary = await export_clock_evidence(app.state.pool, run_id, directory / invocation_id)
+            if store:
+                await store.export(run_id, directory / invocation_id)
             after = await ledger.summary(CAMPAIGN, recent_limit=0)
             summary.update(
                 {
@@ -502,7 +658,8 @@ async def main(args):
                     "actor_usage": {o: a.usage.summary() for o, a in actors.items()},
                     "campaign_before": compact_budget(before),
                     "campaign_after": compact_budget(after),
-                    "cumulative_ceiling_respected": after["committed_usd"] <= CUMULATIVE_CEILING,
+                    "cumulative_ceiling_respected": after["committed_usd"] <= ceiling,
+                    **({"actor_memory": store.binding} if store else {}),
                     "seven_day_medium_chaos_result": False,
                     "actor_and_reviewer_prompts_unchanged": True,
                     "actor_reviewer_configuration": {
@@ -542,6 +699,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepare", type=Path)
     parser.add_argument("--preflight", type=Path)
+    parser.add_argument("--budget-usd", help="Expected existing campaign ceiling (default: 25).")
+    parser.add_argument("--actor-memory", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--private-cues", type=Path, help="Typed cues for a one-day memory scene.")
     parser.add_argument("--baseline-manifest", type=Path)
     parser.add_argument("--resume", type=Path)
     parser.add_argument("--scenario", type=Path)

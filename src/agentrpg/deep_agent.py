@@ -108,6 +108,13 @@ class _ClockedSummarization(SummarizationMiddleware):
     then ends the task with no answer. The summary and the owner's records carry the past.
     """
 
+    @property
+    def name(self) -> str:
+        # The library adds its own summarizer unless one with this name is supplied. With two,
+        # the second applied the first's cutoff to an already shortened list, and the model
+        # saw only the summary, without the latest messages.
+        return "SummarizationMiddleware"
+
     def _offload_to_backend(self, backend, messages, session_id):
         return None
 

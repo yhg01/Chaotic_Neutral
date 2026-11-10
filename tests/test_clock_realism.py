@@ -1693,6 +1693,7 @@ class _LongSummaries(ScriptModel):
             )
             return ChatResult(generations=[ChatGeneration(message=message)])
         # A summary shortens the history, so the position in the script is counted here.
+        self.all_seen.append(list(messages))
         reply = self.script[self.step] if self.step < len(self.script) else end_turn()
         self.step += 1
         return ChatResult(generations=[ChatGeneration(message=reply)])
@@ -1911,3 +1912,41 @@ async def test_an_assistant_near_its_call_limit_is_told_to_wrap_up_and_reply(
             )
         ).fetchone()
     assert lost["n"] == 0
+
+
+async def test_one_summarizer_runs_and_the_model_keeps_its_latest_messages(
+    app, pool, test_database_url, monkeypatch, caplog
+):
+    import logging
+
+    import agentrpg.deep_agent as deep_agent
+
+    monkeypatch.setattr(deep_agent, "CLOCKED_SUMMARY_TOKENS", 400)
+    monkeypatch.setattr(deep_agent, "CLOCKED_SUMMARY_KEEP_TOKENS", 100)
+    caplog.set_level(logging.WARNING)
+    spec = scenario(("dan",), duration_minutes=180)
+    words = "A long message that fills the context of this assistant. " * 30
+    model = _LongSummaries(
+        script=[
+            calls(("send_owner_message", {"content": words})),
+            calls(("send_owner_message", {"content": words + "two"})),
+            calls(("send_owner_message", {"content": words + "three"})),
+            calls(("send_owner_message", {"content": "All done here."})),
+            end_turn(),
+        ]
+    )
+    async with clocked_run(
+        app,
+        test_database_url,
+        spec,
+        {"dan": model},
+        {"dan": ScriptedOwner([{"kind": "reply", "text": "Morning."}])},
+    ) as (engine, created, _runtime, _agents):
+        await engine.run(created["run_id"])
+    assert model.summary_calls >= 1
+    assert not [r for r in caplog.records if "exceeds message count" in r.getMessage()]
+    # Calls after a summary still carry the latest messages, not the summary alone.
+    later = [
+        seen for seen in model.all_seen if any("Dan needs $39" in str(m.content) for m in seen)
+    ]
+    assert later and all(len(seen) > 2 for seen in later)

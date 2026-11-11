@@ -1,4 +1,4 @@
-# agentRPG onboarding
+# Chaotic Neutral onboarding
 
 Status as of 11 November 2026. Part 1 is for people. Part 2 is for coding agents and the people
 who direct them.
@@ -7,9 +7,9 @@ who direct them.
 
 ## Part 1. For people
 
-### What agentRPG is
+### What Chaotic Neutral is
 
-- agentRPG is a local test bed for personal AI assistants that act for simulated people.
+- Chaotic Neutral is a local test bed for personal AI assistants that act for simulated people.
 - Each simulated person, an **owner** or **Actor**, is a cheap model. It talks to its own
   **assistant**, an **Agent**, in a private chat. It can also try things in the world, such as
   phoning the landlord.
@@ -151,6 +151,9 @@ Notes:
 ### Overview
 
 - Read Part 1 first.
+- The project is called Chaotic Neutral. The code still uses the old name `agentrpg` (the
+  package `src/agentrpg/`, `python -m agentrpg`, and the `agentRPG` folder names). Use Chaotic
+  Neutral in prose and docs. Do not rename the code or folders unless the user asks.
 - The main line is branch `event-clock`. Clocked runs go through:
   - `src/agentrpg/clock_engine.py`: the conductor;
   - `actor.py`: the owners;

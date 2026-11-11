@@ -181,7 +181,7 @@
       }
     } catch (exception) {
       if (id !== state.run || epoch !== state.controlEpoch) return;
-      if (exception.auth) { disconnect('Local access was denied. Open this page on the computer that runs agentRPG, then select Retry.'); return; }
+      if (exception.auth) { disconnect('Local access was denied. Open this page on the computer that runs Chaotic Neutral, then select Retry.'); return; }
       state.execution = null; state.boundaries = null; state.controlsError = exception.message;
       if (state.mode === 'live' && !state.pendingOperation) receipt(exception.message, true);
     } finally {
@@ -218,7 +218,7 @@
       }
     } catch (exception) {
       if (state.run !== id) return;
-      if (exception.auth) { disconnect('Local access was denied. Open this page on the computer that runs agentRPG, then select Retry.'); return; }
+      if (exception.auth) { disconnect('Local access was denied. Open this page on the computer that runs Chaotic Neutral, then select Retry.'); return; }
       if (!exception.uncertain) { state.operations.delete(request.signature); state.pendingOperation = null; }
       receipt(exception.message, true, !!exception.uncertain);
     } finally {
@@ -268,7 +268,7 @@
     }
     if (!response.ok) {
       const exception = new Error(response.status === 401 || response.status === 403
-        ? "Local access was denied. Open this page on the computer that runs agentRPG, then select Retry."
+        ? "Local access was denied. Open this page on the computer that runs Chaotic Neutral, then select Retry."
         : response.status === 404 ? "This run or turn is not available. Refresh the saved runs."
           : "This view could not load. Select Retry to try again.");
       exception.auth = response.status === 401 || response.status === 403;

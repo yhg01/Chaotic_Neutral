@@ -1,6 +1,6 @@
-# agentRPG
+# Chaotic Neutral
 
-agentRPG is a local environment for parallel personal Agents and their Actors.
+Chaotic Neutral is a local environment for parallel personal Agents and their Actors.
 The Director runs a fixed conditional scenario. Actors simulate owners, while
 personal assistant Agents make decisions, negotiate on a shared board, and use
 environment tools. This repository includes private owner chat, a persistent

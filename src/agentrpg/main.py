@@ -413,7 +413,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if supervisor is not None:
                     await supervisor.close()
 
-    app = FastAPI(title="agentRPG message board", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Chaotic Neutral message board", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
 
     async def database_error(request: Request, error: Exception):

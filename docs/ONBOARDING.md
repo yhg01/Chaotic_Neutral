@@ -151,9 +151,10 @@ Notes:
 ### Overview
 
 - Read Part 1 first.
-- The project is called Chaotic Neutral. The code still uses the old name `agentrpg` (the
-  package `src/agentrpg/`, `python -m agentrpg`, and the `agentRPG` folder names). Use Chaotic
-  Neutral in prose and docs. Do not rename the code or folders unless the user asks.
+- The project is called Chaotic Neutral. The code and folders keep the old name `agentrpg`:
+  the package `src/agentrpg/`, `python -m agentrpg`, `AGENTRPG_*` settings, the database names,
+  and the `agentRPG` folders. Saved result files also keep it. Use Chaotic Neutral in prose, docs
+  and screens. Do not rename code, settings or folders unless the user asks.
 - The main line is branch `event-clock`. Clocked runs go through:
   - `src/agentrpg/clock_engine.py`: the conductor;
   - `actor.py`: the owners;

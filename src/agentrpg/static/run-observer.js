@@ -17,7 +17,7 @@
     });} catch {throw new Error("The local API did not respond. Check the API and database, then select Retry.");}
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        const error = new Error("Local access was denied. Open this page on the computer that runs agentRPG, then select Retry.");
+        const error = new Error("Local access was denied. Open this page on the computer that runs Chaotic Neutral, then select Retry.");
         error.auth = true; throw error;
       }
       throw new Error(response.status === 404 ? "This saved record is unavailable." : "The server could not load this view. Check that the local API and database are running.");

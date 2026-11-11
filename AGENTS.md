@@ -1,4 +1,4 @@
-# Instructions for agentRPG
+# Instructions for Chaotic Neutral
 
 ## Read first
 

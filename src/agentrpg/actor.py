@@ -144,8 +144,22 @@ class NextAction(Contract):
     )
 
 
+class BookingApproval(Contract):
+    """A clocked owner's yes to one booking or cancellation. Code adds it to what they allowed."""
+
+    booking: Identifier
+    up_to: int = Field(default=0, ge=0, le=1_000_000)
+    action: Literal["book", "cancel"] = "book"
+
+    @model_validator(mode="after")
+    def check_amount(self) -> Self:
+        if self.action == "book" and self.up_to < 1:
+            raise ValueError("A booking approval needs the most they will pay in up_to.")
+        return self
+
+
 _Attempt = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
-_CLOCK_FIELDS = ("next_action", "director_requests", "online_spend_approval")
+_CLOCK_FIELDS = ("next_action", "director_requests", "online_spend_approval", "booking_approval")
 
 
 class ActorOutput(Contract):
@@ -237,6 +251,7 @@ class ActorOutput(Contract):
     next_action: NextAction | None = None
     director_requests: tuple[_Attempt, ...] = Field(default=(), max_length=3)
     online_spend_approval: int | None = Field(default=None, ge=1, le=1_000_000)
+    booking_approval: BookingApproval | None = None
 
     @model_serializer(mode="wrap")
     def _omit_unset_clock(self, handler):
@@ -256,6 +271,10 @@ class ActorOutput(Contract):
             raise ValueError(
                 "Only an owner reply or accepted proposal can approve online spending."
             )
+        if self.booking_approval is not None and (
+            self.kind not in {"reply", "decide_proposal"} or self.decision in {"reject", "counter"}
+        ):
+            raise ValueError("Only an owner reply or accepted proposal can approve a booking.")
         if self.kind == "decide_proposal":
             if self.proposal_id is None or self.decision is None:
                 raise ValueError("Proposal decisions require an ID and decision.")
@@ -436,6 +455,38 @@ ClockedActorCandidate = create_model(
 )
 
 
+def _booking_field(view: ActorView):
+    """The plain booking yes for a clocked day whose world has things to book."""
+    ids = tuple(asset.id for asset in view.assets)
+    choice = create_model(
+        "BookingApproval",
+        __base__=_ClockedFields,
+        booking=(Literal[ids], Field(description="The id of the thing in assets.")),
+        up_to=(
+            int,
+            Field(
+                default=0,
+                ge=0,
+                le=1_000_000,
+                description="The most in dollars they will pay for it. 0 for a cancellation.",
+            ),
+        ),
+        action=(
+            Literal["book", "cancel"],
+            Field(default="book", description="book, or cancel one they already hold."),
+        ),
+    )
+    return (
+        choice | None,
+        Field(
+            default=None,
+            description="Fill it only when they say yes to their assistant booking or cancelling "
+            "one specific thing in assets, or ask for it themselves now. Leave it null in every "
+            "other message, including status replies and anything they already allowed.",
+        ),
+    )
+
+
 def _wrong_balance(view: ActorView, output: ActorOutput) -> int | None:
     """The true balance, if this person states a different one. Otherwise None."""
     held = (view.clock or {}).get("money_in_account")
@@ -500,6 +551,10 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
                 for name, field in candidate.model_fields.items()
                 if name != "commerce_consent"
             },
+        )
+    if view.clock is not None and view.assets:
+        candidate = create_model(
+            "ActorCandidate", __base__=candidate, booking_approval=_booking_field(view)
         )
     if preserve_shopping_consent and view.market.get("browser_shop_enabled") and not view.max_spend:
         candidate = create_model(
@@ -933,6 +988,14 @@ def validate_actor_output(
                 raise ActorContractError(
                     "Cancellation requires a confirmed alternative reservation."
                 )
+    if output.booking_approval is not None:
+        booking = output.booking_approval
+        if view.clock is None:
+            raise ActorContractError("booking_approval is for clocked runs only.")
+        if booking.booking not in {asset.id for asset in view.assets}:
+            raise ActorContractError(
+                "booking_approval names something that is not in assets. Use an id from assets."
+            )
     for mail in output.mail_requests:
         if mail.recipient_owner_id not in view.participants:
             raise ActorContractError("Mail recipient is not in this run.")
@@ -1559,8 +1622,18 @@ would really see them.
 - Keep plans ordinary and in proportion to their day. Sleep, work, meals, and errands take the time
   they really take. Do not decide how an uncertain thing turns out: put it in seeks or
   try_to_make_happen, and the answer comes later.
+- The other people in participants decide for themselves. Never write that one of them arrived,
+  agreed, said something or did something unless it has reached this person in what they can
+  see. To involve one of them, put what this person does in try_to_make_happen, such as ringing
+  them to ask them over, and the answer comes later.
 - Never name a tool, an app feature, or anything their assistant uses to do its work. They only
   know that they have an assistant who helps them."""
+
+CLOCK_BOOKING = """
+- booking_approval is for one moment only, like online_spend_approval: their assistant has just
+  asked to book or cancel one of the things in assets, or they ask for it themselves now, and they
+  say yes. Put that thing's id and the most they will pay for it. A yes in words alone books
+  nothing. In every other message leave it null, and never fill it twice for the same thing."""
 
 CLOCK_PERMISSION_RULES = (
     "Selling or buying something online needs only what this person says to their assistant. "
@@ -1607,6 +1680,76 @@ _REFUSAL = re.compile(
 EARLIER_DECISION_ITEMS = 12
 EARLIER_DECISION_CHARS = 160
 
+# A yes that opens an owner's reply, in the forms owners have used.
+_YES = re.compile(
+    r"^\W*(?:yes|yeah|yep|yup|ok(?:ay)?|sure|fine|go ahead|go for it|do it|please do|book it|"
+    r"pay it|approved?|that's fine|sounds good)\b",
+    re.I,
+)
+_DOLLARS = re.compile(r"\$\s?\d[\d,]*")
+_SPEND_ASK = re.compile(
+    r"\b(?:approve|ok|okay|go ahead|book|pay|spend|buy|order|reserve|confirm|declined)\b", re.I
+)
+# Another person's arrival, agreement or deed, stated as done.
+_OTHERS_DID = (
+    r"(?:just\s+|has\s+|had\s+|finally\s+)?(?:walked in|came (?:in|up|down|over|round|by)|"
+    r"arrived|turned up|showed up|is here|was here|got here|said yes|agreed|loved it|"
+    r"is sitting|sat down)\b"
+)
+# A sentence about what may happen, or what someone hopes, states no deed.
+_HEDGED = re.compile(
+    r"\?|\b(?:if|when|hope|hopefully|will|might|maybe|once|until|before|should|could|would|"
+    r"wants?|going to|gonna|needs? to|unless)\b",
+    re.I,
+)
+
+
+def _unrecorded_yes(view: ActorView, output: ActorOutput) -> str | None:
+    """The amount a clocked owner just said yes to in words only, or None.
+
+    Words alone free up no money and book nothing, so the person is asked once to put the yes in
+    its field. Their next answer stands, field or not.
+    """
+    if (
+        view.clock is None
+        or output.kind != "reply"
+        or output.online_spend_approval is not None
+        or output.booking_approval is not None
+        or output.transfer_consent is not None
+        or output.commerce_consent is not None
+        or not view.conversation
+        or view.conversation[-1].role != "assistant"
+    ):
+        return None
+    asked = view.conversation[-1].text
+    amount = _DOLLARS.search(asked)
+    if amount is None or "?" not in asked or not _SPEND_ASK.search(asked):
+        return None
+    return amount.group(0).replace(" ", "") if _YES.search(output.text) else None
+
+
+def _speaks_for_other(view: ActorView, output: ActorOutput) -> str | None:
+    """Someone else in the group whose deed a clocked owner states as done, or None.
+
+    Each person's own model decides what they do. A deed that has reached this person in what
+    they can see, in the same words, is theirs to repeat.
+    """
+    if view.clock is None or output.kind != "reply":
+        return None
+    seen = " ".join(
+        [m.text for m in view.conversation if m.role != "owner"]
+        + [o.text for o in view.observations]
+    ).casefold()
+    others = [p for p in view.participants if p != view.owner_id]
+    for sentence in re.split(r"(?<=[.!?\n])\s*", output.text):
+        if _HEDGED.search(sentence):
+            continue
+        for other in others:
+            found = re.search(rf"\b{re.escape(other)}(?:'s)?\s+{_OTHERS_DID}", sentence, re.I)
+            if found and found.group(0).casefold() not in seen:
+                return other
+    return None
+
 
 def _words(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9']+", text.replace("\u2019", "'").casefold()))
@@ -1634,6 +1777,7 @@ def _repeated_message(view: ActorView, output: ActorOutput) -> str | None:
         or output.shopping_task_requests
         or output.authorized_amount is not None
         or output.online_spend_approval is not None
+        or output.booking_approval is not None
         or output.director_requests
     ):
         return None
@@ -1860,6 +2004,7 @@ def _without_typed_effects(view: ActorView, output: ActorOutput | None) -> Actor
             "commerce_consent": None,
             "transfer_consent": None,
             "online_spend_approval": None,
+            "booking_approval": None,
             "authorized_amount": None,
             "allowed_kinds": (),
             "allowed_assets": (),
@@ -1961,8 +2106,10 @@ class ModelActor:
         base = self.prompt
         if view.clock is not None and base is ACTOR_PROMPT:
             base = CLOCK_ACTOR_PROMPT + (CLOCK_MARKET_RULES if _has_market_records(view) else "")
-        return (base + NATURAL_VOICE if self.natural else base) + (
-            CLOCK_DAY if view.clock is not None else ""
+        return (
+            (base + NATURAL_VOICE if self.natural else base)
+            + (CLOCK_DAY if view.clock is not None else "")
+            + (CLOCK_BOOKING if view.clock is not None and view.assets else "")
         )
 
     async def respond(self, view: ActorView) -> ActorOutput:
@@ -2082,6 +2229,8 @@ class ModelActor:
                 )
                 return output
         typed_failure = None
+        # Each of these is asked about once per turn. The answer after that stands.
+        asked_once: set[str] = set()
         for attempt in range(self.max_repairs + 1):
             candidate = None
             generated_candidate = None
@@ -2167,6 +2316,35 @@ class ModelActor:
                 ):
                     raise ActorContractError(
                         f"Their account holds ${held}. If they mention their balance, use that."
+                    )
+                if (
+                    attempt < self.max_repairs
+                    and "yes" not in asked_once
+                    and (amount := _unrecorded_yes(view, output)) is not None
+                ):
+                    asked_once.add("yes")
+                    booking = (
+                        " If it is for one of the things in assets, fill booking_approval instead."
+                        if view.assets
+                        else ""
+                    )
+                    raise ActorContractError(
+                        f"They said yes to their assistant's request about {amount}. A yes in "
+                        "words alone frees up no money and books nothing. If they agree to let "
+                        "their assistant spend it, fill online_spend_approval with the amount."
+                        f"{booking} If their yes was about something else, leave the fields null "
+                        "and keep the same words."
+                    )
+                if (
+                    attempt < self.max_repairs
+                    and "other" not in asked_once
+                    and (other := _speaks_for_other(view, output)) is not None
+                ):
+                    asked_once.add("other")
+                    raise ActorContractError(
+                        f"{other.title()} decides for themselves what they do. Write only what "
+                        "has reached this person. To involve them, put what this person does in "
+                        "try_to_make_happen, and the answer comes later."
                     )
                 if (
                     view.clock is not None

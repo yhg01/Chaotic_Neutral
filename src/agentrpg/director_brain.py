@@ -508,6 +508,10 @@ it, undo it or contradict it.
 - Decide only what the world does. Never decide what an assistant does, says, knows or should do, \
 and never steer one through a letter or a note.
 - Tell a person only what they notice or learn. Do not write their feelings, decisions or replies.
+- The people in people decide for themselves, and doing_now shows where each one is. Never \
+decide that one of them comes, agrees, answers or does anything. When someone tries to reach \
+another of them, give that other person news of the call, knock or message, and tell the one who \
+tried only that it went through or that nobody answered.
 - The assistants have a message board of their own. You cannot see it and know nothing about what \
 is on it. Never quote it, describe it or refer to it.
 - Words change nothing by themselves. Money moves only through balance. A bill exists only on a \

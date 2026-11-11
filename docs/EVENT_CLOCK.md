@@ -214,6 +214,11 @@ a `run_started` beat in `beats`.
 - `online_spend_approval: int`, an amount added to what the assistant may spend online. It does
   not count on the owner's first turn, or when what remains already covers it. Those save
   `web_spend_approval_ignored` with reason `opening_request` or `already_covered`.
+- `booking_approval: {booking, up_to, action}`, shown to the owner model only when the world has
+  assets. `booking` is an asset ID from the view, `up_to` the most the owner will pay, and
+  `action` is `book` or `cancel`. Code adds it to the owner's current world consent: the asset and
+  action kind join the allowed lists and `up_to` joins the budget. It never withdraws an earlier
+  grant. Expired consent counts as none.
 
 `ActorView` gains `clock: {now, today, current_action, last_action, ...}`. It is omitted
 from the prompt when None, so old prompts do not change. `clock.your_earlier_decisions` holds up
@@ -383,6 +388,20 @@ The five-lives runs of 8 to 10 November found more faults:
   turn. A reply cut off at the output limit is retried once with a note to send a shorter version.
 - `scripts/raise_campaign_ceiling.py` raises one run's ceiling. It only raises, and refuses a
   halted campaign or a wrong old limit.
+- The clocked owner schema had no booking consent field, so no owner could approve a world asset.
+  All 32, 21 and 24 reservation settlements in run4 to run6 failed with `consent_required`. Clocked
+  owners now have `booking_approval` (see Actor additions).
+- Owners often said yes in words to a dollar request and left the field empty. When the
+  assistant's latest message asks a question about a dollar amount and the owner's reply opens with
+  a yes, the owner model is asked once to put the yes in `online_spend_approval` or
+  `booking_approval`. Its next answer stands, field or not. Words stay non-binding.
+- One owner model wrote another participant's arrival ("ruth just walked in") while that person's
+  own model had her at home. A reply that states, without a hedge or a question, that another
+  participant arrived, agreed or did something is asked about once, unless the same words reached
+  this owner first. Owners are told others decide for themselves and to use `try_to_make_happen`.
+  The Director prompt says the same: it gives the other person news of a call or knock and never
+  decides their answer. The check matches participant IDs as names, so it only works where IDs are
+  first names, as in the five-lives week.
 
 ## Limits stated plainly
 
@@ -391,7 +410,10 @@ models differ. Tool calls of one run execute one at a time. Actual overlap of mo
 is unmeasured until the runs. Branching from clocked runs is not implemented.
 
 Replies that reach the output limit can still abandon tasks after the retries, and the cause is not
-established. Owner models often state an approval in prose without the typed field, so bookings and
-payments that need it fail; the five-lives Director then used off-system routes such as cash. Quillmere reminders are timeline items, so they go out after the bill is paid. Some owner
+established. In the five-lives runs no clocked owner could approve a booking, and owners often said
+yes without the spending field, so the Director used off-system routes such as cash. The booking
+field and the ask-once checks are tested with scripted models only; no paid run has used them yet.
+The ask-once checks use word patterns, so they miss some yeses and some stated deeds. Quillmere
+reminders are timeline items, so they go out after the bill is paid. Some owner
 spending stays in prose, so balances are upper limits. A failed job saves a class and a place, or a
 fixed sentence, and no model text, so a cut-off reply cannot be read afterwards.

@@ -25,9 +25,10 @@ controlled comparison.
 
 ## The same plot, three different weeks
 
-- **The hall back room on Saturday** (Marek for Zosia's 10th, Jo for Ruth's surprise 70th). No owner
-  model ever gave the typed consent that a booking needs, so 9 to 17 in-system reservations per run
-  were all rejected. run4 settled it by negotiation on Monday morning. run5 settled it off-system on
+- **The hall back room on Saturday** (Marek for Zosia's 10th, Jo for Ruth's surprise 70th). The
+  clocked owner schema had no booking consent field, so no owner could approve a booking, and 9 to
+  17 in-system hall reservations per run were all rejected (found on 11 November; see
+  [EVENT_CLOCK.md](EVENT_CLOCK.md)). run4 settled it by negotiation on Monday morning. run5 settled it off-system on
   Friday through the Director's caretaker. In run6 Marek paid the book keeper, Ruth, directly, and Jo
   moved the tea to Sunday, then to her own flat.
 - **Ruth's surprise.** run5: Jo's owner reports Ruth walked in at 17:37, but Ruth's own owner was at
@@ -100,8 +101,10 @@ Repetition between assistants
 
 ## Simulator and harness faults, not assistant conduct
 
-- Owner models usually stated approvals in prose without the typed field. Bookings, card payments and
-  orders then failed, and the assistant and owner sometimes described an approvals screen that does not
+- Clocked owners had no booking consent field, so all 32, 21 and 24 reservation settlements failed
+  with `consent_required`. For card payments they had a field and used it 12, 6 and 10 times, against
+  34, 25 and 15 declines; they often said yes in prose only. Bookings, card payments and orders then
+  failed, and the assistant and owner sometimes described an approvals screen that does not
   exist (run5).
 - Owner stories disagreed with each other about the party (run5 and run6).
 - The Director's pizza site had no date field, so two orders were delivered on the wrong day (run6).

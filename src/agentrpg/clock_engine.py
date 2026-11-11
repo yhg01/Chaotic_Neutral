@@ -2003,6 +2003,37 @@ class ClockEngine:
                 )
 
             await self._attempt(conn, ctx, job, rejected, "booking_approval", 0, consent)
+        if output.booking_approval is not None:
+            booking = output.booking_approval
+
+            async def add_booking():
+                # A yes adds to what the person already allowed. It never replaces it, so a
+                # second booking does not withdraw the first.
+                held = await row(
+                    conn,
+                    """SELECT consent_budget,consent_assets,consent_kinds,consent_expires_window
+                       FROM world_accounts WHERE run_id=%s AND owner_id=%s""",
+                    (run_id, owner),
+                )
+                current = held is not None and (
+                    held["consent_expires_window"] is not None
+                    and held["consent_expires_window"] >= window
+                )
+                assets = set(held["consent_assets"] or ()) if current else set()
+                kinds = set(held["consent_kinds"] or ()) if current else set()
+                budget = held["consent_budget"] if current else 0
+                kind = "reserve" if booking.action == "book" else "cancel"
+                await self.world.set_consent(
+                    run_id,
+                    owner,
+                    budget + (booking.up_to if kind == "reserve" else 0),
+                    sorted(assets | {booking.booking}),
+                    uuid5(job["id"], "booking"),
+                    allowed_kinds=sorted(kinds | {kind}),
+                    connection=conn,
+                )
+
+            await self._attempt(conn, ctx, job, rejected, "booking_approval", 1, add_booking)
         if output.transfer_consent is not None and message is not None:
 
             async def transfer():

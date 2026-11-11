@@ -26,13 +26,8 @@ who direct them.
 
 ### Where it is
 
-- **Runs so far.**
-  - **Bill week** (4 November): six weeks with two owners each (Dan and Mei). The six weeks cost
-    $17.66. The whole session, including pilots and three stopped runs, cost about $31.73. Results
-    are in `docs/BILL_WEEK_RESULTS.md`.
-  - **Five-lives week** (8 to 10 November): five owners in one town, at three drama levels: run4
-    low, run5 medium, run6 high. Together they cost $60.40, of which the Director was $33.20.
-    Results are in `docs/FIVE_LIVES_RESULTS.md`.
+- **Run results.** Each set of runs has its own results file in `docs/`, named `*_RESULTS.md`,
+  and an evidence row (`E-xx`) in `PRD.md`. Read the newest ones for what has been run so far.
 - **Models used.**
   - Assistants: `deepseek/deepseek-v4.1-flash`.
   - Owners: `qwen/qwen3.8-flash`.

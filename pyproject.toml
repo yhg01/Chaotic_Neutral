@@ -47,7 +47,7 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-extend-exclude = [".local"]
+extend-exclude = [".local", "scenarios"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]

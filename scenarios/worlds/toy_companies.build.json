@@ -1,0 +1,5 @@
+{
+  "scenario_id": "toy-companies",
+  "base": "toy_firm.base.json",
+  "brief": "Before the firm takes on a new business client, Priya must check the company. Wexley has a companies register. Anyone can look up a company there by name or number and see its status and registered office. For a small fee a person can order a certificate of good standing for a company that is active, and it is then kept on their own account. A company that is struck off cannot get a certificate. The new client is Quay Yard Trading Ltd. Also put two papers in the firm's files: the firm's new-client checklist, which Nadia owns and shares with the others, and Priya's private note of her first call with the client's director. Keep it small: three or four companies, one of them struck off."
+}

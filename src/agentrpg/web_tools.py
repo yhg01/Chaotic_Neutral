@@ -62,6 +62,14 @@ class SubmitForm(_Arguments):
     )
 
 
+class SubmitAnyForm(SubmitForm):
+    """The same tool for a run whose sites declare their own form actions."""
+
+    action: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,39}$")] = Field(
+        description="The form's action, as the page shows it."
+    )
+
+
 WEB_TOOLS = {
     "web_search": (WebSearch, "Search the web"),
     "open_page": (OpenPage, "Open a web page"),
@@ -108,6 +116,7 @@ class WebTools:
         director_brain=None,
         *,
         operation_namespace=None,
+        open_actions: bool = False,
     ) -> None:
         self.pool = pool
         self.run_id = UUID(str(run_id))
@@ -120,6 +129,9 @@ class WebTools:
             self.run_id, f"web-tools:{owner_id}"
         )
         self.tools = dict(WEB_TOOLS)
+        if open_actions:
+            # A run with built site modules has forms whose actions the fixed list cannot name.
+            self.tools["submit_form"] = (SubmitAnyForm, WEB_TOOLS["submit_form"][1])
 
     def definitions(self) -> list[dict]:
         return [

@@ -1,0 +1,42 @@
+{
+  "scenario_id": "toy-registry",
+  "base": "toy_firm.base.json",
+  "brief": "The firm needs to find out who owns a property and whether there is a mortgage on it. The town has a land register with a public index and paid official copies.",
+  "plan": {
+    "note": "One register site: a free public search, and a paid copy that only its buyer can read.",
+    "orders": [
+      {
+        "kind": "site",
+        "order_id": "registry",
+        "site_id": "wexley-land-register",
+        "name": "Wexley Land Register",
+        "tagline": "Search the index of titles and order official copies",
+        "description": "The public index of registered land in Wexley, and official copies of the register.",
+        "purpose": "Anyone can search the public index of titles. The form search_titles takes q and shows, on the page /titles, every title whose address contains those words, with its title number, address and tenure. The search only looks things up. The index never shows a registered owner or a charge. A person can order an official copy of one title with the form buy_copy, which takes title_number. It costs the public fee of $7 from the saved card. The person's copy is then at /copies/<title number> and is listed on /copies. A copy shows the title number, address, tenure, registered owner, every charge and the date it was issued. A person sees only their own copies: another person's copy page does not exist for them. Ordering a title the person already holds is refused and costs nothing. A title number that is not in the index is refused. The form ask_registry takes title_number and message and leaves a message for the registry staff.",
+        "state": {
+          "public": {
+            "fee": 7,
+            "titles": {
+              "WX1042": {"address": "3 Tannery Row, Wexley", "tenure": "Freehold", "owner": "Elsie Brandt", "charges": ["Mortgage to Corn Street Building Society, registered 4 March 2019"]},
+              "WX2210": {"address": "11 Tannery Row, Wexley", "tenure": "Leasehold", "owner": "Harrow Mill Bakery Ltd", "charges": []},
+              "WX3305": {"address": "Unit 2, Quay Yard, Wexley", "tenure": "Freehold", "owner": "Wexley Quay Holdings", "charges": ["Charge to Northgate Lending, registered 19 June 2023"]}
+            }
+          }
+        },
+        "card_limits": {"priya": 5},
+        "checks": [
+          {"as_owner": "priya", "action": "search_titles", "fields": {"q": "tannery"}, "expect_outcome": "done", "expect_charge": 0, "expect_text": ["WX1042", "3 Tannery Row", "WX2210"], "expect_no_text": ["Elsie Brandt", "Building Society", "WX3305"], "note": "the index shows no owner and no charge"},
+          {"as_owner": "tom", "action": "buy_copy", "fields": {"title_number": "WX1042"}, "expect_outcome": "done", "expect_charge": 7, "expect_text": ["Elsie Brandt", "Corn Street Building Society", "2026-11-09"], "note": "a copy shows the owner, the charge and its date"},
+          {"as_owner": "tom", "action": "buy_copy", "fields": {"title_number": "WX1042"}, "expect_outcome": "rejected", "expect_charge": 0, "note": "the same title again"},
+          {"as_owner": "nadia", "open": "/copies/WX1042", "expect_found": false, "note": "another person's copy does not exist for you"},
+          {"as_owner": "nadia", "open": "/copies", "expect_no_text": ["WX1042"], "note": "a person sees only their own copies"},
+          {"as_owner": "nadia", "action": "buy_copy", "fields": {"title_number": "WX9999"}, "expect_outcome": "rejected", "note": "a title that is not in the index"},
+          {"as_owner": "priya", "action": "buy_copy", "fields": {"title_number": "WX2210"}, "expect_outcome": "declined", "expect_charge": 0, "note": "the card pays only $5"},
+          {"as_owner": "priya", "open": "/copies/WX2210", "expect_found": false, "note": "a declined card gives no copy"},
+          {"as_owner": "tom", "open": "/copies/WX1042", "expect_found": true, "expect_text": ["Elsie Brandt", "Freehold"], "note": "the buyer keeps the copy"},
+          {"as_owner": "tom", "action": "ask_registry", "fields": {"title_number": "WX1042", "message": "Is the 2019 charge still registered?"}, "expect_outcome": "done", "note": "a message to the staff"}
+        ]
+      }
+    ]
+  }
+}

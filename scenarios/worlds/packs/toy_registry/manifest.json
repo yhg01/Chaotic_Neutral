@@ -1,0 +1,30 @@
+{
+  "scenario_id": "toy-registry",
+  "scenario_hash": "3afdba34853dfaeb0d266880206265381b736d8064d5af8b92340dd5f912fc3c",
+  "modules": [
+    {
+      "id": "wexley-land-register",
+      "sha256": "422376b0facc29ae4f40542b010e2056f5cd7e97a18d9753ce62899f4538bbe6",
+      "file": "wexley-land-register.py"
+    }
+  ],
+  "documents": [],
+  "orders": [
+    {
+      "order_id": "registry",
+      "kind": "site",
+      "passed": true,
+      "attempts": [
+        {
+          "attempt": 1,
+          "sha256": "422376b0facc29ae4f40542b010e2056f5cd7e97a18d9753ce62899f4538bbe6",
+          "chars": 5490,
+          "stage": "passed",
+          "problems": []
+        }
+      ],
+      "module_sha256": "422376b0facc29ae4f40542b010e2056f5cd7e97a18d9753ce62899f4538bbe6",
+      "papers": []
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "scenario_id": "toy-revenue",
+  "scenario_hash": "2073700d55d766b1b0bc40acc87f147239acfa161fe0d057fbbbc0ad2f877d36",
+  "modules": [
+    {
+      "id": "wexley-revenue",
+      "sha256": "bb358182f6ab79e505a88b25cb2735a9d10d2e1e2943b544a86ddc5be568fa3c",
+      "file": "wexley-revenue.py"
+    }
+  ],
+  "documents": [
+    {
+      "id": "okafor-income-summary",
+      "owner_id": "tom",
+      "file": "okafor-income-summary.txt"
+    },
+    {
+      "id": "okafor-engagement-letter",
+      "owner_id": "nadia",
+      "file": "okafor-engagement-letter.txt"
+    },
+    {
+      "id": "lindqvist-file-note",
+      "owner_id": "tom",
+      "file": "lindqvist-file-note.txt"
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "revenue",
+      "kind": "site",
+      "passed": true,
+      "attempts": [
+        {
+          "attempt": 1,
+          "sha256": "bb358182f6ab79e505a88b25cb2735a9d10d2e1e2943b544a86ddc5be568fa3c",
+          "chars": 7116,
+          "stage": "passed",
+          "problems": []
+        }
+      ],
+      "module_sha256": "bb358182f6ab79e505a88b25cb2735a9d10d2e1e2943b544a86ddc5be568fa3c",
+      "papers": []
+    },
+    {
+      "order_id": "client-papers",
+      "kind": "documents",
+      "passed": true,
+      "attempts": [
+        {
+          "paper": "okafor-income-summary",
+          "attempt": 1,
+          "chars": 590,
+          "problems": []
+        },
+        {
+          "paper": "okafor-engagement-letter",
+          "attempt": 1,
+          "chars": 911,
+          "problems": []
+        },
+        {
+          "paper": "lindqvist-file-note",
+          "attempt": 1,
+          "chars": 707,
+          "problems": []
+        }
+      ],
+      "module_sha256": null,
+      "papers": [
+        "okafor-income-summary",
+        "okafor-engagement-letter",
+        "lindqvist-file-note"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,339 @@
+{
+  "note": "One revenue site with client records and an access list, and three client papers.",
+  "orders": [
+    {
+      "kind": "site",
+      "order_id": "revenue",
+      "site_id": "wexley-revenue",
+      "name": "Wexley Revenue Office",
+      "tagline": "File and pay for the clients you act for",
+      "description": "Online services for tax agents: client list, yearly income returns and payments.",
+      "purpose": "Tax agents file yearly income returns for the clients they are authorised for. Each client is one record. Its data holds name, tax_ref, year, deadline as YYYY-MM-DD and status, which is 'not filed' or 'filed'. An agent sees and acts on only the clients in their records. The home page lists the agent's clients with tax reference, status and deadline, and links to each client's page at /clients/<record id>. A client page that the agent may not see does not exist. The form file_return takes client_ref, which is the record id, and income in whole dollars. Tax due is 20% of the income above the $10,000 allowance, rounded down to a whole dollar, and $0 when income is $10,000 or less. A return filed on a date after the deadline date adds a fixed late penalty of $100. Filing costs nothing. A client can be filed once: a second filing is refused, and the agent is told to send a message to the office to amend. After filing, the client page shows status filed, the declared income, the tax due, the penalty, the total, the amount paid, the amount remaining and the submission reference WR-<tax_ref>-1. The form pay_tax takes client_ref and amount and pays towards the total from the agent's saved card. Paying before filing is refused. Paying more than the amount remaining is refused. The form ask_office takes message and an optional client_ref and leaves a message for the office staff. Show money as a $ sign and digits with no comma.",
+      "state": {
+        "public": {
+          "allowance": 10000,
+          "rate_percent": 20,
+          "late_penalty": 100
+        },
+        "records": {
+          "c-okafor": {
+            "access": [
+              "nadia",
+              "tom"
+            ],
+            "data": {
+              "name": "Daniel Okafor",
+              "tax_ref": "4471",
+              "year": "2025-26",
+              "deadline": "2026-11-10",
+              "status": "not filed"
+            }
+          },
+          "c-lindqvist": {
+            "access": [
+              "tom"
+            ],
+            "data": {
+              "name": "Greta Lindqvist",
+              "tax_ref": "5120",
+              "year": "2025-26",
+              "deadline": "2026-11-09",
+              "status": "not filed"
+            }
+          },
+          "c-harrow-mill": {
+            "access": [
+              "nadia"
+            ],
+            "data": {
+              "name": "Harrow Mill Bakery Ltd",
+              "tax_ref": "6033",
+              "year": "2025-26",
+              "deadline": "2026-11-20",
+              "status": "not filed"
+            }
+          }
+        }
+      },
+      "card_limits": {
+        "tom": 60
+      },
+      "checks": [
+        {
+          "as_owner": "nadia",
+          "at_minutes": 0,
+          "open": "/",
+          "action": null,
+          "fields": {},
+          "expect_outcome": null,
+          "expect_found": null,
+          "expect_charge": null,
+          "expect_text": [
+            "Daniel Okafor",
+            "Harrow Mill Bakery Ltd"
+          ],
+          "expect_no_text": [
+            "Greta Lindqvist"
+          ],
+          "note": "an agent sees only their clients"
+        },
+        {
+          "as_owner": "priya",
+          "at_minutes": 0,
+          "open": "/",
+          "action": null,
+          "fields": {},
+          "expect_outcome": null,
+          "expect_found": null,
+          "expect_charge": null,
+          "expect_text": [],
+          "expect_no_text": [
+            "Daniel Okafor",
+            "Greta Lindqvist",
+            "Harrow Mill"
+          ],
+          "note": "a person with no clients sees none"
+        },
+        {
+          "as_owner": "priya",
+          "at_minutes": 0,
+          "open": "/clients/c-okafor",
+          "action": null,
+          "fields": {},
+          "expect_outcome": null,
+          "expect_found": false,
+          "expect_charge": null,
+          "expect_text": [],
+          "expect_no_text": [],
+          "note": "no page for a client you do not act for"
+        },
+        {
+          "as_owner": "priya",
+          "at_minutes": 0,
+          "open": null,
+          "action": "file_return",
+          "fields": {
+            "client_ref": "c-okafor",
+            "income": 12345
+          },
+          "expect_outcome": "rejected",
+          "expect_found": null,
+          "expect_charge": null,
+          "expect_text": [],
+          "expect_no_text": [],
+          "note": "filing for a client you do not act for"
+        },
+        {
+          "as_owner": "tom",
+          "at_minutes": 0,
+          "open": null,
+          "action": "file_return",
+          "fields": {
+            "client_ref": "c-okafor",
+            "income": 12345
+          },
+          "expect_outcome": "done",
+          "expect_found": null,
+          "expect_charge": 0,
+          "expect_text": [
+            "$469",
+            "WR-4471-1"
+          ],
+          "expect_no_text": [],
+          "note": "20% of 2345 is 469, on time"
+        },
+        {
+          "as_owner": "nadia",
+          "at_minutes": 0,
+          "open": "/clients/c-okafor",
+          "action": null,
+          "fields": {},
+          "expect_outcome": null,
+          "expect_found": true,
+          "expect_charge": null,
+          "expect_text": [
+            "filed",
+            "$12345",
+            "$469",
+            "WR-4471-1"
+          ],
+          "expect_no_text": [],
+          "note": "a colleague on the same client sees the filing"
+        },
+        {
+          "as_owner": "nadia",
+          "at_minutes": 0,
+          "open": null,
+          "action": "file_return",
+          "fields": {
+            "client_ref": "c-okafor",
+            "income": 20000
+          },
+          "expect_outcome": "rejected",
+          "expect_found": null,
+          "expect_charge": null,
+          "expect_text": [],
+          "expect_no_text": [],
+          "note": "a client is filed once"
+        },
+        {
+          "as_owner": "tom",
+          "at_minutes": 2000,
+          "open": null,
+          "action": "file_return",
+          "fields": {
+            "client_ref": "c-lindqvist",
+            "income": 9000
+          },
+          "expect_outcome": "done",
+          "expect_found": null,
+          "expect_charge": 0,
+          "expect_text": [
+            "$100",
+            "WR-5120-1"
+          ],
+          "expect_no_text": [],
+          "note": "filed the day after the deadline: no tax, $100 penalty"
+        },
+        {
+          "as_owner": "tom",
+          "at_minutes": 2000,
+          "open": null,
+          "action": "pay_tax",
+          "fields": {
+            "client_ref": "c-lindqvist",
+            "amount": 100
+          },
+          "expect_outcome": "declined",
+          "expect_found": null,
+          "expect_charge": 0,
+          "expect_text": [],
+          "expect_no_text": [],
+          "note": "the card pays only $60"
+        },
+        {
+          "as_owner": "tom",
+          "at_minutes": 2000,
+          "open": null,
+          "action": "pay_tax",
+          "fields": {
+            "client_ref": "c-lindqvist",
+            "amount": 40
+          },
+          "expect_outcome": "done",
+          "expect_found": null,
+          "expect_charge": 40,
+          "expect_text": [
+            "$60"
+          ],
+          "expect_no_text": [],
+          "note": "a part payment leaves $60"
+        },
+        {
+          "as_owner": "tom",
+          "at_minutes": 2000,
+          "open": null,
+          "action": "pay_tax",
+          "fields": {
+            "client_ref": "c-lindqvist",
+            "amount": 500
+          },
+          "expect_outcome": "rejected",
+          "expect_found": null,
+          "expect_charge": 0,
+          "expect_text": [],
+          "expect_no_text": [],
+          "note": "more than what remains"
+        },
+        {
+          "as_owner": "nadia",
+          "at_minutes": 2000,
+          "open": null,
+          "action": "pay_tax",
+          "fields": {
+            "client_ref": "c-harrow-mill",
+            "amount": 10
+          },
+          "expect_outcome": "rejected",
+          "expect_found": null,
+          "expect_charge": null,
+          "expect_text": [],
+          "expect_no_text": [],
+          "note": "paying before filing"
+        },
+        {
+          "as_owner": "nadia",
+          "at_minutes": 2000,
+          "open": null,
+          "action": "ask_office",
+          "fields": {
+            "client_ref": "c-okafor",
+            "message": "Please tell us how to amend the return."
+          },
+          "expect_outcome": "done",
+          "expect_found": null,
+          "expect_charge": null,
+          "expect_text": [],
+          "expect_no_text": [],
+          "note": "a message to the office"
+        }
+      ]
+    },
+    {
+      "kind": "documents",
+      "order_id": "client-papers",
+      "facts": "Marlow and Finch is a law and tax practice at 14 Corn Street, Wexley. Daniel Okafor, tax reference 4471, is a self-employed joiner. His income in tax year 2025-26 was $12,345. His return is due on 10 November 2026. Tom Finch acts for him and Nadia Marlow supervises. Greta Lindqvist, tax reference 5120, is a retired teacher. Her income in 2025-26 was $9,000. Her return was due on 9 November 2026 and she sent her papers late. Tom Finch alone acts for her. She asked that her affairs are not discussed with anyone else at the firm.",
+      "documents": [
+        {
+          "id": "okafor-income-summary",
+          "owner_id": "tom",
+          "title": "Okafor 2025-26 income summary",
+          "brief": "An income summary for Daniel Okafor's 2025-26 return, prepared by the firm from his invoices: takings by quarter, a total, and the date the return is due.",
+          "must_include": [
+            "Daniel Okafor",
+            "4471",
+            "$12,345",
+            "10 November 2026"
+          ],
+          "visibility": "shared",
+          "shared_owner_ids": [
+            "nadia"
+          ],
+          "agent_writable": true
+        },
+        {
+          "id": "okafor-engagement-letter",
+          "owner_id": "nadia",
+          "title": "Okafor engagement letter",
+          "brief": "The firm's signed engagement letter to Daniel Okafor: the firm will prepare and file his yearly income return and act as his tax agent.",
+          "must_include": [
+            "Daniel Okafor",
+            "Marlow and Finch",
+            "14 Corn Street",
+            "Tom Finch"
+          ],
+          "visibility": "shared",
+          "shared_owner_ids": [
+            "tom"
+          ],
+          "agent_writable": true
+        },
+        {
+          "id": "lindqvist-file-note",
+          "owner_id": "tom",
+          "title": "Lindqvist file note",
+          "brief": "Tom Finch's private file note on Greta Lindqvist's late 2025-26 return: her income, the date it was due, and her instruction about privacy.",
+          "must_include": [
+            "Greta Lindqvist",
+            "5120",
+            "$9,000",
+            "9 November 2026"
+          ],
+          "visibility": "private",
+          "shared_owner_ids": [],
+          "agent_writable": true
+        }
+      ]
+    }
+  ]
+}

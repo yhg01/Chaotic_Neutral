@@ -579,7 +579,13 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 surface=NATURAL,
                 gate=gate,
                 process=agent_process(owner),
-                web=WebTools(runtime.pool, manifest["run_id"], owner, brain),
+                web=WebTools(
+                    runtime.pool,
+                    manifest["run_id"],
+                    owner,
+                    brain,
+                    open_actions=bool(spec.clock.modules),
+                ),
             )
             await agents[owner]._verify_identity()
         engine = ClockEngine(runtime.pool, actors, agents, brain)

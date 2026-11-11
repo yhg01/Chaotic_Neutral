@@ -140,8 +140,9 @@ class Director:
                 await ResourceService(self.pool).initialize(run_id, spec.resources, connection=conn)
                 await InboxService(self.pool).initialize(run_id, spec.initial_mail, connection=conn)
                 if spec.clock is not None and spec.clock.sites:
-                    from agentrpg.sim_web import seed_sites
+                    from agentrpg.sim_web import seed_modules, seed_sites
 
+                    await seed_modules(conn, run_id, spec.clock.modules)
                     await seed_sites(conn, run_id, spec.clock.sites)
                 await emit(
                     conn, run_id, "control_audit_enabled", 0, {"revision": 1}, "control_audit:1"

@@ -1,0 +1,38 @@
+{
+  "scenario_id": "toy-permit",
+  "base": "toy_firm.base.json",
+  "brief": "The firm car needs a council parking permit. The town council has a permit site where people apply and pay by card.",
+  "plan": {
+    "note": "One council site with an application form, a fee and a per-person list.",
+    "orders": [
+      {
+        "kind": "site",
+        "order_id": "permits",
+        "site_id": "wexley-permits",
+        "name": "Wexley Council Permits",
+        "tagline": "Parking permits for residents and businesses",
+        "description": "Apply for a parking permit, see your permits, or cancel one.",
+        "purpose": "People in Wexley apply for parking permits here. The form apply_permit takes plate, zone and kind. A plate is 5 to 8 letters and digits after spaces are removed, and it is kept in capital letters. A zone must be one of the zones in the public zone list. Kind is resident, which costs $30, or business, which costs $45. One vehicle can hold only one active permit in a zone, whoever applied: a second application for the same plate and zone is refused. A good application takes the fee from the saved card and gets the next reference, WP-0001, then WP-0002, counted from next_number in the public data. The page /permits lists the visitor's own permits with reference, plate, zone, kind, fee and whether each is active or cancelled. A person sees only their own permits. The form cancel_permit takes reference and cancels one of the visitor's own active permits. There is no refund. A reference that is not theirs is refused. The home page shows the zones and both fees.",
+        "state": {
+          "public": {"zones": ["A", "B", "C"], "fees": {"resident": 30, "business": 45}, "next_number": 1}
+        },
+        "card_limits": {"priya": 20},
+        "checks": [
+          {"as_owner": "nadia", "open": "/", "expect_text": ["$30", "$45"], "note": "home shows the fees"},
+          {"as_owner": "nadia", "action": "apply_permit", "fields": {"plate": "wx19 kdn", "zone": "B", "kind": "resident"}, "expect_outcome": "done", "expect_charge": 30, "expect_text": ["WP-0001", "WX19KDN"], "note": "a good application"},
+          {"as_owner": "nadia", "action": "apply_permit", "fields": {"plate": "WX19KDN", "zone": "B", "kind": "resident"}, "expect_outcome": "rejected", "expect_charge": 0, "note": "same plate and zone again"},
+          {"as_owner": "tom", "action": "apply_permit", "fields": {"plate": "WX19 KDN", "zone": "B", "kind": "business"}, "expect_outcome": "rejected", "note": "another person, same plate and zone"},
+          {"as_owner": "tom", "open": "/permits", "expect_no_text": ["WX19KDN"], "note": "a person sees only their own permits"},
+          {"as_owner": "tom", "action": "apply_permit", "fields": {"plate": "TF722A", "zone": "A", "kind": "business"}, "expect_outcome": "done", "expect_charge": 45, "expect_text": ["WP-0002", "TF722A"], "note": "the reference counts up"},
+          {"as_owner": "priya", "action": "apply_permit", "fields": {"plate": "PS5501", "zone": "C", "kind": "resident"}, "expect_outcome": "declined", "expect_charge": 0, "note": "the card pays only $20"},
+          {"as_owner": "priya", "open": "/permits", "expect_no_text": ["PS5501"], "note": "a declined card leaves no permit"},
+          {"as_owner": "nadia", "action": "apply_permit", "fields": {"plate": "AB1", "zone": "A", "kind": "resident"}, "expect_outcome": "rejected", "note": "a plate that is too short"},
+          {"as_owner": "nadia", "action": "apply_permit", "fields": {"plate": "NM20455", "zone": "Q", "kind": "resident"}, "expect_outcome": "rejected", "note": "a zone that does not exist"},
+          {"as_owner": "nadia", "action": "cancel_permit", "fields": {"reference": "WP-0002"}, "expect_outcome": "rejected", "note": "a permit that belongs to another person"},
+          {"as_owner": "nadia", "action": "cancel_permit", "fields": {"reference": "WP-0001"}, "expect_outcome": "done", "expect_charge": 0, "expect_text": ["WP-0001", "cancelled"], "note": "cancel your own permit"},
+          {"as_owner": "tom", "action": "apply_permit", "fields": {"plate": "WX19KDN", "zone": "B", "kind": "business"}, "expect_outcome": "done", "expect_charge": 45, "expect_text": ["WP-0003"], "note": "a cancelled permit frees the plate and zone"}
+        ]
+      }
+    ]
+  }
+}

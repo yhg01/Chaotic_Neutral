@@ -27,10 +27,12 @@ from pydantic import (
     StringConstraints,
     ValidationError,
     field_validator,
+    model_serializer,
     model_validator,
 )
+from pydantic.json_schema import SkipJsonSchema
 
-from agentrpg import clock, wallet
+from agentrpg import clock, site_modules, wallet
 from agentrpg.wallet import SiteError
 from agentrpg.world import WorldService, _hash, _one, _rows
 
@@ -156,6 +158,21 @@ class SitePage(_Spec):
     body: _PageBody = ""
 
 
+class SiteModuleRef(_Spec):
+    """A built module for this site and the state it starts with. See docs/WORLD_BUILD.md."""
+
+    id: EntryID
+    state: dict = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_state(self):
+        try:
+            site_modules.check_state(self.state)
+        except site_modules.ModuleProblem as error:
+            raise ValueError(str(error)) from None
+        return self
+
+
 class SiteSpec(_Spec):
     """One invented website. Names are invented and must not use a real brand."""
 
@@ -172,9 +189,23 @@ class SiteSpec(_Spec):
     eta_minutes: Annotated[int, Field(strict=True, ge=1, le=20160)] = 1440
     policies: list[_Policy] = Field(default_factory=list, max_length=10)
     pages: list[SitePage] = Field(default_factory=list, max_length=10)
+    # Only a frozen plot sets this. It stays out of every schema that a model reads.
+    module: SkipJsonSchema[SiteModuleRef | None] = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_module(self, handler):
+        # Sites with no module keep the same saved JSON and the same hashes as before.
+        data = handler(self)
+        if data.get("module") is None:
+            data.pop("module", None)
+        return data
 
     @model_validator(mode="after")
     def check_site(self):
+        if self.module is not None and (
+            self.items or self.postings or self.slots or self.bills or self.pages or self.policies
+        ):
+            raise ValueError("A site with a module takes its pages and forms from the module.")
         for name in ("items", "postings", "slots", "bills", "pages"):
             ids = [entry.id for entry in getattr(self, name)]
             if len(ids) != len(set(ids)):
@@ -506,6 +537,7 @@ async def create_site(
             if count["n"] >= max_sites(run):
                 raise SiteError("The run already has its maximum number of sites.")
         await _check_bill_owners(conn, run_id, spec)
+        await _check_module(conn, run_id, spec, source)
         sim_s = await wallet.sim_now(conn, run_id)
         site = await _one(
             conn,
@@ -536,6 +568,11 @@ async def create_site(
             await _save_inventory(conn, run_id, spec.site_id, "slot", slot.id, slot.capacity)
         for bill in spec.bills:
             await _save_bill(conn, run_id, spec.site_id, bill, sim_s)
+        if spec.module is not None:
+            await conn.execute(
+                "INSERT INTO web_module_state(run_id,site_id,state) VALUES (%s,%s,%s)",
+                (run_id, spec.site_id, Jsonb(site_modules.check_state(spec.module.state))),
+            )
         await wallet.record_event(
             conn,
             run_id,
@@ -551,6 +588,49 @@ async def create_site(
             f"web:site:{spec.site_id}",
         )
         return _summary(site)
+
+
+async def _check_module(conn, run_id, spec: SiteSpec, source):
+    """A module site comes only from the frozen plot, and its module and people must exist."""
+    if spec.module is None:
+        return
+    if source != SEEDED_SOURCE:
+        raise SiteError("Only a site from the plot can use a module.", 422)
+    known = await _one(
+        conn,
+        "SELECT 1 FROM web_modules WHERE run_id=%s AND module_id=%s",
+        (run_id, spec.module.id),
+    )
+    if known is None:
+        raise SiteError("The site names a module that this run does not hold.", 422)
+    state = site_modules.check_state(spec.module.state)
+    wanted = set(state["accounts"]) | {
+        name for record in state["records"].values() for name in record["access"]
+    }
+    found = await _rows(
+        conn,
+        "SELECT owner_id FROM run_participants WHERE run_id=%s AND owner_id=ANY(%s)",
+        (run_id, list(wanted)),
+    )
+    if {entry["owner_id"] for entry in found} != wanted:
+        raise SiteError("Site state names an unknown person.", 422)
+
+
+async def seed_modules(conn, run_id, modules) -> None:
+    """Save the built modules of a frozen plot. The source is checked again before it is saved."""
+    for entry in modules:
+        entry = entry if isinstance(entry, dict) else entry.model_dump(mode="json")
+        try:
+            loaded = site_modules.load(entry["source"])
+        except site_modules.ModuleProblem as error:
+            raise SiteError(f"Module {entry['id']} is not valid: {error}", 422) from None
+        if loaded.sha256 != entry["sha256"]:
+            raise SiteError(f"Module {entry['id']} does not match its hash.", 422)
+        await conn.execute(
+            """INSERT INTO web_modules(run_id,module_id,sha256,source) VALUES (%s,%s,%s,%s)
+               ON CONFLICT (run_id,module_id) DO NOTHING""",
+            (run_id, entry["id"], entry["sha256"], entry["source"]),
+        )
 
 
 async def seed_sites(conn, run_id, specs) -> list[dict]:
@@ -573,6 +653,8 @@ def _merge_patch(spec: dict, patch: dict) -> dict:
     for key, value in patch.items():
         if key in _RECORD_STATUS:
             continue
+        if key == "module" or (spec.get("module") and key in _MERGED_LISTS + ("policies",)):
+            raise SiteError("A site update cannot change a module or add pages beside it.", 422)
         if key in {"site_id", "kind"}:
             if value != spec[key]:
                 raise SiteError("A site update cannot change its address or kind.", 422)
@@ -1497,6 +1579,8 @@ async def _route(view: _View, path: str, query: dict, notice: str = "") -> Page:
     head = parts[0] if parts else ""
     entry = parts[1] if len(parts) == 2 else None
     page: Page | None = None
+    if view.spec.get("module"):
+        return await _module_route(view, path, query, notice)
     if len(parts) > 2:
         page = None
     elif not parts:
@@ -1537,6 +1621,262 @@ async def _route(view: _View, path: str, query: dict, notice: str = "") -> Page:
     if notice:
         page.notice = notice
     return page
+
+
+# ---------------------------------------------------------------------------
+# Sites with a built module
+# ---------------------------------------------------------------------------
+
+MODULE_FAILED = "This page is not available right now. Please try again later."
+
+
+def module_context(run: dict, owner_id, now_s: int) -> dict:
+    """Story time and the visitor's name, as a module may read them."""
+    context = {"minutes": now_s // 60, "viewer_name": ""}
+    for owner in (run.get("scenario") or {}).get("owners", ()):
+        if owner.get("id") == owner_id:
+            context["viewer_name"] = owner.get("name", "")
+    start = wallet.clock_section(run).get("start_at")
+    if start:
+        try:
+            moment = clock.parse_start(start) + timedelta(seconds=now_s)
+        except clock.ClockError:
+            return context
+        context.update(
+            now=moment.strftime("%Y-%m-%dT%H:%M"),
+            date=moment.strftime("%Y-%m-%d"),
+            weekday=moment.strftime("%A"),
+        )
+    return context
+
+
+def module_page(site_id, site_name, module, data, path, notice="", status=200) -> Page:
+    """Turn a module's page description into the one Page that both renderers write."""
+    sections = []
+    for part in data["sections"]:
+        forms = []
+        for form in part["forms"]:
+            declared = module.actions[form["action"]].fields
+            forms.append(
+                Form(
+                    form["label"],
+                    site_url(site_id, form["path"]),
+                    form["action"],
+                    tuple(
+                        FormField(
+                            name,
+                            required=item.required,
+                            value=form["values"].get(name),
+                            hint=item.describe(),
+                        )
+                        for name, item in declared.items()
+                    ),
+                )
+            )
+        sections.append(
+            Section(
+                heading=part["heading"],
+                lines=list(part["lines"]),
+                links=[
+                    Link(link["label"], site_url(site_id, link["path"])) for link in part["links"]
+                ],
+                forms=forms,
+            )
+        )
+    nav = [Link("Home", site_url(site_id, "/"))]
+    nav += [Link(label, site_url(site_id, target)) for label, target in module.nav]
+    return Page(
+        url=site_url(site_id, path),
+        title=data["title"],
+        site_name=site_name,
+        status=status,
+        notice=notice,
+        sections=sections,
+        nav=nav,
+    )
+
+
+def module_failed_page(site_id, site_name, path) -> Page:
+    return Page(
+        url=site_url(site_id, path),
+        title="Service unavailable",
+        site_name=site_name,
+        status=500,
+        sections=[Section(lines=[MODULE_FAILED])],
+        nav=[Link("Home", site_url(site_id, "/"))],
+    )
+
+
+async def _module_parts(view: _View, *, lock=False):
+    source = await _one(
+        view.conn,
+        "SELECT source FROM web_modules WHERE run_id=%s AND module_id=%s",
+        (view.run_id, view.spec["module"]["id"]),
+    )
+    saved = await _one(
+        view.conn,
+        "SELECT state,version FROM web_module_state WHERE run_id=%s AND site_id=%s"
+        + (" FOR UPDATE" if lock else ""),
+        (view.run_id, view.site_id),
+    )
+    if source is None or saved is None:
+        raise site_modules.ModuleRunError("The site has no saved module.")
+    try:
+        return site_modules.load(source["source"]), saved["state"]
+    except site_modules.ModuleProblem as error:
+        raise site_modules.ModuleRunError(str(error)) from None
+
+
+async def _module_route(view: _View, path: str, query: dict, notice: str = "") -> Page:
+    """Build one page of a module site from saved state. It writes nothing."""
+    name = view.site["name"]
+    try:
+        module, state = await _module_parts(view)
+        context = module_context(view.run, view.owner_id, view.now_s)
+        data = site_modules.render_page(module, state, view.owner_id, context, path, query)
+    except site_modules.ModuleRunError:
+        return module_failed_page(view.site_id, name, path)
+    if data is None:
+        return _site_not_found(view, path)
+    return module_page(view.site_id, name, module, data, path, notice)
+
+
+async def _submit_module_action(conn, run_id, owner_id, site_id, action, fields, request_id):
+    """Run one module action in one transaction: state, money, messages and the saved result.
+
+    The module computes a change from the visitor's view. Code here applies it. A declined
+    card leaves the state as it was. A module fault saves a web_module_error event, changes
+    nothing else and saves no result, so the same request can be sent again.
+    """
+    if not isinstance(request_id, str) or not _REQUEST_RE.fullmatch(request_id):
+        raise SiteError("A valid request ID is required.", 422)
+    if not isinstance(action, str) or not isinstance(fields, dict):
+        raise SiteError("Please check the form fields.", 422)
+    digest = _hash({"site_id": site_id, "action": action, "fields": fields})
+    async with conn.transaction():
+        run = await _WORLD._run(conn, run_id)
+        prior = await _one(
+            conn,
+            """SELECT payload_hash,result FROM web_requests
+               WHERE run_id=%s AND owner_id=%s AND request_id=%s""",
+            (run_id, owner_id, request_id),
+        )
+        if prior is not None:
+            if prior["payload_hash"] != digest:
+                raise SiteError("This request ID was already used for a different form.")
+            return prior["result"]
+        _WORLD._active(run)
+        await _WORLD._account(conn, run_id, owner_id)
+        site = await _one(
+            conn, "SELECT * FROM web_sites WHERE run_id=%s AND site_id=%s", (run_id, site_id)
+        )
+        if site is None or not site["spec"].get("module"):
+            raise SiteError("Site not found.", 404)
+        now_s = await wallet.sim_now(conn, run_id)
+        view = _View(conn, run, site, site["spec"], owner_id, now_s)
+        context = module_context(run, owner_id, now_s)
+        try:
+            module, state = await _module_parts(view, lock=True)
+            if action not in module.actions:
+                raise SiteError("This site does not offer that action.", 422)
+            clean = site_modules.clean_fields(module.actions[action], fields)
+            outcome = site_modules.run_action(module, state, owner_id, context, action, clean)
+        except site_modules.FieldProblem as error:
+            raise SiteError(str(error), 422) from None
+        except site_modules.ModuleRunError as error:
+            await _site_event(
+                view,
+                "web_module_error",
+                f"web:module-error:{site_id}:{owner_id}:{request_id}",
+                module_id=site["spec"]["module"]["id"],
+                action=action,
+                error=str(error)[:300],
+            )
+            return _result(module_failed_page(site_id, site["name"], "/"), "rejected")
+        result_outcome, notice, charged = outcome.outcome, outcome.notice, 0
+        if outcome.outcome == "done" and outcome.charge is not None:
+            payment = await wallet.spend(
+                conn,
+                run_id,
+                owner_id,
+                outcome.charge["amount"],
+                f"{site['name']}: {outcome.charge['memo']}"[:500],
+                f"web:module:{site_id}:{owner_id}:{request_id}",
+                f"web:{site_id}",
+            )
+            if payment["status"] == "declined":
+                notice = await _decline(
+                    view, action, outcome.charge["amount"], payment, request_id, action
+                )
+                result_outcome = "declined"
+            else:
+                charged = outcome.charge["amount"]
+        applied = result_outcome == "done"
+        if applied and outcome.changed:
+            await conn.execute(
+                """UPDATE web_module_state SET state=%s,version=version+1
+                   WHERE run_id=%s AND site_id=%s""",
+                (Jsonb(outcome.state), run_id, site_id),
+            )
+        if applied and outcome.message is not None:
+            await _site_message(view, "contact", request_id, action=action, **outcome.message)
+        if (
+            applied
+            and outcome.mail
+            and await _one(conn, "SELECT 1 FROM clock_state WHERE run_id=%s", (run_id,))
+        ):
+            for index, letter in enumerate(outcome.mail):
+                await clock.schedule(
+                    conn,
+                    run_id,
+                    now_s + letter["in_minutes"] * 60,
+                    "director_plan",
+                    payload={
+                        "mail": [
+                            {
+                                "to": owner_id,
+                                "from_name": site["name"][:120],
+                                "subject": letter["subject"],
+                                "body": letter["body"],
+                            }
+                        ],
+                        "about_owner": owner_id,
+                    },
+                    key=f"web-module-mail:{site_id}:{owner_id}:{request_id}:{index}",
+                    owner_id=owner_id,
+                    source="web",
+                )
+        if module.actions[action].write:
+            await _site_event(
+                view,
+                "web_module_action",
+                f"web:module-action:{site_id}:{owner_id}:{request_id}",
+                module_id=site["spec"]["module"]["id"],
+                action=action,
+                outcome=result_outcome,
+                charged=charged,
+                request_id=request_id,
+            )
+        kept = applied or outcome.outcome == "rejected"
+        target = outcome.path if kept else "/"
+        shown = outcome.state if applied else state
+        try:
+            data = site_modules.render_page(
+                module, shown, owner_id, context, target, outcome.query if kept else {}
+            )
+        except site_modules.ModuleRunError:
+            data = None
+        if data is None:
+            data = {"title": site["name"], "sections": []}
+        page = module_page(site_id, site["name"], module, data, target, notice)
+        result = _result(page, result_outcome)
+        payload = {"site_id": site_id, "action": action, "fields": fields}
+        await conn.execute(
+            """INSERT INTO web_requests(run_id,owner_id,request_id,payload_hash,payload,result,
+                      sim_s) VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+            (run_id, owner_id, request_id, digest, Jsonb(payload), Jsonb(result), now_s),
+        )
+        return result
 
 
 async def _load_view(conn, run_id, site_id, owner_id) -> _View | None:
@@ -2340,7 +2680,17 @@ async def submit_action(conn, run_id, owner_id, site_id, action, fields, request
     Outcome is done, declined or rejected. A write saves its result in the same transaction
     as its effects, so a retry with the same request ID returns that result and changes
     nothing. A reused ID with a changed form raises WorldError 409. A read saves nothing.
+    A site with a built module declares its own actions, and every one of them saves a result.
     """
+    built = await _one(
+        conn,
+        "SELECT 1 FROM web_sites WHERE run_id=%s AND site_id=%s AND spec ? 'module'",
+        (run_id, site_id),
+    )
+    if built is not None:
+        return await _submit_module_action(
+            conn, run_id, owner_id, site_id, action, fields, request_id
+        )
     if action not in READ_ACTIONS and action not in WRITE_ACTIONS:
         raise SiteError("This site does not offer that action.", 422)
     if not isinstance(fields, dict) or len(fields) > 12:

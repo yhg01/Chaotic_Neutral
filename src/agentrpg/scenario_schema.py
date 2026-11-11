@@ -298,6 +298,14 @@ class ClockLifecycle(Contract):
     amount: Credits
 
 
+class ClockModule(Contract):
+    """One built site module, frozen with the scenario. See docs/WORLD_BUILD.md."""
+
+    id: Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")]
+    sha256: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    source: Annotated[str, StringConstraints(min_length=1, max_length=40000)]
+
+
 class ClockSpec(Contract):
     """Story time for one scenario. docs/EVENT_CLOCK.md is the contract for each field."""
 
@@ -321,6 +329,16 @@ class ClockSpec(Contract):
     # A SiteSpec list. sim_web checks each one at compile time; see ScenarioSpec.compile.
     sites: tuple[dict[str, Any], ...] = Field(default=(), max_length=200)
     lifecycle: tuple[ClockLifecycle, ...] = Field(default=(), max_length=100)
+    # Built site modules. A site names one through its module field.
+    modules: tuple[ClockModule, ...] = Field(default=(), max_length=40)
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_modules(self, handler):
+        # Scenarios with no built module keep the same JSON and the same hash as before.
+        data = handler(self)
+        if not data.get("modules"):
+            data.pop("modules", None)
+        return data
 
     @model_validator(mode="after")
     def valid_times(self) -> Self:
@@ -563,12 +581,33 @@ class ScenarioSpec(Contract):
         for item in clock.lifecycle:
             if item.owner_id not in owners:
                 raise ValueError("Lifecycle item references an unknown owner.")
+        if len({module.id for module in clock.modules}) != len(clock.modules):
+            raise ValueError("Duplicate module IDs.")
+        if clock.modules:
+            from agentrpg import site_modules
+
+            for module in clock.modules:
+                problems = site_modules.check_source(module.source)
+                if problems:
+                    raise ValueError(f"Module {module.id} is not valid: {problems[0]}")
+                if site_modules.source_hash(module.source) != module.sha256:
+                    raise ValueError(f"Module {module.id} does not match its hash.")
         if clock.sites:
             # At use time: the site module reaches this schema through the Director.
+            from agentrpg import site_modules
             from agentrpg.sim_web import SiteSpec
 
+            known = {module.id for module in clock.modules}
             for site in clock.sites:
-                SiteSpec.model_validate(site)
+                checked = SiteSpec.model_validate(site)
+                if checked.module is None:
+                    continue
+                if checked.module.id not in known:
+                    raise ValueError(f"Site {checked.site_id} names an unknown module.")
+                try:
+                    site_modules.check_state(checked.module.state, owners)
+                except site_modules.ModuleProblem as error:
+                    raise ValueError(f"Site {checked.site_id}: {error}") from None
 
     def canonical_json(self) -> str:
         payload = self.model_dump(mode="json")

@@ -1,0 +1,30 @@
+{
+  "scenario_id": "toy-permit",
+  "scenario_hash": "8ac1ca9ada8c1adfba47e4dee1286609e843a26e1dc1f73b1c45c3d19ac6e81d",
+  "modules": [
+    {
+      "id": "wexley-permits",
+      "sha256": "296e04260623635807bb9496b7894ea3c5ee809a6a557f4113eca2ae1383ac8a",
+      "file": "wexley-permits.py"
+    }
+  ],
+  "documents": [],
+  "orders": [
+    {
+      "order_id": "permits",
+      "kind": "site",
+      "passed": true,
+      "attempts": [
+        {
+          "attempt": 1,
+          "sha256": "296e04260623635807bb9496b7894ea3c5ee809a6a557f4113eca2ae1383ac8a",
+          "chars": 4768,
+          "stage": "passed",
+          "problems": []
+        }
+      ],
+      "module_sha256": "296e04260623635807bb9496b7894ea3c5ee809a6a557f4113eca2ae1383ac8a",
+      "papers": []
+    }
+  ]
+}

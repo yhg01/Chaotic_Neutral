@@ -69,8 +69,8 @@ Everything runs on the **Mac mini**. The laptop is for editing, reading and git 
 - PostgreSQL (port 55432) and the API (port 8000) are left running there. Both listen on loopback
   only.
 - To see the replay portal and run console from the laptop, open a tunnel. Then go to
-  `http://127.0.0.1:18000/runs` (replay) or `http://127.0.0.1:18000/console` (controls). The code
-  allows this, but it has not been tried.
+  `http://127.0.0.1:18000/runs` (replay) or `http://127.0.0.1:18000/console` (controls). This
+  was checked on 11 November.
 
 ```bash
 ssh -N -o ExitOnForwardFailure=yes -L 18000:127.0.0.1:8000 yuhe@mini

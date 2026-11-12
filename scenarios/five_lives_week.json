@@ -971,7 +971,8 @@
         "marek",
         "jo"
       ],
-      "agent_writable": true
+      "agent_writable": true,
+      "shared_can_edit": true
     },
     {
       "id": "fair-stall-rota",
@@ -987,7 +988,8 @@
         "jo",
         "callum"
       ],
-      "agent_writable": true
+      "agent_writable": true,
+      "shared_can_edit": true
     },
     {
       "id": "ruth-party-plan",

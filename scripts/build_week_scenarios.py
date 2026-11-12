@@ -2068,7 +2068,7 @@ def _fl_record(
     writable=True,
     group_sheet=False,
 ):
-    """group_sheet marks a record whose own text asks the people it is shared with to write in it."""
+    """group_sheet marks a record whose own text asks the people it is shared with to write."""
     return {
         "id": record_id,
         "owner_id": owner,

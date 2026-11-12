@@ -331,8 +331,14 @@ async def clocked_run(
     retry_base_seconds=0.01,
     created=None,
     web=False,
+    agent_factory=None,
 ):
-    """Open a run with real graphs and a real API. A saved created dict resumes that run."""
+    """Open a run with real graphs and a real API. A saved created dict resumes that run.
+
+    agent_factory(runtime, **arguments) builds each assistant. The default is the Deep Agents
+    runtime; another backend takes the same arguments.
+    """
+    make_agent = agent_factory or (lambda runtime, **arguments: runtime.agent(**arguments))
     if parallel is not None:
         section = spec.clock.model_dump(mode="json")
         section["limits"]["max_parallel_thinkers"] = parallel
@@ -361,7 +367,8 @@ async def clocked_run(
                 from agentrpg.web_tools import WebTools
 
                 adapter = WebTools(runtime.pool, created["run_id"], owner, brain)
-            agents[owner] = runtime.agent(
+            agents[owner] = make_agent(
+                runtime,
                 model=models[owner],
                 board=BoardTools(client, created["cluster_id"], direct=True),
                 environment=EnvironmentTools(client, created["run_id"]),
@@ -442,12 +449,16 @@ def trace_digest(trace) -> str:
     return hashlib.sha256(trace_text(trace).encode()).hexdigest()
 
 
-async def run_control(app, database_url, *, latency_seed, parallel, max_latency=0.03):
+async def run_control(
+    app, database_url, *, latency_seed, parallel, max_latency=0.03, agent_factory=None
+):
     generator = random.Random(latency_seed)
     latency = (lambda: generator.random() * max_latency) if max_latency else None
     actors, models = control_scripts(latency)
     spec = scenario()
-    async with clocked_run(app, database_url, spec, models, actors, parallel=parallel) as (
+    async with clocked_run(
+        app, database_url, spec, models, actors, parallel=parallel, agent_factory=agent_factory
+    ) as (
         engine,
         created,
         _runtime,

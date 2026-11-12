@@ -1381,6 +1381,11 @@ class PersonalAgent:
             if not valid:
                 raise AgentIdentityError("The environment run does not match this Agent session.")
 
+    async def activation_messages(self) -> list:
+        """Every saved message of this session. The clock takes its stamps from them (R6)."""
+        snapshot = await self.graph.aget_state(self.config)
+        return snapshot.values.get("messages", [])
+
     async def _claim_task(self, task: str, task_id: UUID) -> dict:
         async with self.runtime.pool.connection() as connection:
             async with connection.transaction():

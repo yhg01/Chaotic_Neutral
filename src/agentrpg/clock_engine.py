@@ -1331,10 +1331,9 @@ class ClockEngine:
 
     async def _save_agent_result(self, ctx: _Run, job: dict, agent, result) -> None:
         """Save the output and queue its finish at the stamp where the graph ended."""
-        snapshot = await agent.graph.aget_state(agent.config)
         end_s = fold_stamps(
             job["start_s"],
-            snapshot.values.get("messages", []),
+            await agent.activation_messages(),
             job["id"],
             ctx.config,
             gated=self.gate.gated_names(agent.clock_process),

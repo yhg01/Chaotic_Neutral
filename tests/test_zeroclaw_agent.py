@@ -16,6 +16,7 @@ from uuid import UUID
 import httpx
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
 from agentrpg.agent_surface import INSTRUCTIONS
@@ -26,6 +27,7 @@ from agentrpg.zeroclaw_agent import (
     HARNESS,
     OPEN_CALL,
     PREFIX,
+    SUMMARY_LEAD,
     UNEXPECTED_CALL,
     ZEROCLAW,
     ZeroClawBridge,
@@ -348,6 +350,71 @@ async def test_an_abandoned_activation_leaves_a_history_that_a_provider_accepts(
     assert closed.content == OPEN_CALL.format(name="check_bookings", call_id="open-1")
     replies = [r["payload"].get("content") for r in await events(pool, run_id, "owner_message")]
     assert "Second job done." in replies
+
+
+class Stepping(Recording):
+    """Replies in order of its own calls, and writes a summary when it is asked for one."""
+
+    step: int = 0
+    summaries: int = 0
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        if len(messages) == 1 and messages[0].type == "human":
+            self.summaries += 1
+            reply = AIMessage(content="Dan asked what was new. Three checks found nothing new.")
+            return ChatResult(generations=[ChatGeneration(message=reply)])
+        self.all_seen.append(list(messages))
+        reply = self.script[min(self.step, len(self.script) - 1)]
+        self.step += 1
+        return ChatResult(generations=[ChatGeneration(message=reply)])
+
+
+async def test_a_long_history_is_summarised_for_the_model_and_kept_whole_for_the_clock(
+    app, pool, test_database_url
+):
+    note = "Nothing new in this check. " * 12
+    model = Stepping(
+        script=[
+            *[
+                control.calls(("send_owner_message", {"content": f"{n}. {note}"}, f"note-{n}"))
+                for n in range(5)
+            ],
+            control.end_turn(status="finished"),
+        ]
+    )
+
+    def factory(runtime, **arguments):
+        agent = zeroclaw_factory(bridge)(runtime, **arguments)
+        # About 300 tokens of history start a summary, and about 120 stay as they are.
+        agent.summary_tokens, agent.summary_keep_tokens = 300, 120
+        return agent
+
+    async with ZeroClawBridge() as bridge:
+        agent, run_id = await one_owner(app, pool, test_database_url, model, factory)
+        stats = agent.stats
+    assert stats.exit_codes == [0]
+    assert stats.summaries >= 1 and model.summaries == stats.summaries
+    summarised = [seen for seen in model.all_seen if str(seen[1].content).startswith(SUMMARY_LEAD)]
+    assert summarised
+    for seen in summarised:
+        # After the summary the model reads whole exchanges: no result without its call.
+        assert seen[2].type != "tool"
+        asked = {c["id"] for m in seen if isinstance(m, AIMessage) for c in m.tool_calls}
+        assert {m.tool_call_id for m in seen if isinstance(m, ToolMessage)} <= asked
+        assert len(seen) < len(agent.messages) + 1
+    # The saved history still holds every message, and every note went out once.
+    assert agent.messages[0].content.endswith("Tell me what is new, please.")
+    assert sum(1 for m in agent.messages if isinstance(m, ToolMessage)) == 6
+    called = [r["payload"]["call_id"] for r in await events(pool, run_id, "assistant_tool_call")]
+    assert called == [f"note-{n}" for n in range(5)]
+    # Each summary is one counted model call of the task.
+    async with pool.connection() as conn:
+        task = await (
+            await conn.execute(
+                "SELECT model_calls FROM agent_tasks WHERE session_key=%s", (agent.session_key,)
+            )
+        ).fetchone()
+    assert task["model_calls"] == 6 + stats.summaries
 
 
 async def test_the_program_has_no_host_tools_and_no_keys(app, pool, test_database_url):

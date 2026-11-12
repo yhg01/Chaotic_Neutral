@@ -55,6 +55,8 @@ from psycopg.types.json import Jsonb
 from agentrpg.agent_surface import NATURAL
 from agentrpg.clock import strip_nul
 from agentrpg.deep_agent import (
+    CLOCKED_SUMMARY_KEEP_TOKENS,
+    CLOCKED_SUMMARY_TOKENS,
     AgentRuntimeError,
     AgentTransientError,
     PersonalAgent,
@@ -95,6 +97,20 @@ OPEN_CALL = (
 # In harness mode the program's own message is not read by the model, so the owner's words
 # stay off its command line.
 PLACEHOLDER = "Continue."
+# The same lead as the Deep Agents library puts before a summary of older history.
+SUMMARY_LEAD = "Here is a summary of the conversation to date:\n\n"
+
+
+def _tokens(messages) -> int:
+    """About how many tokens these messages take: four characters each."""
+    size = 0
+    for message in messages:
+        content = message.content
+        size += len(content if isinstance(content, str) else json.dumps(content, default=str))
+        size += len(json.dumps(getattr(message, "tool_calls", None) or [], default=str))
+    return size // 4
+
+
 # ZeroClaw cuts each persona file at this size unless compact_context is off.
 COMPACT_FILE_CHARS = 6000
 
@@ -443,6 +459,7 @@ class ZeroClawStats:
     changed_arguments: int = 0
     unanswered_calls: int = 0
     open_calls_closed: int = 0
+    summaries: int = 0
     early_exits: int = 0
     exit_codes: list[int] = field(default_factory=list)
 
@@ -482,6 +499,11 @@ class ZeroClawAgent(PersonalAgent):
         self._arrived: set[int] = set()
         self._result: dict | None = None
         self._notified: list[str] = []
+        # The model reads the last summary and the messages from this position. The saved
+        # history keeps every message, because the clock reads its stamps from all of them.
+        self._summary: tuple[int, str] | None = None
+        self.summary_tokens = CLOCKED_SUMMARY_TOKENS
+        self.summary_keep_tokens = CLOCKED_SUMMARY_KEEP_TOKENS
 
     # Saved history ---------------------------------------------------------------------
 
@@ -525,7 +547,7 @@ class ZeroClawAgent(PersonalAgent):
         async with self.runtime.pool.connection() as connection:
             rows = await (
                 await connection.execute(
-                    "SELECT task_id, note FROM zeroclaw_messages WHERE session_key=%s "
+                    "SELECT seq, task_id, note FROM zeroclaw_messages WHERE session_key=%s "
                     "AND note <> '{}'::jsonb ORDER BY seq",
                     (self.session_key,),
                 )
@@ -545,6 +567,9 @@ class ZeroClawAgent(PersonalAgent):
             self.web.operation_namespace = namespace
         self._transcript = await self._load()
         notes = await self._notes()
+        told = [row for row in notes if "notified_mail_ids" in row["note"]]
+        marks = [row for row in notes if "summary" in row["note"]]
+        self._summary = (marks[-1]["seq"], marks[-1]["note"]["summary"]) if marks else None
         start = next(
             (
                 index
@@ -555,7 +580,7 @@ class ZeroClawAgent(PersonalAgent):
         )
         if start is None:
             await self._close_open_calls()
-            earlier = notes[-1]["note"].get("notified_mail_ids", []) if notes else []
+            earlier = told[-1]["note"]["notified_mail_ids"] if told else []
             self._notified = _unobserved_mail(self._activation_envelope, self._transcript, earlier)
             start = len(self._transcript)
             await self._append(
@@ -563,7 +588,7 @@ class ZeroClawAgent(PersonalAgent):
                 note={"notified_mail_ids": self._notified},
             )
         else:
-            saved = next((row["note"] for row in notes if row["task_id"] == task_id), {})
+            saved = next((row["note"] for row in told if row["task_id"] == task_id), {})
             self._notified = saved.get("notified_mail_ids", [])
         self._start = start
         self._result = None
@@ -586,6 +611,49 @@ class ZeroClawAgent(PersonalAgent):
                 (answer, self.session_key, task_id),
             )
         return answer
+
+    def _visible(self) -> list:
+        """The history as the model reads it: the last summary, then the messages after it."""
+        if self._summary is None:
+            return list(self._transcript)
+        position, text = self._summary
+        lead = HumanMessage(
+            content=SUMMARY_LEAD + text, additional_kwargs={"lc_source": "summarization"}
+        )
+        return [lead, *self._transcript[position:]]
+
+    async def _summarize_if_long(self) -> None:
+        """Put a summary in place of older history when the model's input is too long.
+
+        This counts as one model call of the task, as on the Deep Agents backend.
+        """
+        shown = self._visible()
+        if _tokens(shown) <= self.summary_tokens:
+            return
+        first = self._summary[0] if self._summary else 0
+        kept, cut = 0, None
+        for index in range(len(self._transcript) - 1, first, -1):
+            kept += _tokens([self._transcript[index]])
+            if kept >= self.summary_keep_tokens:
+                cut = index
+                break
+        if cut is None:
+            return
+        # A tool result stays with the model message that asked for it.
+        while cut < len(self._transcript) and self._transcript[cut].type == "tool":
+            cut += 1
+        if cut >= len(self._transcript) or cut <= first:
+            return
+        older = shown[: len(shown) - (len(self._transcript) - cut)]
+        self.gate.before_model(self.clock_process, self._transcript)
+        text = await self._summarize(older)
+        async with self.runtime.pool.connection() as connection:
+            await connection.execute(
+                "UPDATE zeroclaw_messages SET note = note || %s WHERE session_key=%s AND seq=%s",
+                (Jsonb({"summary": strip_nul(text)}), self.session_key, cut),
+            )
+        self._summary = (cut, text)
+        self.stats.summaries += 1
 
     async def _close_open_calls(self) -> None:
         """Give a result to every call that an abandoned activation left open.
@@ -787,7 +855,9 @@ class ZeroClawAgent(PersonalAgent):
             # The turn has ended. This reply only lets the program stop. It is not model text,
             # so it is not saved and the model never reads it.
             return self._wire(AIMessage(content=self._result.get("text") or "Done."), body)
-        base = list(self._transcript)
+        if self.mode == HARNESS:
+            await self._summarize_if_long()
+        base = self._visible() if self.mode == HARNESS else list(self._transcript)
 
         async def handler(request: _ModelRequest):
             if self.mode == HARNESS:

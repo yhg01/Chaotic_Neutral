@@ -188,6 +188,49 @@ async def test_a_booking_yes_adds_to_what_the_owner_allowed_and_a_booking_settle
     assert [item["asset_id"] for item in held] == ["car"]
 
 
+async def test_a_second_yes_to_the_same_booking_adds_no_money(app, pool, test_database_url):
+    # Seen in a live run: an owner approved one booking twice, and the allowed amount doubled.
+    spec = two_assets(("dan",))
+    yes = {
+        "kind": "reply",
+        "text": "Yes, book the car.",
+        "booking_approval": {"booking": "car", "up_to": 5},
+    }
+    actors = {"dan": control.ScriptedOwner([{**yes, "next_action": NEXT}, yes])}
+    model = control.ScriptModel(
+        script=[
+            control.calls(("send_owner_message", {"content": "Shall I book the car for $5?"})),
+            control.end_turn(status="waiting", wait_for=["owner_message"]),
+        ]
+    )
+    async with control.clocked_run(app, test_database_url, spec, {"dan": model}, actors) as (
+        engine,
+        created,
+        _runtime,
+        _agents,
+    ):
+        run_id = UUID(created["run_id"])
+        await Director(pool).control(run_id, "start")
+        await engine.advance(created["run_id"], max_sim_minutes=120)
+        async with pool.connection() as conn:
+            account = await (
+                await conn.execute(
+                    "SELECT consent_budget,consent_assets,consent_version FROM world_accounts "
+                    "WHERE run_id=%s AND owner_id='dan'",
+                    (run_id,),
+                )
+            ).fetchone()
+            grants = await (
+                await conn.execute(
+                    "SELECT count(*) AS n FROM run_events WHERE run_id=%s "
+                    "AND kind='consent_changed'",
+                    (run_id,),
+                )
+            ).fetchone()
+    assert grants["n"] == 2
+    assert account["consent_budget"] == 5 and account["consent_assets"] == ["car"]
+
+
 # A yes in words only. --------------------------------------------------------------------------
 
 

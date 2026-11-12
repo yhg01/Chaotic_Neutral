@@ -2022,10 +2022,16 @@ class ClockEngine:
                 kinds = set(held["consent_kinds"] or ()) if current else set()
                 budget = held["consent_budget"] if current else 0
                 kind = "reserve" if booking.action == "book" else "cancel"
+                # A second yes to the same booking is the same permission, not more money.
+                repeated = booking.booking in assets and kind in kinds
                 await self.world.set_consent(
                     run_id,
                     owner,
-                    budget + (booking.up_to if kind == "reserve" else 0),
+                    budget
+                    if kind != "reserve"
+                    else max(budget, booking.up_to)
+                    if repeated
+                    else budget + booking.up_to,
                     sorted(assets | {booking.booking}),
                     uuid5(job["id"], "booking"),
                     allowed_kinds=sorted(kinds | {kind}),

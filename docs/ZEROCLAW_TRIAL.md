@@ -125,7 +125,7 @@ Each assistant ran as one continuous ZeroClaw process, unless a test stopped it.
 | A tool name that is not offered | Passed. The model gets our fixed sentence, not ZeroClaw's error text. |
 | An abandoned activation, then a later one | Passed. Each call left open gets a result, so a provider accepts the history. |
 | No host tools and no keys | Passed. The model is offered only our tools. The ZeroClaw configuration holds no provider key and no board credential. |
-| Full suite on this branch | Passed: 1,883 passed and 10 skipped, with lint and format checks clean. Without `AGENTRPG_ZEROCLAW`, the 12 ZeroClaw tests skip. |
+| Full suite on this branch | Passed: 1,887 passed and 10 skipped, with lint and format checks clean. Without `AGENTRPG_ZEROCLAW`, the 12 ZeroClaw tests skip. |
 
 ## Live results
 
@@ -142,6 +142,7 @@ Real models, called at their providers: `deepseek-flash` for assistants and owne
 | Control story, `zeroclaw` mode | One continuous process | Completed in 33 s. One process for each assistant, 32 model calls. |
 | Control story through the campaign ledger | One continuous process | Completed. 30 attempts, USD 0.0066 recorded, no uncertain charge. |
 | Five-lives, first 39 story minutes, through the ledger, with a smaller site model | One continuous process | Stopped at the Director cap that was set (14 calls). 122 assistant calls, 142 ledger attempts, USD 0.10 recorded, no uncertain charge, no failed attempt. |
+| Five-lives, first 5 story hours, through the ledger, with shared editing | One continuous process | Stopped by the real-time limit of the test. 472 assistant calls, 514 ledger attempts, USD 0.60 recorded, no uncertain charge. Four failed attempts: one activation reached the model-call limit, and in one long activation ZeroClaw stopped early three times. See "Limits". |
 
 What the live runs found in our own code, not in ZeroClaw:
 
@@ -185,8 +186,10 @@ stay read-only for the people they are shared with. A record without the setting
 same JSON as before, so the hash of every other saved scenario is the same. The five-lives
 scenario has a new hash for new runs.
 
-Not done: no live run has reached this write since the change. The tests use the assistant's
-real tool adapter and the HTTP routes.
+Live check: in a five-lives part of 5 story hours, Callum's assistant wrote to the fair stall
+rota, which Anjali owns. The write succeeded as version 1. Anjali, Ruth, Marek, Jo and Callum
+each got a change event that names Callum. Anjali's assistant then wrote version 2. No write
+to the Thursday order sheet by another owner occurred in that part.
 
 Probe findings on ZeroClaw 0.8.7, from `scripts/probe_zeroclaw.py`:
 
@@ -314,6 +317,11 @@ because in Option A the model cannot tell which runtime is in use.
   hours. A full week on the continuous driver has not run. A full week on the earlier driver
   (one process for each activation) was in progress when this was written.
 - A budget stop and a provider outage went through the bridge only in short runs.
+- Early stops are not explained. In one live activation of 59 model calls and 122 tool calls,
+  ZeroClaw ended its turn early three times. Each time a new process loaded the session, the
+  harness gave it the saved steps again, and the activation completed with no repeated effect.
+  The reason was not saved then. It is now saved in the assistant's private folder
+  (`stops.jsonl`). A second run of 40 story minutes did not show the fault.
 - One ZeroClaw version, 0.8.7, on one machine.
 - The computed cost of a directly called model is an upper bound from a price table. The table
   needs a check when a provider changes its prices.

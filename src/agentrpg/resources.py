@@ -7,7 +7,12 @@ from uuid import UUID, uuid5
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from agentrpg.resource_schema import SHARED_READ_ONLY, ResourceRequest, ResourceSpec
+from agentrpg.resource_schema import (
+    SHARED_READ_ONLY,
+    SHARED_TITLE_FIXED,
+    ResourceRequest,
+    ResourceSpec,
+)
 from agentrpg.world import WorldError, WorldService, _hash, _one, _rows
 
 ResourceError = WorldError
@@ -15,6 +20,24 @@ RESOURCE_COLUMNS = """resource_id AS id, owner_id, origin_id, title, kind, conte
     quantity, visibility, shared_owner_ids, agent_writable, version"""
 LISTING_COLUMNS = """listing_id::text AS id, seller_id, resource_id, origin_id, title,
     quantity, unit_price, version"""
+
+
+async def _resources(connection, where: str, params) -> list[dict]:
+    """Read records. shared_can_edit shows only where it is set, so other records read as before."""
+    rows = await _rows(
+        connection,
+        f"SELECT {RESOURCE_COLUMNS}, shared_can_edit FROM owner_resources WHERE {where}",
+        params,
+    )
+    for row in rows:
+        if not row["shared_can_edit"]:
+            del row["shared_can_edit"]
+    return rows
+
+
+async def _resource(connection, run_id, resource_id) -> dict | None:
+    rows = await _resources(connection, "run_id=%s AND resource_id=%s", (run_id, resource_id))
+    return rows[0] if rows else None
 
 
 class ResourceService:
@@ -98,12 +121,7 @@ class ResourceService:
             raise ResourceError("Resources not found.", 404)
         return {
             **state,
-            "resources": await _rows(
-                conn,
-                f"SELECT {RESOURCE_COLUMNS} FROM owner_resources "
-                "WHERE run_id=%s ORDER BY resource_id",
-                (run_id,),
-            ),
+            "resources": await _resources(conn, "run_id=%s ORDER BY resource_id", (run_id,)),
             "permissions": await _rows(
                 conn,
                 """SELECT owner_id, buy_budget, buy_items, sell_limits, version, expires_window
@@ -179,12 +197,7 @@ class ResourceService:
         async with connection.transaction():
             await self.world._run(connection, run_id)
             await self.world._account(connection, run_id, owner_id)
-            rows = await _rows(
-                connection,
-                f"SELECT {RESOURCE_COLUMNS} FROM owner_resources "
-                "WHERE run_id=%s ORDER BY resource_id",
-                (run_id,),
-            )
+            rows = await _resources(connection, "run_id=%s ORDER BY resource_id", (run_id,))
             return [r for r in rows if self._visible(r, owner_id)]
 
     async def view(self, run_id, owner_id, *, connection=None):
@@ -270,12 +283,7 @@ class ResourceService:
             async with conn.transaction():
                 await self.world._run(conn, run_id)
                 await self.world._account(conn, run_id, owner_id)
-                resource = await _one(
-                    conn,
-                    f"SELECT {RESOURCE_COLUMNS} FROM owner_resources "
-                    "WHERE run_id=%s AND resource_id=%s",
-                    (run_id, resource_id),
-                )
+                resource = await _resource(conn, run_id, resource_id)
                 if resource and self._visible(resource, owner_id):
                     return {"type": "resource", **resource}
                 for listing in await self._listings(conn, run_id):
@@ -371,17 +379,17 @@ class ResourceService:
                     raise ResourceError("The request ID was used with a different payload.")
                 return old["result"]
             self.world._active(run)
-            resource = await _one(
-                connection,
-                f"SELECT {RESOURCE_COLUMNS} FROM owner_resources "
-                "WHERE run_id=%s AND resource_id=%s",
-                (run_id, resource_id),
-            )
+            resource = await _resource(connection, run_id, resource_id)
             if resource and resource["owner_id"] != owner_id:
-                if resource["visibility"] == "public" or owner_id in resource["shared_owner_ids"]:
+                if not self._visible(resource, owner_id):
+                    resource = None
+                elif not (
+                    resource.get("shared_can_edit") and owner_id in resource["shared_owner_ids"]
+                ):
                     # They have read it, so "not found" would be false, and they would try again.
                     raise ResourceError(SHARED_READ_ONLY, 403)
-                resource = None
+                elif title is not None and title.strip() != resource["title"]:
+                    raise ResourceError(SHARED_TITLE_FIXED, 403)
             if not resource:
                 raise ResourceError("Resource not found.", 404)
             if not trusted and not resource["agent_writable"]:
@@ -407,11 +415,15 @@ class ResourceService:
                 (run_id, owner_id, request_id, _hash(payload), Jsonb(payload), Jsonb(result)),
             )
             await self._journal(connection, run_id, "resource_updated")
+            # The record's owner and the people it is shared with, whoever made the change.
             recipients = (
                 [None]
                 if result["visibility"] == "public"
-                else [owner_id, *result["shared_owner_ids"]]
+                else [result["owner_id"], *result["shared_owner_ids"]]
             )
+            changed = {"resource_id": resource_id, "version": result["version"]}
+            if owner_id != result["owner_id"]:
+                changed["changed_by"] = owner_id
             for recipient in recipients:
                 await self.world._event(
                     connection,
@@ -420,7 +432,7 @@ class ResourceService:
                     "resource_updated",
                     recipient,
                     f"resource:{owner_id}:{request_id}:{recipient}",
-                    {"resource_id": resource_id, "version": result["version"]},
+                    changed,
                 )
             return result
 
@@ -524,16 +536,19 @@ class ResourceService:
                 await connection.execute(
                     (
                         """UPDATE owner_resources SET visibility=%s, shared_owner_ids=%s,
-                        version=version+1 WHERE run_id=%s AND resource_id=%s"""
+                        shared_can_edit=(shared_can_edit AND %s), version=version+1
+                        WHERE run_id=%s AND resource_id=%s"""
                     ),
-                    (operation.visibility, list(operation.shared_owner_ids), run_id, resource_id),
+                    (
+                        operation.visibility,
+                        list(operation.shared_owner_ids),
+                        # Shared editing ends when the owner stops sharing the record.
+                        operation.visibility == "shared" and bool(operation.shared_owner_ids),
+                        run_id,
+                        resource_id,
+                    ),
                 )
-            result = await _one(
-                connection,
-                f"SELECT {RESOURCE_COLUMNS} FROM owner_resources "
-                "WHERE run_id=%s AND resource_id=%s",
-                (run_id, resource_id),
-            )
+            result = await _resource(connection, run_id, resource_id)
             await connection.execute(
                 (
                     """INSERT INTO resource_requests(run_id, owner_id, request_id, payload_hash,

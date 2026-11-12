@@ -9,7 +9,7 @@ from pydantic import Field, ValidationError
 
 from agentrpg.agent_tools import Identifier, _Arguments, _error
 from agentrpg.inbox_tools import INBOX_TOOLS, InboxTools, _ClockedSendMail
-from agentrpg.resource_schema import SHARED_READ_ONLY
+from agentrpg.resource_schema import SHARED_READ_ONLY, SHARED_TITLE_FIXED
 from agentrpg.resource_tools import RESOURCE_TOOLS, resource_route
 from agentrpg.schemas import Body
 from agentrpg.shop_browser import SHOP_BROWSER_TOOLS
@@ -271,19 +271,27 @@ class EnvironmentTools:
                                 }
                         if name == "write_resource" and response.status_code == 403:
                             try:
-                                shared = response.json().get("detail") == SHARED_READ_ONLY
+                                refusal = response.json().get("detail")
                             except (ValueError, AttributeError):
-                                shared = False
-                            if shared:
+                                refusal = None
+                            known = {
+                                SHARED_READ_ONLY: (
+                                    "shared_read_only",
+                                    "This record belongs to someone else. You can read it, but "
+                                    "only its owner's assistant can change it. Ask them to make "
+                                    "the change.",
+                                ),
+                                SHARED_TITLE_FIXED: (
+                                    "shared_title_fixed",
+                                    "This record belongs to someone else. You can change its "
+                                    "text, but only its owner's assistant can change its title. "
+                                    "Send the change again with no new title.",
+                                ),
+                            }.get(refusal)
+                            if known:
                                 return {
                                     "ok": False,
-                                    "error": {
-                                        "status": 403,
-                                        "code": "shared_read_only",
-                                        "detail": "This record belongs to someone else. You can "
-                                        "read it, but only its owner's assistant can change it. "
-                                        "Ask them to make the change.",
-                                    },
+                                    "error": {"status": 403, "code": known[0], "detail": known[1]},
                                 }
                         # Server errors may include secrets. Return only a local message.
                         detail = {

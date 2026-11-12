@@ -60,7 +60,8 @@ class ResourceService:
                 await connection.execute(
                     """INSERT INTO owner_resources(run_id, resource_id, owner_id, origin_id,
                     title, kind, content, quantity, visibility, shared_owner_ids,
-                    agent_writable) VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    agent_writable, shared_can_edit)
+                    VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
                         run_id,
                         item["id"],
@@ -73,6 +74,7 @@ class ResourceService:
                         item["visibility"],
                         item["shared_owner_ids"],
                         item["agent_writable"],
+                        item.get("shared_can_edit", False),
                     ),
                 )
             await connection.execute(

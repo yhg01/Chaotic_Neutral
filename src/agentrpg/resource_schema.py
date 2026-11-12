@@ -2,7 +2,14 @@
 
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_serializer,
+    model_validator,
+)
 
 ResourceID = Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$")]
 Money = Annotated[int, Field(strict=True, ge=0, le=1_000_000)]
@@ -21,6 +28,7 @@ class ResourceContract(BaseModel):
 
 # A record that this owner can read and another owner holds. The owner's assistant is told so.
 SHARED_READ_ONLY = "This record belongs to another owner and is shared for reading only."
+SHARED_TITLE_FIXED = "Only the owner of a shared record can change its title."
 
 
 class ResourceSpec(ResourceContract):
@@ -33,6 +41,16 @@ class ResourceSpec(ResourceContract):
     visibility: Literal["private", "shared", "public"] = "private"
     shared_owner_ids: tuple[ResourceID, ...] = Field(default=(), max_length=14)
     agent_writable: bool = True
+    # True lets the owners it is shared with change its content too, as with a group sheet.
+    shared_can_edit: bool = False
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_shared_editing(self, handler):
+        # Saved scenarios and saved resource states keep the same JSON and hash unless this is set.
+        data = handler(self)
+        if not data.get("shared_can_edit"):
+            data.pop("shared_can_edit", None)
+        return data
 
     @model_validator(mode="after")
     def check_shape(self) -> Self:
@@ -44,6 +62,8 @@ class ResourceSpec(ResourceContract):
             raise ValueError("Shared owner IDs must be unique.")
         if self.owner_id in self.shared_owner_ids:
             raise ValueError("A resource owner already has access.")
+        if self.shared_can_edit and not self.shared_owner_ids:
+            raise ValueError("Shared editing requires the owners it is shared with.")
         return self
 
 

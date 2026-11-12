@@ -231,6 +231,7 @@ model_provider = "custom.sim"
 risk_profile = "sim"
 runtime_profile = "sim"
 mcp_bundles = ["harness"]
+acp_enable_mcp = true
 
 [agents.{args.agent}.memory]
 backend = "none"
@@ -334,6 +335,94 @@ def collect(root: Path, args) -> dict:
     return found
 
 
+async def acp_turns(binary: str, args, env: dict, root: Path) -> list[dict]:
+    """Drive one long-lived `zeroclaw acp` process: one session, one prompt for each message.
+
+    After the last message but one, the process is stopped and a new one loads the same
+    session, to show whether the history lasts beyond one process.
+    """
+    turns, session_id = [], None
+
+    async def start():
+        return await asyncio.create_subprocess_exec(
+            binary,
+            "acp",
+            "--agent",
+            args.agent,
+            "--log-level",
+            "info",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+            cwd=str(root),
+            start_new_session=True,
+        )
+
+    async def rpc(process, number, method, params=None):
+        request = {"jsonrpc": "2.0", "id": number, "method": method}
+        if params is not None:
+            request["params"] = params
+        process.stdin.write((json.dumps(request) + "\n").encode())
+        await process.stdin.drain()
+        updates = []
+        while True:
+            line = await asyncio.wait_for(process.stdout.readline(), args.timeout)
+            if not line:
+                return {"error": "the process closed its output"}, updates
+            try:
+                message = json.loads(line)
+            except ValueError:
+                updates.append({"not_json": line.decode(errors="replace")[:300]})
+                continue
+            if message.get("id") == number and "method" not in message:
+                return message, updates
+            updates.append(message)
+
+    process = await start()
+    number = 0
+    for position, message in enumerate(args.message):
+        if position == 0:
+            number += 1
+            hello, _ = await rpc(process, number, "initialize")
+            number += 1
+            opened, _ = await rpc(process, number, "session/new", {"agentAlias": args.agent})
+            session_id = (opened.get("result") or {}).get("sessionId")
+            turns.append({"initialize": hello, "session_new": opened})
+        elif position == len(args.message) - 1 and len(args.message) > 2:
+            process.kill()
+            await process.wait()
+            process = await start()
+            number += 1
+            await rpc(process, number, "initialize")
+            number += 1
+            loaded, _ = await rpc(process, number, "session/load", {"sessionId": session_id})
+            turns.append({"restarted": True, "session_load": loaded})
+        started = time.monotonic()
+        number += 1
+        answer, updates = await rpc(
+            process, number, "session/prompt", {"sessionId": session_id, "prompt": message}
+        )
+        kinds = [
+            (item.get("params") or {}).get("update", {}).get("sessionUpdate") for item in updates
+        ]
+        turns.append(
+            {
+                "message": message,
+                "seconds": round(time.monotonic() - started, 2),
+                "answer": answer,
+                "update_kinds": kinds,
+                "first_tool_update": next(
+                    (item for item in updates if "tool_call" in json.dumps(item)[:400]), None
+                ),
+            }
+        )
+    process.kill()
+    _, err = await process.communicate()
+    turns.append({"stderr_tail": err.decode(errors="replace")[-3000:]})
+    return turns
+
+
 async def run(args) -> dict:
     binary = args.zeroclaw
     with socket.socket() as probe:
@@ -346,39 +435,42 @@ async def run(args) -> dict:
     while not server.started:  # noqa: ASYNC110
         await asyncio.sleep(0.05)
     root, env = await asyncio.to_thread(prepare, port, args)
-    turns = []
-    for message in args.message:
-        started = time.monotonic()
-        process = await asyncio.create_subprocess_exec(
-            binary,
-            "agent",
-            "-a",
-            args.agent,
-            "-m",
-            message,
-            "--log-level",
-            "debug",
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-            cwd=str(root),
-            start_new_session=True,
-        )
-        try:
-            out, err = await asyncio.wait_for(process.communicate(), args.timeout)
-        except TimeoutError:
-            process.kill()
-            out, err = await process.communicate()
-        turns.append(
-            {
-                "message": message,
-                "exit_code": process.returncode,
-                "seconds": round(time.monotonic() - started, 2),
-                "stdout": out.decode(errors="replace"),
-                "stderr": err.decode(errors="replace")[-6000:],
-            }
-        )
+    if args.acp:
+        turns = await acp_turns(binary, args, env, root)
+    else:
+        turns = []
+        for message in args.message:
+            started = time.monotonic()
+            process = await asyncio.create_subprocess_exec(
+                binary,
+                "agent",
+                "-a",
+                args.agent,
+                "-m",
+                message,
+                "--log-level",
+                "debug",
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd=str(root),
+                start_new_session=True,
+            )
+            try:
+                out, err = await asyncio.wait_for(process.communicate(), args.timeout)
+            except TimeoutError:
+                process.kill()
+                out, err = await process.communicate()
+            turns.append(
+                {
+                    "message": message,
+                    "exit_code": process.returncode,
+                    "seconds": round(time.monotonic() - started, 2),
+                    "stdout": out.decode(errors="replace"),
+                    "stderr": err.decode(errors="replace")[-6000:],
+                }
+            )
     server.should_exit = True
     await serving
     return {
@@ -410,6 +502,11 @@ def main() -> None:
     parser.add_argument(
         "--duplicate", action="store_true", help="Ask for one tool twice in one model reply."
     )
+    parser.add_argument(
+        "--acp",
+        action="store_true",
+        help="Use one long-lived `zeroclaw acp` process with one session for all messages.",
+    )
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--trace-lines", type=int, default=0)
     parser.add_argument("--keep", action="store_true", help="Keep the temporary folder.")
@@ -425,7 +522,12 @@ def main() -> None:
     report = asyncio.run(run(args))
     Path(args.out).write_text(json.dumps(report, indent=1), encoding="utf-8")
     for turn in report["turns"]:
-        print(f"exit {turn['exit_code']} in {turn['seconds']}s: {turn['stdout'].strip()[:200]!r}")
+        if "exit_code" in turn:
+            print(
+                f"exit {turn['exit_code']} in {turn['seconds']}s: {turn['stdout'].strip()[:200]!r}"
+            )
+        else:
+            print(json.dumps(turn, default=str)[:300])
     kinds = [event["kind"] for event in report["events"]]
     print({kind: kinds.count(kind) for kind in sorted(set(kinds))})
 

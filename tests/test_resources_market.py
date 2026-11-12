@@ -129,7 +129,7 @@ async def test_private_resources_search_and_explicit_sharing(environment, pool):
     )
     assert shared["version"] == 2
     assert (await resources.fetch(run_id, "owner-2", "manual"))["content"] == "Owner edit"
-    with pytest.raises(WorldError, match="not found"):
+    with pytest.raises(WorldError, match="shared for reading only"):
         await resources.update(run_id, "owner-2", "manual", uuid4(), "stolen", 2)
     with pytest.raises(WorldError, match="other owners"):
         await resources.apply_request(
@@ -763,6 +763,50 @@ async def test_actor_resource_view_has_bounded_content(environment):
     assert len(view["items"]) == 30 and view["truncated"]
     assert sum(len(r["content"]) for r in view["items"]) <= 24000
     assert any(r["content_truncated"] for r in view["items"])
+
+
+async def test_a_write_to_a_shared_record_of_someone_else_says_why_it_is_refused(environment, app):
+    # Seen in a live run: an assistant read a shared sheet, was told "not found" when it wrote
+    # to it, and tried 54 times.
+    import httpx
+
+    from agentrpg.agent_surface import present_result
+    from agentrpg.environment_tools import EnvironmentTools
+
+    run_id, resources, _, _, agents = await environment()
+    await resources.apply_request(
+        run_id,
+        "owner-1",
+        uuid4(),
+        {
+            "kind": "share",
+            "resource_id": "manual",
+            "expected_version": 0,
+            "visibility": "shared",
+            "shared_owner_ids": ["owner-2"],
+        },
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test/api/v1/",
+        headers={"Authorization": f"Bearer {agents[1]['token']}"},
+    ) as http:
+        tools = EnvironmentTools(http, run_id)
+        assert (await tools.execute("fetch_resource", {"resource_id": "manual"}, "read"))["ok"]
+        refused = await tools.execute(
+            "write_resource",
+            {"resource_id": "manual", "content": "My lines", "expected_version": 1},
+            "write",
+        )
+        unknown = await tools.execute(
+            "write_resource",
+            {"resource_id": "no-such-record", "content": "x", "expected_version": 0},
+            "write-unknown",
+        )
+    assert refused["error"]["status"] == 403 and refused["error"]["code"] == "shared_read_only"
+    shown = str(present_result("write_resource", refused, time_text=lambda value: value))
+    assert "belongs to someone else" in shown and "not found" not in shown.lower()
+    assert unknown["error"]["status"] == 404
 
 
 async def test_agent_tools_use_http_and_replay_stable_requests(environment, app, pool):

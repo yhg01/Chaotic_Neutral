@@ -1,7 +1,9 @@
 """Personal Agents whose tool loop runs in ZeroClaw, an external assistant program.
 
-This is a trial backend for clocked runs. One ZeroClaw process runs each activation. It reaches
-the harness through one loopback server, the bridge, in two ways:
+This is a trial backend for clocked runs. Each assistant has one ZeroClaw process for the whole
+run, with one session in it (`zeroclaw acp`). Each activation is one prompt in that session, so
+the program keeps its own history from turn to turn. The process reaches the harness through
+one loopback server, the bridge, in two ways:
 
 - its model client posts to an OpenAI-compatible route of the bridge;
 - its MCP client lists and calls the assistant's tools on an MCP route of the bridge.
@@ -15,11 +17,13 @@ Two modes decide what the model reads:
 
 - ``harness``: the model reads the same instructions, history and tool names as on the Deep
   Agents backend. ZeroClaw only decides when to ask again and which tool to run next.
-- ``zeroclaw``: the model reads the request as ZeroClaw wrote it, with its own system prompt
-  and its prefixed tool names. Use this mode to measure the program, not for evaluation runs.
+- ``zeroclaw``: the model reads the request as ZeroClaw wrote it, with its own system prompt,
+  its own history of the session and its prefixed tool names. Use this mode to measure the
+  program, not for evaluation runs.
 
-A retried activation starts a new process. The saved model messages and tool results are given
-to it again in order, so no model call and no world effect happens twice.
+After a failed attempt the process is stopped. A new process loads the session as it was before
+that turn. The saved model messages and tool results of the turn are then given to it again in
+order, so no model call and no world effect happens twice.
 """
 
 from __future__ import annotations
@@ -33,14 +37,14 @@ import shutil
 import signal
 import socket
 import tempfile
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID, uuid4, uuid5
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from langchain_core.messages import (
     AIMessage,
     HumanMessage,
@@ -167,6 +171,112 @@ class _Ask:
     answer: asyncio.Future
 
 
+class _Program:
+    """One assistant's ZeroClaw process. It lives for the whole run and holds one session."""
+
+    def __init__(self, binary: str, directory: Path) -> None:
+        self.binary = binary
+        self.directory = directory
+        self.process = None
+        self.session_id: str | None = None
+        self._reader: asyncio.Task | None = None
+        self._pending: dict[int, asyncio.Future] = {}
+        self._number = 0
+
+    def alive(self) -> bool:
+        return self.process is not None and self.process.returncode is None
+
+    async def start(self) -> None:
+        """Start the process and open its session, or load the session it had before."""
+        log = await asyncio.to_thread(open, self.directory / "program.log", "ab")
+        try:
+            self.process = await asyncio.create_subprocess_exec(
+                self.binary,
+                "acp",
+                "--agent",
+                ALIAS,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=log,
+                # No provider key and no board credential reach the program.
+                env={
+                    "HOME": str(self.directory / "home"),
+                    "PATH": "/usr/bin:/bin",
+                    "ZEROCLAW_CONFIG_DIR": str(self.directory / "config"),
+                    "TZ": "UTC",
+                },
+                cwd=str(self.directory),
+                start_new_session=True,
+                # One line can hold a whole tool result.
+                limit=32 * 1024 * 1024,
+            )
+        finally:
+            log.close()
+        self._reader = asyncio.create_task(self._read(self.process))
+        await self.call("initialize", wait=30)
+        saved = self.directory / "session-id"
+        known = await asyncio.to_thread(
+            lambda: saved.read_text().strip() if saved.is_file() else ""
+        )
+        if known:
+            reply = await self.call("session/load", {"sessionId": known}, wait=30)
+            if "error" not in reply:
+                self.session_id = known
+                return
+        reply = await self.call("session/new", {"agentAlias": ALIAS}, wait=30)
+        self.session_id = reply["result"]["sessionId"]
+        await asyncio.to_thread(saved.write_text, self.session_id)
+
+    async def call(self, method: str, params: dict | None = None, *, wait=None) -> dict:
+        """One JSON-RPC request on the program's input, and its answer. wait is in seconds."""
+        self._number += 1
+        number = self._number
+        request = {"jsonrpc": "2.0", "id": number, "method": method}
+        if params is not None:
+            request["params"] = params
+        answer = asyncio.get_running_loop().create_future()
+        self._pending[number] = answer
+        try:
+            self.process.stdin.write((json.dumps(request) + "\n").encode())
+            await self.process.stdin.drain()
+            async with asyncio.timeout(wait):
+                return await answer
+        finally:
+            self._pending.pop(number, None)
+
+    async def _read(self, process) -> None:
+        try:
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                try:
+                    message = json.loads(line)
+                except ValueError:
+                    continue
+                # Notifications about the turn are not needed: the harness has its own record.
+                answer = None if "method" in message else self._pending.get(message.get("id"))
+                if answer is not None and not answer.done():
+                    answer.set_result(message)
+        finally:
+            for answer in self._pending.values():
+                if not answer.done():
+                    answer.set_exception(ConnectionError("The assistant program closed."))
+
+    async def stop(self) -> None:
+        process, self.process = self.process, None
+        reader, self._reader = self._reader, None
+        if process is not None:
+            if process.returncode is None:
+                with contextlib.suppress(OSError):
+                    os.killpg(process.pid, signal.SIGKILL)
+            with contextlib.suppress(Exception):
+                await process.wait()
+        if reader is not None:
+            reader.cancel()
+            await asyncio.gather(reader, return_exceptions=True)
+
+
 @dataclass(eq=False)
 class _Seat:
     """One Agent's place at the bridge: its secret path, its folder and its open questions."""
@@ -174,6 +284,7 @@ class _Seat:
     token: str
     directory: Path
     tools: list[dict]
+    program: _Program
     asks: asyncio.Queue | None = None
 
     def open(self) -> asyncio.Queue:
@@ -203,12 +314,20 @@ class _ModelRequest:
 class ZeroClawBridge:
     """The loopback server that ZeroClaw processes of one run talk to."""
 
-    def __init__(self, binary: str | os.PathLike | None = None, *, keep: bool = False) -> None:
+    def __init__(
+        self,
+        binary: str | os.PathLike | None = None,
+        *,
+        keep: bool = False,
+        root: str | os.PathLike | None = None,
+    ) -> None:
         binary = binary or os.environ.get(BINARY_ENV)
         if not binary or not Path(binary).is_file():
             raise ValueError(f"Set {BINARY_ENV} to the ZeroClaw program.")
         self.binary = str(binary)
-        self.keep = keep
+        # With a root, the programs' sessions last beyond this process, for a resumed run.
+        self.keep = keep or root is not None
+        self._given_root = Path(root) if root is not None else None
         self.root: Path | None = None
         self.port: int | None = None
         self._seats: dict[str, _Seat] = {}
@@ -216,7 +335,11 @@ class ZeroClawBridge:
         self._serving: asyncio.Task | None = None
 
     async def __aenter__(self) -> ZeroClawBridge:
-        self.root = Path(tempfile.mkdtemp(prefix="agentrpg-zeroclaw-"))
+        if self._given_root is not None:
+            self._given_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            self.root = self._given_root
+        else:
+            self.root = Path(tempfile.mkdtemp(prefix="agentrpg-zeroclaw-"))
         listener = socket.socket()
         listener.bind(("127.0.0.1", 0))
         self.port = listener.getsockname()[1]
@@ -239,6 +362,7 @@ class ZeroClawBridge:
     async def __aexit__(self, *args) -> None:
         for seat in self._seats.values():
             seat.close()
+            await seat.program.stop()
         if self._server is not None:
             self._server.should_exit = True
             with contextlib.suppress(Exception):
@@ -249,17 +373,20 @@ class ZeroClawBridge:
     def alive(self) -> bool:
         return self._serving is not None and not self._serving.done()
 
-    def seat(self, *, tools: list[dict], instructions: str, mode: str, max_steps: int) -> _Seat:
-        """Give one Agent a secret path and a private ZeroClaw folder."""
+    def seat(
+        self, *, key: str, tools: list[dict], instructions: str, mode: str, max_steps: int
+    ) -> _Seat:
+        """Give one Agent a secret path and a private ZeroClaw folder. key names the folder."""
         if self.root is None:
             raise AgentRuntimeError("Open the assistant bridge before creating an Agent.")
         token = secrets.token_urlsafe(24)
-        directory = self.root / f"seat-{len(self._seats)}"
+        directory = self.root / f"seat-{key}"
         workspace = directory / "config" / "agents" / ALIAS / "workspace"
-        workspace.mkdir(parents=True)
-        (directory / "home").mkdir()
+        workspace.mkdir(parents=True, exist_ok=True)
+        (directory / "home").mkdir(exist_ok=True)
         for name in PERSONA_FILES:
-            text = instructions if (name == "AGENTS.md" and mode == ZEROCLAW) else ""
+            # The session path of ZeroClaw fills an empty file with its own sample persona.
+            text = instructions if (name == "AGENTS.md" and mode == ZEROCLAW) else "-\n"
             (workspace / name).write_text(text, encoding="utf-8")
         base = f"http://127.0.0.1:{self.port}/zc/{token}"
         names = [PREFIX + tool["function"]["name"] for tool in tools]
@@ -267,7 +394,12 @@ class ZeroClawBridge:
         (directory / "config" / "config.toml").write_text(
             _config(base, names, max_steps, compact=compact), encoding="utf-8"
         )
-        seat = _Seat(token=token, directory=directory, tools=tools)
+        seat = _Seat(
+            token=token,
+            directory=directory,
+            tools=tools,
+            program=_Program(self.binary, directory),
+        )
         self._seats[token] = seat
         return seat
 
@@ -292,8 +424,14 @@ class ZeroClawBridge:
 
         @app.post("/zc/{token}/v1/chat/completions")
         async def chat(token: str, request: Request):
-            answer = await self._ask(token, "model", await request.json())
-            return unavailable if answer is None else answer
+            body = await request.json()
+            answer = await self._ask(token, "model", body)
+            if answer is None:
+                return unavailable
+            if not body.get("stream"):
+                return answer
+            # The session path of ZeroClaw asks for a stream. The whole reply goes in one piece.
+            return StreamingResponse(_stream(answer), media_type="text/event-stream")
 
         @app.get("/zc/{token}/mcp")
         async def stream(token: str):
@@ -348,6 +486,32 @@ class ZeroClawBridge:
         return app
 
 
+def _stream(answer: dict):
+    """One finished chat-completions reply as a short event stream."""
+    choice = answer["choices"][0]
+    reply = choice["message"]
+    delta = {"role": "assistant", "content": reply.get("content") or ""}
+    if reply.get("tool_calls"):
+        delta["tool_calls"] = [
+            {"index": index, **call} for index, call in enumerate(reply["tool_calls"])
+        ]
+    base = {
+        "id": answer["id"],
+        "object": "chat.completion.chunk",
+        "created": 0,
+        "model": answer["model"],
+    }
+    first = {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
+    last = {
+        **base,
+        "choices": [{"index": 0, "delta": {}, "finish_reason": choice["finish_reason"]}],
+        "usage": answer["usage"],
+    }
+    yield f"data: {json.dumps(first)}\n\n"
+    yield f"data: {json.dumps(last)}\n\n"
+    yield "data: [DONE]\n\n"
+
+
 def _config(base: str, tool_names: list[str], max_steps: int, *, compact: bool = True) -> str:
     """A ZeroClaw 0.8 configuration with no host tools, no memory and no background work."""
     listed = ", ".join(json.dumps(name) for name in tool_names)
@@ -368,6 +532,7 @@ model_provider = "custom.local"
 risk_profile = "closed"
 runtime_profile = "closed"
 mcp_bundles = ["harness"]
+acp_enable_mcp = true
 
 [agents.{ALIAS}.memory]
 backend = "none"
@@ -388,6 +553,9 @@ tool_call_dedup_exempt = [{listed}]
 
 [pacing]
 loop_detection_enabled = false
+
+[acp]
+session_timeout_secs = 31536000
 
 [reliability]
 provider_retries = 0
@@ -450,6 +618,7 @@ class ZeroClawStats:
     """What one Agent's program did, for reports. Counts only; no message text."""
 
     processes: int = 0
+    turns: int = 0
     model_asks: int = 0
     model_calls: int = 0
     replayed_messages: int = 0
@@ -461,11 +630,10 @@ class ZeroClawStats:
     open_calls_closed: int = 0
     summaries: int = 0
     early_exits: int = 0
-    exit_codes: list[int] = field(default_factory=list)
 
 
 class ZeroClawAgent(PersonalAgent):
-    """A clocked personal Agent whose loop runs in a ZeroClaw process.
+    """A clocked personal Agent whose loop runs in one long-lived ZeroClaw process.
 
     The parent class still gives the session lock, the task receipts, the identity check, the
     tool adapters and the saved tool events. Its graph is built and not used.
@@ -487,6 +655,7 @@ class ZeroClawAgent(PersonalAgent):
         self._decide = _ActivationYield(self)._decide
         self._calls = _BoundedCalls(self)
         self._seat = bridge.seat(
+            key=str(self.agent_id),
             tools=self._specs,
             instructions=self.instructions,
             mode=mode,
@@ -691,42 +860,35 @@ class ZeroClawAgent(PersonalAgent):
             )
 
     async def _drive(self, task: str) -> None:
-        """Run one program to its end and answer what it asks, one question at a time."""
+        """Give the program one prompt in its session, and answer what it asks until it ends."""
         self._delivered = 0
         self._arrived = set()
-        directory = self._seat.directory
+        program = self._seat.program
         asks = self._seat.open()
-        process = reading = asking = None
+        asking = waiting = reply = None
         asked = False
         try:
-            process = await asyncio.create_subprocess_exec(
-                self.bridge.binary,
-                "agent",
-                "-a",
-                ALIAS,
-                "-m",
-                PLACEHOLDER if self.mode == HARNESS else task,
-                stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                # No provider key and no board credential reach the program.
-                env={
-                    "HOME": str(directory / "home"),
-                    "PATH": "/usr/bin:/bin",
-                    "ZEROCLAW_CONFIG_DIR": str(directory / "config"),
-                    "TZ": "UTC",
-                },
-                cwd=str(directory),
-                start_new_session=True,
+            if not program.alive():
+                await program.start()
+                self.stats.processes += 1
+            self.stats.turns += 1
+            waiting = asyncio.create_task(
+                program.call(
+                    "session/prompt",
+                    {
+                        "sessionId": program.session_id,
+                        "prompt": PLACEHOLDER if self.mode == HARNESS else task,
+                    },
+                )
             )
-            self.stats.processes += 1
-            reading = asyncio.create_task(process.communicate())
+            # A program that is stopped gives this task an error that nobody waits for.
+            waiting.add_done_callback(lambda task: task.cancelled() or task.exception())
             while True:
                 asking = asyncio.create_task(asks.get())
-                # Between two questions the program only starts up or reads a reply. A long
-                # silence there means that it hangs. A step itself is bounded where it runs.
+                # Between two questions the program only reads a reply. A long silence there
+                # means that it hangs. A step itself is bounded where it runs.
                 done, _ = await asyncio.wait(
-                    {asking, reading},
+                    {asking, waiting},
                     return_when=asyncio.FIRST_COMPLETED,
                     timeout=self.timeout_seconds,
                 )
@@ -746,22 +908,26 @@ class ZeroClawAgent(PersonalAgent):
                     raise
                 if not ask.answer.done():
                     ask.answer.set_result(answer)
+            reply = waiting.result()
+        except (ConnectionError, OSError, TimeoutError):
+            # The program closed, or could not start.
+            reply = None
+        except BaseException:
+            # A failed or cancelled attempt. The next one starts a new process, which loads the
+            # session as it was before this turn.
+            await program.stop()
+            raise
         finally:
             if asking is not None:
                 if asking.done() and not asking.cancelled() and asking.exception() is None:
                     asking.result().answer.cancel()
                 asking.cancel()
+            if waiting is not None and not waiting.done():
+                waiting.cancel()
             self._seat.close()
-            if process is not None and process.returncode is None:
-                with contextlib.suppress(OSError):
-                    os.killpg(process.pid, signal.SIGKILL)
-            if reading is not None:
-                # A cancellation that arrives here must pass on, so it is not caught.
-                with contextlib.suppress(Exception):
-                    await asyncio.shield(reading)
-        self.stats.exit_codes.append(process.returncode)
-        if process.returncode != 0:
+        if reply is None or "error" in reply:
             self.stats.early_exits += 1
+            await program.stop()
             if not asked or not self.bridge.alive():
                 # The program could not start or could not reach the bridge. No work failed,
                 # so the activation waits and runs again.
@@ -826,9 +992,13 @@ class ZeroClawAgent(PersonalAgent):
 
     async def _model_step(self, body: dict) -> dict:
         self.stats.model_asks += 1
-        if body.get("stream"):
-            raise AgentRuntimeError("The assistant program asked for a streamed model reply.")
-        heard = sum(1 for item in body.get("messages", []) if item.get("role") == "assistant")
+        # The program sends its whole session. Only the present turn is compared.
+        heard = 0
+        for item in body.get("messages", []):
+            if item.get("role") == "user":
+                heard = 0
+            elif item.get("role") == "assistant":
+                heard += 1
         if heard != self._delivered:
             # An extra or repeated request. Answering it would put the two histories out of step.
             raise AgentRuntimeError("The assistant program is out of step. Retry the same task ID.")

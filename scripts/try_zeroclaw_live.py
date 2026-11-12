@@ -439,7 +439,8 @@ async def execute(args, env: dict) -> dict:
             )
         bridge = None
         if args.backend == "zeroclaw":
-            bridge = await stack.enter_async_context(ZeroClawBridge(keep=True))
+            # A kept folder, so a resumed run loads each program's session again.
+            bridge = await stack.enter_async_context(ZeroClawBridge(root=folder / "zeroclaw"))
             make = zeroclaw_factory(bridge, mode=args.mode)
         else:
 

@@ -19,6 +19,10 @@ class ResourceContract(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+# A record that this owner can read and another owner holds. The owner's assistant is told so.
+SHARED_READ_ONLY = "This record belongs to another owner and is shared for reading only."
+
+
 class ResourceSpec(ResourceContract):
     id: ResourceID
     owner_id: ResourceID

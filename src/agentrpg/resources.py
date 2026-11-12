@@ -7,7 +7,7 @@ from uuid import UUID, uuid5
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
-from agentrpg.resource_schema import ResourceRequest, ResourceSpec
+from agentrpg.resource_schema import SHARED_READ_ONLY, ResourceRequest, ResourceSpec
 from agentrpg.world import WorldError, WorldService, _hash, _one, _rows
 
 ResourceError = WorldError
@@ -375,7 +375,12 @@ class ResourceService:
                 "WHERE run_id=%s AND resource_id=%s",
                 (run_id, resource_id),
             )
-            if not resource or resource["owner_id"] != owner_id:
+            if resource and resource["owner_id"] != owner_id:
+                if resource["visibility"] == "public" or owner_id in resource["shared_owner_ids"]:
+                    # They have read it, so "not found" would be false, and they would try again.
+                    raise ResourceError(SHARED_READ_ONLY, 403)
+                resource = None
+            if not resource:
                 raise ResourceError("Resource not found.", 404)
             if not trusted and not resource["agent_writable"]:
                 raise ResourceError("This resource is read-only for the Agent.", 403)

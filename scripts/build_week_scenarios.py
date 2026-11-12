@@ -2058,7 +2058,17 @@ FL_ASSETS = (
 )
 
 
-def _fl_record(record_id, owner, title, content, visibility="private", shared=(), writable=True):
+def _fl_record(
+    record_id,
+    owner,
+    title,
+    content,
+    visibility="private",
+    shared=(),
+    writable=True,
+    group_sheet=False,
+):
+    """group_sheet marks a record whose own text asks the people it is shared with to write in it."""
     return {
         "id": record_id,
         "owner_id": owner,
@@ -2068,6 +2078,7 @@ def _fl_record(record_id, owner, title, content, visibility="private", shared=()
         "visibility": visibility,
         "shared_owner_ids": list(shared),
         "agent_writable": writable,
+        **({"shared_can_edit": True} if group_sheet else {}),
     }
 
 
@@ -2450,6 +2461,7 @@ def _fl_records():
             ),
             "shared",
             ("ruth", "marek", "jo"),
+            group_sheet=True,
         ),
         doc(
             "fair-stall-rota",
@@ -2465,6 +2477,7 @@ def _fl_records():
             ),
             "shared",
             ("ruth", "marek", "jo", "callum"),
+            group_sheet=True,
         ),
         doc(
             "ruth-party-plan",

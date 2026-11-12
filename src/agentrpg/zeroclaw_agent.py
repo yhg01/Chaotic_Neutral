@@ -43,8 +43,11 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4, uuid5
 
 import uvicorn
+from deepagents.backends import StateBackend
+from deepagents.middleware.filesystem import FilesystemMiddleware
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from langchain.tools import ToolRuntime
 from langchain_core.messages import (
     AIMessage,
     HumanMessage,
@@ -53,8 +56,10 @@ from langchain_core.messages import (
     message_to_dict,
     messages_from_dict,
 )
+from langchain_core.tools import ToolException
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from psycopg.types.json import Jsonb
+from pydantic import ValidationError
 
 from agentrpg.agent_surface import NATURAL
 from agentrpg.clock import strip_nul
@@ -117,6 +122,32 @@ def _tokens(messages) -> int:
 
 # ZeroClaw cuts each persona file at this size unless compact_context is off.
 COMPACT_FILE_CHARS = 6000
+# The private file tools that the graph backend also offers and that cost no story time.
+NOTE_TOOLS = ("ls", "read_file", "write_file", "edit_file", "glob", "grep")
+
+
+class _Notes(StateBackend):
+    """The private scratch files of one assistant, held outside a graph.
+
+    The parent class gives the file rules and the texts of the library's own file tools. It
+    reads and writes a graph channel in two places only, and both are replaced here.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.files: dict = {}
+        self.changed = False
+
+    def _read_files(self) -> dict:
+        return self.files
+
+    def _send_files_update(self, update: dict) -> None:
+        for path, data in update.items():
+            if data is None:
+                self.files.pop(path, None)
+            else:
+                self.files[path] = data
+        self.changed = True
 
 
 class _BridgeServer(uvicorn.Server):
@@ -651,6 +682,14 @@ class ZeroClawAgent(PersonalAgent):
         # A session cannot change its backend, so the backend is part of the session's hash.
         self._instructions_hash = _digest(f"{self._instructions_hash}:zeroclaw:{mode}")
         self._offered = {tool.name: tool for tool in self._tools()}
+        # The instructions name private file tools. They are the library's own tools, so both
+        # backends offer the same names, texts and results.
+        self._files = _Notes()
+        self._file_tools = {
+            tool.name: tool
+            for tool in FilesystemMiddleware(backend=self._files, tools=list(NOTE_TOOLS)).tools
+        }
+        self._offered.update(self._file_tools)
         self._specs = [convert_to_openai_tool(tool) for tool in self._offered.values()]
         self._decide = _ActivationYield(self)._decide
         self._calls = _BoundedCalls(self)
@@ -712,6 +751,55 @@ class ZeroClawAgent(PersonalAgent):
             )
         self._transcript[index] = message
 
+    async def _load_files(self) -> dict:
+        async with self.runtime.pool.connection() as connection:
+            row = await (
+                await connection.execute(
+                    "SELECT files FROM zeroclaw_files WHERE session_key=%s", (self.session_key,)
+                )
+            ).fetchone()
+        return dict(row["files"]) if row else {}
+
+    async def _save_files(self) -> None:
+        async with self.runtime.pool.connection() as connection:
+            await connection.execute(
+                """INSERT INTO zeroclaw_files(session_key, files) VALUES (%s, %s)
+                   ON CONFLICT (session_key) DO UPDATE
+                   SET files = EXCLUDED.files, updated_at = clock_timestamp()""",
+                (self.session_key, Jsonb(strip_nul(self._files.files))),
+            )
+        self._files.changed = False
+
+    async def _file_call(self, tool, tool_call: dict) -> ToolMessage:
+        """Run one private file tool. The library gives these tools their state at call time."""
+        runtime = ToolRuntime(
+            state={"messages": self._transcript, "files": self._files.files},
+            context=None,
+            config={},
+            stream_writer=lambda _chunk: None,
+            tool_call_id=tool_call["id"],
+            store=None,
+        )
+        try:
+            result = await tool.ainvoke(
+                {**tool_call, "args": {**tool_call["args"], "runtime": runtime}}
+            )
+        except (ValidationError, ToolException) as error:
+            # The graph backend also returns a wrong argument to the model as a tool error.
+            result = ToolMessage(
+                content=f"Error: {error}",
+                name=tool_call["name"],
+                tool_call_id=tool_call["id"],
+                status="error",
+            )
+        if self._files.changed:
+            await self._save_files()
+        if not isinstance(result, ToolMessage):
+            result = ToolMessage(
+                content=str(result), name=tool_call["name"], tool_call_id=tool_call["id"]
+            )
+        return result
+
     async def _notes(self) -> list[dict]:
         async with self.runtime.pool.connection() as connection:
             rows = await (
@@ -735,6 +823,7 @@ class ZeroClawAgent(PersonalAgent):
         if self.web is not None:
             self.web.operation_namespace = namespace
         self._transcript = await self._load()
+        self._files.files = await self._load_files()
         notes = await self._notes()
         told = [row for row in notes if "notified_mail_ids" in row["note"]]
         marks = [row for row in notes if "summary" in row["note"]]
@@ -1139,6 +1228,8 @@ class ZeroClawAgent(PersonalAgent):
             tool_call = {"name": name, "args": call["args"], "id": call["id"], "type": "tool_call"}
 
             async def run(_request):
+                if name in self._file_tools:
+                    return await self._file_call(tool, tool_call)
                 return await tool.ainvoke(tool_call)
 
             result = await self._calls._gated_tool_call(

@@ -3513,6 +3513,76 @@ def test_run_script_main_exits_with_the_code_of_its_report(monkeypatch, capsys):
     assert stopped.value.code not in {0, None}
 
 
+async def test_the_run_script_takes_directly_called_models_with_their_own_keys(
+    app, pool, test_database_url, tmp_path, monkeypatch
+):
+    """A provider:model name needs that provider's key and a price from the table."""
+    import httpx
+
+    script = _run_clocked()
+
+    class FakeModel(ScriptModel):
+        async def aclose(self):
+            return None
+
+    async def no_fetch(models):
+        raise AssertionError("A directly called model has its price in the table.")
+
+    made = []
+
+    def make_model(key, model, **fields):
+        made.append((key, model, fields["budget_role"], model in fields["budget"].prices))
+        return FakeModel(resting_status="responded")
+
+    def client(base_url, _app, headers):
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test/api/v1/",
+            headers=headers,
+            timeout=30,
+        )
+
+    monkeypatch.setattr(script, "fetch_model_prices", no_fetch)
+    monkeypatch.setattr(script, "create_model", make_model)
+    monkeypatch.setattr(script, "_client", client)
+    monkeypatch.setattr(script, "ModelActor", lambda *a, **k: ScriptedOwner([{"kind": "wait"}]))
+    monkeypatch.setattr(script, "DirectorBrain", lambda *a, **k: ScriptedDirectorBrain())
+    file = tmp_path / "scenario.json"
+    file.write_text(json.dumps(scenario(("dan",), duration_minutes=60).model_dump(mode="json")))
+    env = {
+        "DATABASE_URL": test_database_url,
+        "ADMIN_TOKEN": "test-admin-token-32-characters-minimum",
+        "DEEPSEEK_API_KEY": "deepseek-test-value",
+    }
+    arguments = script.parse_args(
+        [
+            "--scenario",
+            str(file),
+            "--model",
+            "deepseek:deepseek-flash",
+            "--actor-model",
+            "deepseek:deepseek-flash",
+            "--director-model",
+            "anthropic:claude-opus-5-5",
+            "--campaign",
+            str(uuid4()),
+            "--budget-usd",
+            "5",
+        ]
+    )
+    with pytest.raises(script.ScenarioRunError, match="Set ANTHROPIC_API_KEY locally"):
+        await script.execute(arguments, root=tmp_path, env=env)
+    env["ANTHROPIC_API_KEY"] = "anthropic-test-value"
+    report = await script.execute(arguments, root=tmp_path, env=env)
+    assert report["status"] == "completed", report["result"]
+    assert set(made) == {
+        ("anthropic-test-value", "anthropic:claude-opus-5-5", "director", True),
+        ("deepseek-test-value", "deepseek:deepseek-flash", "assistant", True),
+        ("deepseek-test-value", "deepseek:deepseek-flash", "actor", True),
+    }
+    assert "test-value" not in json.dumps(report, default=str)
+
+
 async def test_paid_path_of_the_run_script_with_fake_models(
     app, pool, test_database_url, tmp_path, monkeypatch
 ):

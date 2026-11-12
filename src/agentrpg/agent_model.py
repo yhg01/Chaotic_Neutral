@@ -22,6 +22,7 @@ from agentrpg.budget import (
     BudgetError,
     BudgetTransport,
     NoSyncBudgetTransport,
+    direct_provider,
 )
 
 # The provider refused this one request, or returned nothing usable (status 0). Any other
@@ -115,7 +116,7 @@ def create_model(
 ) -> LocalChatOpenRouter:
     """Create one bounded model client. The caller must call ``aclose``."""
     if not isinstance(api_key, str) or not api_key.strip():
-        raise ValueError("Set OPENROUTER_API_KEY in the local configuration.")
+        raise ValueError("Set the model provider key in the local configuration.")
     if not isinstance(model, str) or not model.strip() or len(model) > 200:
         raise ValueError("Set a valid model name.")
     if (
@@ -130,6 +131,20 @@ def create_model(
         raise ValueError("Model retries must be between zero and two.")
     if not 0 <= temperature <= 2:
         raise ValueError("Model temperature must be between zero and two.")
+    if direct_provider(model.strip()) is not None:
+        # "provider:model" is called at its own provider. The key is that provider's key.
+        from agentrpg.direct_model import create_direct_model
+
+        return create_direct_model(
+            api_key,
+            model.strip(),
+            max_tokens=max_tokens,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+            budget=budget,
+            budget_role=budget_role,
+            temperature=temperature,
+        )
     http_clients = {}
     if budget is not None:
         if model.strip() not in budget.prices:

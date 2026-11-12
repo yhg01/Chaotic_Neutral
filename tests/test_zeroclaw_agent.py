@@ -25,6 +25,7 @@ from agentrpg.director import Director
 from agentrpg.zeroclaw_agent import (
     BINARY_ENV,
     HARNESS,
+    NOTE_TOOLS,
     OPEN_CALL,
     PREFIX,
     SUMMARY_LEAD,
@@ -285,10 +286,9 @@ async def test_repeated_and_duplicate_calls_all_run(app, pool, test_database_url
 async def test_a_name_that_is_not_offered_gets_our_words_and_not_the_program_s(
     app, pool, test_database_url
 ):
-    # Our instructions name private file tools, and this backend does not offer them yet.
     model = Recording(
         script=[
-            control.calls(("write_file", {"file_path": "/notes.md", "content": "x"}, "file-1")),
+            control.calls(("run_shell", {"command": "ls"}, "shell-1")),
             control.end_turn(status="finished"),
         ]
     )
@@ -299,6 +299,62 @@ async def test_a_name_that_is_not_offered_gets_our_words_and_not_the_program_s(
     results = [m for m in model.all_seen[1] if isinstance(m, ToolMessage)]
     assert [m.content for m in results] == [UNEXPECTED_CALL]
     assert PREFIX not in text_of(model.all_seen[1])
+
+
+async def test_private_notes_are_kept_between_turns_and_after_a_restart(
+    app, pool, test_database_url, tmp_path
+):
+    """The instructions name private file tools, so this backend offers the library's own."""
+    first = Recording(
+        script=[
+            control.calls(
+                ("write_file", {"file_path": "/plan.md", "content": "Call the hall.\n"}, "w-1")
+            ),
+            control.calls(
+                (
+                    "edit_file",
+                    {"file_path": "/plan.md", "old_string": "hall", "new_string": "caterer"},
+                    "e-1",
+                )
+            ),
+            control.calls(("read_file", {"file_path": "/missing.md"}, "r-0")),
+            control.end_turn(status="waiting"),
+            control.calls(
+                ("read_file", {"file_path": "/plan.md"}, "r-1"), ("ls", {"path": "/"}, "l-1")
+            ),
+            control.end_turn(status="finished"),
+        ]
+    )
+    turns = [
+        {
+            "kind": "reply",
+            "text": "Keep a plan for me, please.",
+            "next_action": {**NEXT, "minutes": 30},
+        },
+        {"kind": "reply", "text": "What is in the plan now?"},
+    ]
+    async with ZeroClawBridge(root=tmp_path) as bridge:
+        agent, _ = await one_owner(
+            app, pool, test_database_url, first, zeroclaw_factory(bridge), minutes=235, turns=turns
+        )
+        stats = agent.stats
+    async with pool.connection() as conn:
+        saved = (
+            await (
+                await conn.execute(
+                    "SELECT files FROM zeroclaw_files WHERE session_key=%s", (agent.session_key,)
+                )
+            ).fetchone()
+        )["files"]
+    offered = {tool["function"]["name"] for tool in first.offered}
+    assert set(NOTE_TOOLS) <= offered and "execute" not in offered and "delete" not in offered
+    assert stats.unexpected_calls == stats.unanswered_calls == stats.early_exits == 0
+    results = {m.tool_call_id: m.content for m in agent.messages if isinstance(m, ToolMessage)}
+    assert "Call the caterer." in results["r-1"] and "/plan.md" in results["l-1"]
+    assert "Call the caterer." not in results["r-0"] and "missing.md" in results["r-0"]
+    # The files are in the database with the session, not in the program's folder.
+    assert list(saved) == ["/plan.md"]
+    assert not list(tmp_path.rglob("plan.md"))
 
 
 async def test_an_abandoned_activation_leaves_a_history_that_a_provider_accepts(

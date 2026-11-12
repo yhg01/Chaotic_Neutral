@@ -1269,6 +1269,24 @@ async def test_nested_later_happenings_are_refused():
 # ---------------------------------------------------------------------------
 
 
+async def test_a_site_model_builds_the_site_and_the_director_model_does_the_rest(pool):
+    run_id = await make_run(pool)
+    site = {
+        "site_id": "pagewell-books",
+        "name": "Pagewell Books",
+        "kind": "store",
+        "tagline": "Second hand textbooks",
+        "items": [{"id": "algebra", "title": "Algebra Two", "price": 12}],
+    }
+    small, large = ScriptedModel({"sites": [site]}), ScriptedModel(SMALL_ANSWER)
+    brain = DirectorBrain(pool, large, site_model=small)
+    plan = await brain.site_for_search(run_id, "mei", "textbooks", 3600)
+    assert [item.site_id for item in plan.sites] == ["pagewell-books"]
+    assert len(small.calls) == 1 and large.calls == []
+    await brain.perturb(run_id, ERRAND, "mild", 3600)
+    assert len(small.calls) == 1 and len(large.calls) == 1
+
+
 async def test_site_for_search_builds_one_site_and_respects_the_limit(pool):
     run_id = await make_run(pool, max_sites=1)
     site = {

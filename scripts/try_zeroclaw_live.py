@@ -1,8 +1,10 @@
 """Try the ZeroClaw trial backend with real models, in a kept schema of the test database.
 
-This is a bounded trial, not a campaign run. The models are called at their providers directly,
-so the campaign ledger is not used. Hard caps on calls and tokens stop the run instead, and the
-report gives measured token counts. Keys come from the local `.env` file and are never printed.
+This is a bounded trial, not a campaign run. The models are called at their providers directly.
+Hard caps on calls and tokens stop the run, and the report gives measured token counts and a
+cost computed from them with the price table in the budget code. With `--budget-usd`, every
+call also goes through a campaign ledger in the trial's schema, with that USD ceiling. Keys come
+from the local `.env` file and are never printed.
 
 The run uses a new schema in the test database and keeps it, so the saved records can be read
 afterwards. It never touches the main database.
@@ -23,20 +25,16 @@ import sys
 import time
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
-from typing import Any
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 import httpx
 import psycopg
 from dotenv import dotenv_values
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_core.utils.function_calling import convert_to_openai_tool
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
-from pydantic import Field, SecretStr
+from pydantic import SecretStr
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -46,15 +44,23 @@ from run_clocked import load_scenario  # noqa: E402
 from run_scenario import save_private  # noqa: E402
 
 from agentrpg.actor import ModelActor  # noqa: E402
-from agentrpg.agent_model import ProviderCallError, local_model_calls  # noqa: E402
+from agentrpg.agent_model import local_model_calls  # noqa: E402
 from agentrpg.agent_surface import INSTRUCTIONS, NATURAL, clock_instructions  # noqa: E402
 from agentrpg.agent_tools import BoardTools  # noqa: E402
-from agentrpg.budget import BudgetError  # noqa: E402
+from agentrpg.budget import (  # noqa: E402
+    BudgetBinding,
+    BudgetError,
+    BudgetTransport,
+    CampaignLedger,
+    direct_prices,
+    direct_provider,
+)
 from agentrpg.clock import ClockConfig, agent_process  # noqa: E402
 from agentrpg.clock_engine import ClockEngine  # noqa: E402
 from agentrpg.clock_gate import ClockGate  # noqa: E402
 from agentrpg.config import Settings  # noqa: E402
 from agentrpg.deep_agent import AgentRuntime  # noqa: E402
+from agentrpg.direct_model import DirectChatModel  # noqa: E402
 from agentrpg.director import Director  # noqa: E402
 from agentrpg.director_brain import DirectorBrain  # noqa: E402
 from agentrpg.environment_tools import EnvironmentTools  # noqa: E402
@@ -68,12 +74,6 @@ from agentrpg.zeroclaw_agent import (  # noqa: E402
     ZeroClawBridge,
     zeroclaw_factory,
 )
-
-PROVIDERS = {
-    "deepseek": ("https://api.deepseek.com/chat/completions", "DEEPSEEK_API_KEY"),
-    "anthropic": ("https://api.anthropic.com/v1/chat/completions", "ANTHROPIC_API_KEY"),
-}
-RETRYABLE = frozenset({408, 429, 500, 502, 503, 504, 529})
 
 
 @dataclass
@@ -129,162 +129,54 @@ class Meter:
         }
 
 
-def _wire(messages) -> list[dict]:
-    out = []
-    for message in messages:
-        text = message.content if isinstance(message.content, str) else json.dumps(message.content)
-        if message.type == "system":
-            out.append({"role": "system", "content": text})
-        elif message.type == "human":
-            out.append({"role": "user", "content": text})
-        elif message.type == "tool":
-            out.append({"role": "tool", "tool_call_id": message.tool_call_id, "content": text})
-        else:
-            item = {"role": "assistant", "content": text}
-            if message.tool_calls:
-                item["tool_calls"] = [
-                    {
-                        "id": call["id"],
-                        "type": "function",
-                        "function": {"name": call["name"], "arguments": json.dumps(call["args"])},
-                    }
-                    for call in message.tool_calls
-                ]
-            out.append(item)
-    return out
-
-
-class DirectChatModel(BaseChatModel):
-    """One model at its own provider, through the chat-completions form. One try for each call."""
-
-    endpoint: str
-    provider_model: str
-    key: SecretStr
-    role: str
-    meter: Any = None
-    max_tokens: int = 4000
-    temperature: float | None = None
-    extra: dict = Field(default_factory=dict)
-    tools: list = Field(default_factory=list)
-    timeout: float = 120
-
-    @property
-    def _llm_type(self) -> str:
-        return "direct-chat"
-
-    def bind_tools(self, tools, **kwargs):
-        return self.model_copy(update={"tools": [convert_to_openai_tool(tool) for tool in tools]})
-
-    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        raise NotImplementedError
-
-    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
-        body = {
-            "model": self.provider_model,
-            "messages": _wire(messages),
-            "max_tokens": self.max_tokens,
-            "stream": False,
-            **self.extra,
-        }
-        if self.temperature is not None:
-            body["temperature"] = self.temperature
-        if self.tools:
-            body["tools"] = self.tools
-        self.meter.before(self.role)
-        self.meter.first_request.setdefault(
-            self.role,
-            {"messages": body["messages"], "tools": [t["function"]["name"] for t in self.tools]},
+def computed_cost(meter: Meter, models: dict[str, str]) -> dict[str, str]:
+    """The cost of each role's tokens at the price of that role's main model."""
+    prices = direct_prices(set(models.values()))
+    costs = {}
+    for role, model in models.items():
+        price, cached = prices[model], meter.cached_tokens.get(role, 0)
+        costs[role] = price.maximum(
+            meter.input_tokens.get(role, 0), meter.output_tokens.get(role, 0)
         )
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
-                response = await client.post(
-                    self.endpoint,
-                    json=body,
-                    headers={"Authorization": f"Bearer {self.key.get_secret_value()}"},
-                )
-        except httpx.HTTPError:
-            self.meter.failed[self.role] = self.meter.failed.get(self.role, 0) + 1
-            raise ProviderCallError("Model provider connection failed.", retryable=True) from None
-        if response.status_code != 200:
-            self.meter.failed[self.role] = self.meter.failed.get(self.role, 0) + 1
-            raise ProviderCallError(
-                f"Model provider returned HTTP {response.status_code}.",
-                retryable=response.status_code in RETRYABLE,
-                status=response.status_code,
-            )
-        try:
-            data = response.json()
-            choice = data["choices"][0]
-            reply = choice["message"]
-            calls, invalid = [], []
-            for call in reply.get("tool_calls") or []:
-                name, raw = call["function"]["name"], call["function"].get("arguments") or "{}"
-                try:
-                    arguments = json.loads(raw)
-                    if not isinstance(arguments, dict):
-                        raise ValueError
-                    calls.append(
-                        {"name": name, "args": arguments, "id": call["id"], "type": "tool_call"}
-                    )
-                except ValueError:
-                    invalid.append(
-                        {
-                            "name": name,
-                            "args": raw,
-                            "id": call.get("id"),
-                            "error": "Arguments are not a JSON object.",
-                            "type": "invalid_tool_call",
-                        }
-                    )
-            usage = data.get("usage") or {}
-        except (ValueError, KeyError, IndexError, TypeError):
-            self.meter.failed[self.role] = self.meter.failed.get(self.role, 0) + 1
-            raise ProviderCallError(
-                "Model provider returned an invalid response.", status=0
-            ) from None
-        self.meter.after(self.role, usage)
-        message = AIMessage(
-            content=reply.get("content") or "",
-            tool_calls=calls,
-            invalid_tool_calls=invalid,
-            id=data.get("id"),
-            response_metadata={
-                "finish_reason": choice.get("finish_reason"),
-                "model_name": self.provider_model,
-            },
-            usage_metadata={
-                "input_tokens": int(usage.get("prompt_tokens") or 0),
-                "output_tokens": int(usage.get("completion_tokens") or 0),
-                "total_tokens": int(usage.get("total_tokens") or 0),
-            },
-        )
-        return ChatResult(generations=[ChatGeneration(message=message)])
+        if price.cached is not None:
+            costs[role] -= (price.prompt - price.cached) * cached
+    return {**{role: str(cost) for role, cost in costs.items()}, "total": str(sum(costs.values()))}
 
 
-def model_for(spec: str, role: str, env: dict, meter: Meter, **settings) -> DirectChatModel:
+def model_for(
+    spec: str, role: str, env: dict, meter: Meter, *, budget=None, **settings
+) -> DirectChatModel:
     """spec is provider:model, for example deepseek:deepseek-flash."""
-    provider, _, name = spec.partition(":")
-    if provider not in PROVIDERS or not name:
-        raise SystemExit("A model is written as provider:model, with deepseek or anthropic.")
-    endpoint, key_name = PROVIDERS[provider]
-    if not env.get(key_name):
-        raise SystemExit(f"Set {key_name} in the local .env file.")
-    extra = dict(settings.pop("extra", {}))
-    if provider == "deepseek":
-        # As on the earlier runs: no thinking text on the small models.
-        extra.setdefault("thinking", {"type": "disabled"})
-    else:
+    found = direct_provider(spec)
+    if found is None:
+        raise SystemExit("A model is written as provider:model, from the budget price table.")
+    _, provider, name = found
+    if not env.get(provider.key_name):
+        raise SystemExit(f"Set {provider.key_name} in the local .env file.")
+    extra = {**settings.pop("extra", {}), **provider.fixed}
+    if not provider.json_reply:
         extra.pop("response_format", None)
+    if not provider.temperature:
         settings["temperature"] = None
-    return DirectChatModel(
-        endpoint=endpoint,
+    model = DirectChatModel(
+        endpoint=provider.url,
         provider_model=name,
-        key=SecretStr(env[key_name]),
+        key=SecretStr(env[provider.key_name]),
         role=role,
         meter=meter,
         extra=extra,
         **settings,
     )
+    if budget is not None:
+        if spec not in budget.prices:
+            raise SystemExit("The ledger has no price for this model.")
+        model._client = httpx.AsyncClient(
+            transport=BudgetTransport(budget, role),
+            follow_redirects=False,
+            timeout=settings.get("timeout", 120),
+            trust_env=False,
+        )
+    return model
 
 
 def test_schema_url(env: dict, name: str, *, resume: bool = False) -> tuple[str, str, str]:
@@ -395,6 +287,8 @@ async def execute(args, env: dict) -> dict:
             "assistant": args.max_assistant_calls,
             "owner": args.max_owner_calls,
             "director": args.max_director_calls,
+            # A site model has its own count, so its tokens are not priced as the Director's.
+            "site": args.max_director_calls if args.site_model else 0,
         },
         max_tokens=args.max_tokens,
     )
@@ -428,14 +322,31 @@ async def execute(args, env: dict) -> dict:
             spec = ScenarioSpec.model_validate(run["scenario"])
         run_id = UUID(manifest["run_id"])
         print(f"Run: {run_id} in schema {schema}", flush=True)
+        binding = None
+        if args.budget_usd is not None:
+            # One campaign for one trial name, so a resumed trial keeps its ceiling and spend.
+            campaign = uuid5(NAMESPACE_URL, f"zeroclaw-live:{args.name}")
+            ledger = CampaignLedger(runtime.pool)
+            await ledger.ensure_campaign(campaign, args.budget_usd, name=f"Trial {args.name}")
+            used = {args.assistant_model, args.owner_model, args.director_model}
+            binding = BudgetBinding(
+                ledger, campaign, direct_prices(used | ({args.site_model} - {None}))
+            )
         config = ClockConfig.from_section(spec.clock.model_dump(mode="json"), spec.seed)
         gate = ClockGate(config)
         brain = None
         if not scripted_owners:
             brain = DirectorBrain(
                 runtime.pool,
-                model_for(args.director_model, "director", env, meter, max_tokens=5000),
+                model_for(
+                    args.director_model, "director", env, meter, budget=binding, max_tokens=5000
+                ),
                 timeout_seconds=120,
+                site_model=(
+                    model_for(args.site_model, "site", env, meter, budget=binding, max_tokens=5000)
+                    if args.site_model
+                    else None
+                ),
             )
         bridge = None
         if args.backend == "zeroclaw":
@@ -468,6 +379,7 @@ async def execute(args, env: dict) -> dict:
                         "owner",
                         env,
                         meter,
+                        budget=binding,
                         max_tokens=2000,
                         temperature=0.8,
                         extra={"response_format": {"type": "json_object"}},
@@ -480,7 +392,13 @@ async def execute(args, env: dict) -> dict:
             agents[owner] = make(
                 runtime,
                 model=model_for(
-                    args.assistant_model, "assistant", env, meter, max_tokens=4000, temperature=0
+                    args.assistant_model,
+                    "assistant",
+                    env,
+                    meter,
+                    budget=binding,
+                    max_tokens=4000,
+                    temperature=0,
                 ),
                 board=BoardTools(client, manifest["cluster_id"], direct=True),
                 environment=EnvironmentTools(client, manifest["run_id"]),
@@ -547,6 +465,25 @@ async def execute(args, env: dict) -> dict:
             "real_seconds": round(time.monotonic() - started, 1),
             "peak_model_calls_in_flight": gate.peak_calls_in_flight,
             "model_use": meter.report(),
+            # Reported tokens at the dearest listed price. An upper bound, not an invoice.
+            "ledger": (
+                {
+                    key: str(value)
+                    for key, value in (await binding.ledger.summary(binding.campaign_id)).items()
+                    if key.endswith("_usd") or key in ("attempts", "halted")
+                }
+                if binding is not None
+                else None
+            ),
+            "computed_cost_usd": computed_cost(
+                meter,
+                {
+                    "assistant": args.assistant_model,
+                    "owner": args.owner_model,
+                    "director": args.director_model,
+                    **({"site": args.site_model} if args.site_model else {}),
+                },
+            ),
             **(await counts(runtime.pool, run_id)),
             "zeroclaw": {
                 owner: vars(agent.stats)
@@ -572,10 +509,16 @@ def main() -> None:
     parser.add_argument("--assistant-model", default="deepseek:deepseek-flash")
     parser.add_argument("--owner-model", default="deepseek:deepseek-flash")
     parser.add_argument("--director-model", default="anthropic:claude-opus-5-5")
+    parser.add_argument(
+        "--site-model", help="A smaller model that builds a public site for a search."
+    )
     parser.add_argument("--max-assistant-calls", type=int, default=300)
     parser.add_argument("--max-owner-calls", type=int, default=150)
     parser.add_argument("--max-director-calls", type=int, default=20)
     parser.add_argument("--max-tokens", type=int, default=3_000_000)
+    parser.add_argument(
+        "--budget-usd", type=Decimal, help="A USD ceiling in a campaign ledger for this trial."
+    )
     parser.add_argument("--timeout-seconds", type=float, default=240)
     parser.add_argument("--progress-seconds", type=float, default=30)
     parser.add_argument("--resume", action="store_true", help="Continue the run of this name.")

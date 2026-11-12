@@ -1019,9 +1019,13 @@ class DirectorBrain:
         usage=None,
         caps: PlanCaps | None = None,
         timeout_seconds: int = MODEL_TIMEOUT_SECONDS,
+        site_model=None,
     ):
         self.pool = pool
         self.model = model
+        # A public site for a search reads no person and no story, so a smaller model can
+        # build it. With no site model, the Director's own model builds it.
+        self.site_model = site_model or model
         self.web = web
         self.usage = usage
         self.caps = caps or PlanCaps()
@@ -1289,7 +1293,7 @@ class DirectorBrain:
         while True:
             try:
                 plan = await generate_json(
-                    self.model,
+                    self.site_model if scale == "site" else self.model,
                     DirectorPlan,
                     prompt,
                     data,
@@ -1413,7 +1417,7 @@ class DirectorBrain:
         for _attempt in range(2):
             try:
                 found = await generate_json(
-                    self.model,
+                    self.site_model,
                     SiteAccounts,
                     ACCOUNTS_PROMPT,
                     data,

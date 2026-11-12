@@ -122,6 +122,10 @@ def _tokens(messages) -> int:
 
 # ZeroClaw cuts each persona file at this size unless compact_context is off.
 COMPACT_FILE_CHARS = 6000
+# The program estimates the model's input limit itself, and stops a turn that it thinks is too
+# large. Its default for an unknown model is far below our models, so a turn with many real
+# tool results stopped early. The harness has its own limits and summaries, so this is high.
+PROGRAM_CONTEXT_TOKENS = 1_000_000
 # The private file tools that the graph backend also offers and that cost no story time.
 NOTE_TOOLS = ("ls", "read_file", "write_file", "edit_file", "glob", "grep")
 
@@ -555,6 +559,7 @@ uri = "{base}/v1"
 model = "assistant-model"
 api_key = "local-bridge"
 max_tokens = 4000
+context_window = {PROGRAM_CONTEXT_TOKENS}
 native_tools = true
 timeout_secs = 3600
 

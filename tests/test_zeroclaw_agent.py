@@ -383,10 +383,10 @@ async def test_a_turn_with_large_tool_results_does_not_reach_the_program_s_own_c
     async with ZeroClawBridge() as bridge:
         agent, _ = await one_owner(app, pool, test_database_url, model, zeroclaw_factory(bridge))
         stats = agent.stats
-    results = [m for m in agent.messages if isinstance(m, ToolMessage) and m.name == "read_file"]
-    assert len(results) == 18 and sum(len(m.content) for m in results) > 200_000
     assert stats.early_exits == 0 and stats.processes == 1
     assert stats.unanswered_calls == stats.unexpected_calls == 0
+    results = [m for m in agent.messages if isinstance(m, ToolMessage) and m.name == "read_file"]
+    assert len(results) == 18 and sum(len(m.content) for m in results) > 200_000
 
 
 async def test_an_abandoned_activation_leaves_a_history_that_a_provider_accepts(

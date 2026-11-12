@@ -51,6 +51,7 @@ Facts about the program's behaviour were seen on the Mac mini with version 0.8.7
 | `src/agentrpg/zeroclaw_agent.py` | The trial backend: a loopback bridge, one long-lived program for each assistant, and a `ZeroClawAgent` class. |
 | `migrations/022_zeroclaw_messages.sql` | One table for the session history, which the clock reads. |
 | `migrations/023_zeroclaw_files.sql` | One table for each assistant's private scratch files. |
+| `migrations/024_shared_editing.sql`, `src/agentrpg/resources.py`, `resource_schema.py` | Shared editing of a record. See "Documents that several people edit". |
 | `src/agentrpg/clock_engine.py`, `deep_agent.py` | One seam: the engine asks the agent for its messages through `activation_messages()`. Before, the engine read the LangGraph state directly. |
 | `src/agentrpg/budget.py`, `direct_model.py`, `agent_model.py` | Models called at their own provider ("provider:model" names) go through the campaign ledger, with a price table. See "Direct providers". |
 | `scripts/try_clock_control.py` | `clocked_run` and `run_control` take an `agent_factory`. |
@@ -58,8 +59,8 @@ Facts about the program's behaviour were seen on the Mac mini with version 0.8.7
 | `scripts/probe_zeroclaw.py` | Shows what a ZeroClaw version sends to a model and to tools. It needs no database. `--acp` drives one session across several messages and a restart. |
 | `tests/test_zeroclaw_agent.py` | Twelve tests. They skip unless `AGENTRPG_ZEROCLAW` names the program. |
 
-The seam and the `agent_factory` argument are safe to merge without the rest. Migrations `022`
-and `023` are not: see "Limits".
+The seam and the `agent_factory` argument are safe to merge without the rest. Migrations `022`,
+`023` and `024` are not: see "Limits".
 
 ### How the trial backend works
 
@@ -147,7 +148,7 @@ What the live runs found in our own code, not in ZeroClaw:
 | Finding | State |
 | --- | --- |
 | A second "yes" to the same booking doubled the permitted amount. | Corrected, with a test. |
-| An assistant tried 54 times to write a document that another owner shared with it. The refusal said "not found", so it read the list again and retried. | The refusal now says that the record belongs to someone else and is read-only for this assistant. Shared editing is a contract change that needs a decision: see "Open decision". |
+| An assistant tried 54 times to write a document that another owner shared with it. The refusal said "not found", so it read the list again and retried. | Corrected, with tests. The story's two group sheets now have shared editing, so the write succeeds. A write to any other shared record gets a refusal that says the record is read-only for this assistant. See "Documents that several people edit". |
 | The real run script and the ledger took OpenRouter models only. | Corrected: see "Direct providers". |
 | The Director built 11 sites on the first story morning. | Site building was already limited: one request for each distinct search, and `max_sites` sites for a run (40 in five-lives). 11 of the 30 Director calls built sites. A smaller model can now build them (`site_model`). The build stage on branch `world-build` makes such sites before a run starts. |
 
@@ -165,19 +166,27 @@ peak-hour price. Input that the provider reports as read from its cache has the 
 The result is an upper bound, not an invoice. A response with no token report keeps its full
 reservation as uncertain.
 
-### Open decision: documents that several people edit
+### Documents that several people edit
 
 The five-lives story has a "Thursday order sheet". Its text says that everyone adds a list to
-it. The access contract in `docs/ENVIRONMENT_EXTENSIONS.md` lets only the owner's assistant
-change a record. A shared record is read-only for the others. So the story asks for an action
-that the rules refuse.
+it. The access contract let only the owner's side change a record, so the story asked for an
+action that the rules refused.
 
-Proposal: an explicit setting on a record, "the people it is shared with can also edit it".
-The scenario sets it on group sheets only. A write by another person's assistant then passes
-the same version check as the owner's write, and each change is saved with its author. Without
-the setting, the present rule stays. This needs a migration, a field in the resource
-definition, the write path, the scenario files and the contract text. It is not built, because
-it changes the permission contract.
+The user approved a change on 12 November 2026. A record can have shared editing
+(`shared_can_edit`). Only the scenario sets it, on a shared record with named owners. The
+people it names, and their assistants, can then change the content. A write by another owner
+passes the same version check as the owner's write, and the change event names who made it.
+Only the owner can change the title or the sharing. `docs/ENVIRONMENT_EXTENSIONS.md` holds
+the contract. Migration `024` adds the column.
+
+In the five-lives story, two records have the setting: the Thursday order sheet and the autumn
+fair cake stall rota. Their own text asks others to write in them. The other shared records
+stay read-only for the people they are shared with. A record without the setting gives the
+same JSON as before, so the hash of every other saved scenario is the same. The five-lives
+scenario has a new hash for new runs.
+
+Not done: no live run has reached this write since the change. The tests use the assistant's
+real tool adapter and the HTTP routes.
 
 Probe findings on ZeroClaw 0.8.7, from `scripts/probe_zeroclaw.py`:
 
@@ -251,7 +260,7 @@ paid runs through the bridge. Work that remains before a campaign run could use 
 | Long waits: the 600 s tool limit and the 3,600 s model-route limit | 1 to 2.5 |
 | Process control: orphan cleanup after a crash of the harness | 0.5 to 1 |
 | The engine tests on this backend: about 25 cases, such as 15 owners, kill and resume, budget pause, outage, cut-off, unread mail, web tools, banned words | 2 to 6 |
-| Migration numbers: `022` and `023` collide with `world-build` and with pull request 2 | 0.5 |
+| Migration numbers: `022`, `023` and `024` collide with `world-build` and with pull request 2 | 0.5 |
 | Version pin, the program's SHA-256 in the run manifest, install on another machine | 0.5 to 1.5 |
 | Docs, PRD rows and the `AGENTS.md` rule | 0.5 to 1.5 |
 | **Total** | **8 to 20, most likely about 12** |
@@ -318,7 +327,7 @@ because in Option A the model cannot tell which runtime is in use.
     more than 600 s.
   - A crash of the harness process during an activation was not tested on this backend.
 - The trial class uses private methods of `PersonalAgent`. A merged backend needs a shared base.
-- Migrations `022` and `023` must not reach the live database while the mini runs
+- Migrations `022`, `023` and `024` must not reach the live database while the mini runs
   `event-clock` code, because that code refuses a database with a migration that it does not
   have. This branch was run only against the test database.
 

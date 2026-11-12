@@ -28,7 +28,9 @@ explicit user instructions take precedence. Keep these sources consistent.
   The user's 28 October 2026 request authorizes their implemented permission
   contract in docs/ENVIRONMENT_EXTENSIONS.md. Use that explicit contract: owner
   workspaces, delegated Agent content changes, typed Actor requests, and private
-  peer boundaries. Do not infer broader access from the drawing.
+  peer boundaries. Do not infer broader access from the drawing. The user's
+  12 November 2026 instruction adds shared editing: a scenario can mark a shared
+  record so that the owners it names can change its content.
 - Use the old prototypes as reference for the message board only. Do not import
   their world state, subscriptions, activities, task rules, or Director design.
 - Treat any synced `sources/` content outside this repository as read-only.

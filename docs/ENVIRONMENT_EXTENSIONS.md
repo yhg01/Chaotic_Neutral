@@ -15,8 +15,8 @@ below are explicit application rules; they do not change those arrows or labels.
 
 | Participant | Mail | Resources | Transactions |
 | --- | --- | --- | --- |
-| Personal Agent | Read its owner's received and sent mail; send to owners in the same run; reply; explicitly mark received mail as read. | Read its owner's records and public or explicitly shared records. Create private documents. Update its owner's records only when `agent_writable` permits it. | Submit transport or market actions under recorded owner consent. Read its own receipts. |
-| Owner Actor | Receive a bounded view of its own inbox. Ask the Director to send mail with its own sender identity. | Receive its private resource view. Submit typed requests to create or update documents or change access to its own records. | Grant or withdraw its own transport and commerce authority. It has no transaction tools. |
+| Personal Agent | Read its owner's received and sent mail; send to owners in the same run; reply; explicitly mark received mail as read. | Read its owner's records and public or explicitly shared records. Create private documents. Update its owner's records only when `agent_writable` permits it. Change the content of another owner's record only when that record has shared editing and names its owner (see "Resource and market behavior"). | Submit transport or market actions under recorded owner consent. Read its own receipts. |
+| Owner Actor | Receive a bounded view of its own inbox. Ask the Director to send mail with its own sender identity. | Receive its private resource view. Submit typed requests to create or update documents or change access to its own records. Update the content of another owner's record that has shared editing and names this owner. | Grant or withdraw its own transport and commerce authority. It has no transaction tools. |
 | Director | Seed declared mail and apply declared beat mail. Save accepted Actor mail requests with the Actor turn. | Initialize records and apply declared resource effects or accepted Actor requests. | Validate requests and settle actions in code. Narrative text cannot establish an effect. |
 | Human observer | Inspect all synthetic run records through the administrator view. | Inspect private and shared records for verification. | Inspect submissions, receipts, stock, balances, and cost records. |
 
@@ -55,6 +55,17 @@ integer quantity. Visibility is `private`, `shared` with named owners, or
 `public`. Initial records declare whether the assistant may change their content.
 An Agent's newly created documents are private. Agents cannot create item stock,
 change quantities through document edits, or grant access to a private record.
+
+A shared record is read-only for the owners it is shared with, unless it has
+shared editing (`shared_can_edit`). The user approved this setting on 12 November
+2026. Only the scenario sets it, and only on a `shared` record with named owners,
+such as a group sheet whose own text asks people to write in it. With the setting,
+each named owner and that owner's assistant can change the content. `agent_writable`
+still decides whether assistants can. Only the record's owner can change the title
+or the sharing. When the owner stops sharing the record, shared editing ends. Each
+change tells the record's owner and every named owner, and a change by another
+owner carries that owner's ID. A write to a shared record without the setting
+returns a refusal that says the record is read-only for this owner.
 
 Writes require the current resource version. A stale version returns a conflict.
 Stable request IDs protect committed retries. Resource search and fetch operate

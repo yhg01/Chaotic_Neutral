@@ -138,6 +138,7 @@ Real models, called at their providers: `deepseek-flash` for assistants and owne
 | Control story, `zeroclaw` mode | One process for each activation | Completed. 44 model calls, 48 tool calls. |
 | Control story, Deep Agents | (present runtime) | Completed. 33 model calls, 30 tool calls. |
 | Five-lives, low drama, first 6.6 story hours | One process for each activation | Stopped at the Director cap that was set (30 calls). 464 assistant calls, 669 tool calls, 41 owner calls, no failed attempt. DeepSeek charge by its balance: CNY 1.24. |
+| Five-lives, medium drama, the full week (Monday 06:00 to the next Monday 06:00) | One process for each activation, with summaries | Completed in one part, in 1 h 49 min of real time. 829 activations, 2,150 assistant calls, 1,821 tool calls, 580 owner calls, 128 Director calls. Six failed attempts, all early stops of ZeroClaw, and two activations abandoned after three attempts. DeepSeek charge by its balance: about CNY 14. Director tokens: 2.0 million in and 0.15 million out, about USD 11 at the listed price. This run used the code before shared editing and before the context-size fix. |
 | Control story, `harness` mode | One continuous process | Completed in 38 s. One process for each assistant, 2 to 5 turns each, 33 model calls. |
 | Control story, `zeroclaw` mode | One continuous process | Completed in 33 s. One process for each assistant, 32 model calls. |
 | Control story through the campaign ledger | One continuous process | Completed. 30 attempts, USD 0.0066 recorded, no uncertain charge. |
@@ -315,9 +316,11 @@ because in Option A the model cannot tell which runtime is in use.
 
 ## Limits of this trial
 
-- The live runs are short: the control story, and parts of the five-lives week up to 6.6 story
-  hours. A full week on the continuous driver has not run. A full week on the earlier driver
-  (one process for each activation) was in progress when this was written.
+- A full week has run on the earlier driver only (one process for each activation). On the
+  continuous driver, the live runs are the control story and parts of the five-lives week up
+  to 5 story hours.
+- In the full week, two activations were abandoned after three early stops each. The
+  context-size fix came after that run, and no full week has run since.
 - A budget stop and a provider outage went through the bridge only in short runs.
 - An early stop is now saved with its reason in the assistant's private folder
   (`stops.jsonl`). The fix for the early stops in "Live results" passed a test and the probe.

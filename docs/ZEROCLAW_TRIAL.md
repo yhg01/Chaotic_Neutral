@@ -125,7 +125,7 @@ Each assistant ran as one continuous ZeroClaw process, unless a test stopped it.
 | A tool name that is not offered | Passed. The model gets our fixed sentence, not ZeroClaw's error text. |
 | An abandoned activation, then a later one | Passed. Each call left open gets a result, so a provider accepts the history. |
 | No host tools and no keys | Passed. The model is offered only our tools. The ZeroClaw configuration holds no provider key and no board credential. |
-| Full suite on this branch | Passed: 1,887 passed and 10 skipped, with lint and format checks clean. Without `AGENTRPG_ZEROCLAW`, the 12 ZeroClaw tests skip. |
+| Full suite on this branch | Passed: 1,888 passed and 10 skipped, with lint and format checks clean. Without `AGENTRPG_ZEROCLAW`, the 13 ZeroClaw tests skip. |
 
 ## Live results
 

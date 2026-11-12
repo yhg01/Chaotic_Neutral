@@ -74,10 +74,11 @@ PERSONA = {
 }
 
 
-def script(prefix: str, duplicate: bool = False) -> list[dict]:
+def script(prefix: str, duplicate: bool = False, steps: int = 0) -> list[dict]:
     """Model replies, chosen by how many assistant messages the request already holds.
 
     With duplicate, the first reply asks for the same tool twice with the same arguments.
+    With steps, one long turn: that many replies with two tool calls each, then the end.
     """
 
     def call(call_id, name, arguments):
@@ -87,6 +88,21 @@ def script(prefix: str, duplicate: bool = False) -> list[dict]:
             "function": {"name": prefix + name, "arguments": json.dumps(arguments)},
         }
 
+    if steps:
+        return [
+            *[
+                {
+                    "content": None,
+                    "tool_calls": [
+                        call(f"call_long_{n:04d}_a", "get_updates", {"limit": n + 1}),
+                        call(f"call_long_{n:04d}_b", "get_updates", {"limit": n + 1001}),
+                    ],
+                }
+                for n in range(steps)
+            ],
+            {"content": None, "tool_calls": [call("call_long_end", "end_turn", {})]},
+            {"content": "All done for now.", "tool_calls": None},
+        ]
     return [
         {
             "content": "I'll check what is new and tell Dan.",
@@ -105,7 +121,9 @@ def script(prefix: str, duplicate: bool = False) -> list[dict]:
     ]
 
 
-def build_app(seen: dict, replies: list[dict], tool_delay: float) -> FastAPI:
+def build_app(
+    seen: dict, replies: list[dict], tool_delay: float, result_chars: int = 0
+) -> FastAPI:
     app = FastAPI()
 
     def note(kind: str, request: Request, body):
@@ -201,6 +219,10 @@ def build_app(seen: dict, replies: list[dict], tool_delay: float) -> FastAPI:
             name = body["params"]["name"]
             seen["tool_calls"] += 1
             payload = {"ok": True, "data": {"tool": name, "n": seen["tool_calls"], "items": []}}
+            if result_chars:
+                # A result of a real size, such as a page or a mail.
+                words = f"item {seen['tool_calls']} of the list for the week "
+                payload["data"]["text"] = (words * (result_chars // len(words) + 1))[:result_chars]
             result = {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False}
         elif method == "ping":
             result = {}
@@ -429,7 +451,12 @@ async def run(args) -> dict:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     seen = {"events": [], "tool_calls": 0, "t0": time.monotonic()}
-    app = build_app(seen, script(f"{SERVER}__", args.duplicate), args.tool_delay)
+    app = build_app(
+        seen,
+        script(f"{SERVER}__", args.duplicate, args.steps),
+        args.tool_delay,
+        args.result_chars,
+    )
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
     serving = asyncio.create_task(server.serve())
     while not server.started:  # noqa: ASYNC110
@@ -494,6 +521,8 @@ def main() -> None:
     parser.add_argument("--max-tool-iterations", type=int, default=25)
     parser.add_argument("--tool-timeout", type=int, default=120)
     parser.add_argument("--tool-delay", type=float, default=0.0)
+    parser.add_argument("--steps", type=int, default=0, help="One long turn of this many steps.")
+    parser.add_argument("--result-chars", type=int, default=0, help="Size of each tool result.")
     parser.add_argument(
         "--text-tools",
         action="store_true",

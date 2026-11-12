@@ -57,7 +57,7 @@ Facts about the program's behaviour were seen on the Mac mini with version 0.8.7
 | `scripts/try_clock_control.py` | `clocked_run` and `run_control` take an `agent_factory`. |
 | `scripts/try_zeroclaw_live.py` | A bounded live run in a kept schema of the test database. |
 | `scripts/probe_zeroclaw.py` | Shows what a ZeroClaw version sends to a model and to tools. It needs no database. `--acp` drives one session across several messages and a restart. |
-| `tests/test_zeroclaw_agent.py` | Twelve tests. They skip unless `AGENTRPG_ZEROCLAW` names the program. |
+| `tests/test_zeroclaw_agent.py` | Thirteen tests. They skip unless `AGENTRPG_ZEROCLAW` names the program. |
 
 The seam and the `agent_factory` argument are safe to merge without the rest. Migrations `022`,
 `023` and `024` are not: see "Limits".
@@ -142,7 +142,7 @@ Real models, called at their providers: `deepseek-flash` for assistants and owne
 | Control story, `zeroclaw` mode | One continuous process | Completed in 33 s. One process for each assistant, 32 model calls. |
 | Control story through the campaign ledger | One continuous process | Completed. 30 attempts, USD 0.0066 recorded, no uncertain charge. |
 | Five-lives, first 39 story minutes, through the ledger, with a smaller site model | One continuous process | Stopped at the Director cap that was set (14 calls). 122 assistant calls, 142 ledger attempts, USD 0.10 recorded, no uncertain charge, no failed attempt. |
-| Five-lives, first 5 story hours, through the ledger, with shared editing | One continuous process | Stopped by the real-time limit of the test. 472 assistant calls, 514 ledger attempts, USD 0.60 recorded, no uncertain charge. Four failed attempts: one activation reached the model-call limit, and in one long activation ZeroClaw stopped early three times. See "Limits". |
+| Five-lives, first 5 story hours, through the ledger, with shared editing | One continuous process | Stopped by the real-time limit of the test. 472 assistant calls, 514 ledger attempts, USD 0.60 recorded, no uncertain charge. Four failed attempts: one activation reached the model-call limit, and in one long activation ZeroClaw stopped early three times. Each time a new process loaded the session, the harness gave it the saved steps again, and the activation completed with no repeated effect. |
 
 What the live runs found in our own code, not in ZeroClaw:
 
@@ -151,6 +151,7 @@ What the live runs found in our own code, not in ZeroClaw:
 | A second "yes" to the same booking doubled the permitted amount. | Corrected, with a test. |
 | An assistant tried 54 times to write a document that another owner shared with it. The refusal said "not found", so it read the list again and retried. | Corrected, with tests. The story's two group sheets now have shared editing, so the write succeeds. A write to any other shared record gets a refusal that says the record is read-only for this assistant. See "Documents that several people edit". |
 | The real run script and the ledger took OpenRouter models only. | Corrected: see "Direct providers". |
+| In one turn with 59 model calls and 122 real tool results, ZeroClaw stopped early three times. Its message: the request exceeds the model's context window. ZeroClaw estimates that window itself, and its default for an unknown model is low. | Corrected, with a test that failed before the change: the configuration now gives ZeroClaw the model's real context size (`context_window`). |
 | The Director built 11 sites on the first story morning. | Site building was already limited: one request for each distinct search, and `max_sites` sites for a run (40 in five-lives). 11 of the 30 Director calls built sites. A smaller model can now build them (`site_model`). The build stage on branch `world-build` makes such sites before a run starts. |
 
 ### Direct providers
@@ -203,6 +204,7 @@ Probe findings on ZeroClaw 0.8.7, from `scripts/probe_zeroclaw.py`:
 | Does one-shot mode keep history? | No. A second `agent -m` call starts with only a system prompt and the new message. |
 | Does a session keep history? | Yes. With `zeroclaw acp`, a later `session/prompt` sends the earlier owner messages, tool calls and results. After the process is killed, a new process with `session/load` sends them too. |
 | How does a session ask the model? | With `stream: true`. The bridge answers as a stream. |
+| One long turn with large tool results | With 45 steps and two 3,000-character results in each, the turn ends with an error: "This request exceeds the selected model's context window". With 300-character results it completes. `context_window` on the model entry sets the limit. |
 | Identical calls in one model reply | With defaults, the second call is skipped: "Skipped duplicate tool call ... in this turn." The trial sets `tool_call_dedup_exempt` for all our tools. |
 | The same call five times in a row | With defaults, the turn stops with exit code 1 ("Circuit breaker"). The trial sets `loop_detection_enabled = false`. |
 | A tool slower than its timeout | The model is told, for example, "MCP server `home` timed out after 2s ...; outcome unknown and request was not replayed". The limit is 600 s at most. A call that waits for its turn in story order can wait longer than that. |
@@ -317,11 +319,9 @@ because in Option A the model cannot tell which runtime is in use.
   hours. A full week on the continuous driver has not run. A full week on the earlier driver
   (one process for each activation) was in progress when this was written.
 - A budget stop and a provider outage went through the bridge only in short runs.
-- Early stops are not explained. In one live activation of 59 model calls and 122 tool calls,
-  ZeroClaw ended its turn early three times. Each time a new process loaded the session, the
-  harness gave it the saved steps again, and the activation completed with no repeated effect.
-  The reason was not saved then. It is now saved in the assistant's private folder
-  (`stops.jsonl`). A second run of 40 story minutes did not show the fault.
+- An early stop is now saved with its reason in the assistant's private folder
+  (`stops.jsonl`). The fix for the early stops in "Live results" passed a test and the probe.
+  No live run of that length has run since the fix.
 - One ZeroClaw version, 0.8.7, on one machine.
 - The computed cost of a directly called model is an upper bound from a price table. The table
   needs a check when a provider changes its prices.

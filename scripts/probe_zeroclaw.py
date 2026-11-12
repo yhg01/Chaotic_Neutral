@@ -121,9 +121,7 @@ def script(prefix: str, duplicate: bool = False, steps: int = 0) -> list[dict]:
     ]
 
 
-def build_app(
-    seen: dict, replies: list[dict], tool_delay: float, result_chars: int = 0
-) -> FastAPI:
+def build_app(seen: dict, replies: list[dict], tool_delay: float, result_chars: int = 0) -> FastAPI:
     app = FastAPI()
 
     def note(kind: str, request: Request, body):

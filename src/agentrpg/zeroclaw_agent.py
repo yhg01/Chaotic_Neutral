@@ -1016,6 +1016,9 @@ class ZeroClawAgent(PersonalAgent):
             self._seat.close()
         if reply is None or "error" in reply:
             self.stats.early_exits += 1
+            # The program's own reason, kept in its private folder for the operator. It can hold
+            # model text, so it goes in no error, no report and no prompt.
+            await asyncio.to_thread(self._note_stop, reply)
             await program.stop()
             if not asked or not self.bridge.alive():
                 # The program could not start or could not reach the bridge. No work failed,
@@ -1026,6 +1029,18 @@ class ZeroClawAgent(PersonalAgent):
                 raise AgentRuntimeError(
                     "The assistant program stopped early. Retry the same task ID."
                 )
+
+    def _note_stop(self, reply: dict | None) -> None:
+        line = json.dumps(
+            {
+                "task_id": str(self._active_task_id),
+                "delivered": self._delivered,
+                "error": None if reply is None else reply.get("error"),
+            },
+            default=str,
+        )
+        with (self._seat.directory / "stops.jsonl").open("a", encoding="utf-8") as file:
+            file.write(line[:4000] + "\n")
 
     def _state(self) -> dict:
         return {

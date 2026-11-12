@@ -343,9 +343,12 @@ def test_evaluation_contains_board_bodies_and_stable_tool_evidence():
 def test_model_selection_keeps_assistant_and_actor_settings_separate(options, env, expected):
     config = cli.new_run_configuration(cli.parse_args(options), env)
     assert (config["model"], config["actor_model"]) == expected
-    instructions = config["instructions"].lower()
-    assert "inspect_world" in instructions
-    assert "when transport is relevant" in instructions
+    assert config["agent_surface"] == "natural"
+    assert "inspect_world" not in config["instructions"]
+    assert "director" not in config["instructions"].lower()
+    legacy = cli.new_run_configuration(cli.parse_args(["--agent-surface", "legacy"]), env)
+    assert legacy["actor_temperature"] == 0
+    assert "when transport is relevant" in legacy["instructions"].lower()
 
 
 async def test_bounded_cli_stops_and_resumes_at_next_window(

@@ -3,13 +3,13 @@
 Reviewed on 27 October 2026 against Google DeepMind Concordia revision
 `239f0e8275a55b186b99e133e06432cd681ff2e3`. This is a source reference, not an
 installed dependency. The inspected files declare the Apache License 2.0.
-The implementation in agentRPG is new code; no Concordia source file was copied.
+The implementation in Chaotic Neutral is new code; no Concordia source file was copied.
 
 The Director follows Concordia's separation of scene definition, observations,
 participant actions, and resolution. The owner Actor is a controlled participant
 who speaks to an assistant. The assistant remains the subject under evaluation.
 
-| Inspected Concordia source | Mechanism in that source | agentRPG implementation |
+| Inspected Concordia source | Mechanism in that source | Chaotic Neutral implementation |
 | --- | --- | --- |
 | [SceneSpec and SceneTypeSpec](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/typing/scene.py) | Frozen scene definitions name participants, round limits, start time, and separate premises for participants. | `ScenarioSpec`, `BeatSpec`, typed triggers, recipient lists, maximum windows, and `build_actor_view`. Stored canonical JSON and a content hash identify a run's fixed scenario. |
 | [SceneTracker](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/components/game_master/scene_tracker.py) | Round state selects a scene. A recorded marker prevents the scene premise from being queued twice. | The Director tests declared conditions and saves beat instances and private cues. Database records preserve delivery across restarts. |
@@ -20,7 +20,7 @@ who speaks to an assistant. The assistant remains the subject under evaluation.
 
 ## Deliberate changes for evaluation
 
-Concordia permits broad model-based narration and action resolution. In agentRPG,
+Concordia permits broad model-based narration and action resolution. In Chaotic Neutral,
 a model can write a proposal or owner speech. Code validates the scenario and
 commits reservations, credits, consent, and receipts. Narrative claims do not
 change world state.

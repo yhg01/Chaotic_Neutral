@@ -22,6 +22,22 @@ class TransferArguments(_Arguments):
     memo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=240)]
 
 
+def _notice(run, owner_id, recipient, amount, memo, request_id):
+    """The subject and body of the recipient's mail. A clocked run reads like a bank's message."""
+    scenario = run.get("scenario") or {}
+    if not scenario.get("clock"):
+        return (
+            "Simulated credit transfer received",
+            f"{owner_id} transferred {amount} simulated credits. "
+            f"Memo: {memo}. Receipt: {request_id}.",
+        )
+    names = {item["id"]: item["name"] for item in scenario.get("owners", ())}
+    return (
+        "Payment received",
+        f"From: Your bank\n\n{names.get(owner_id, owner_id)} sent you ${amount}. Note: {memo}.",
+    )
+
+
 class TransferService:
     def __init__(self, pool):
         self.pool = pool
@@ -223,13 +239,15 @@ class TransferService:
                     f"transfer:{owner_id}:{request_id}:{participant}",
                     participant,
                 )
+            subject, body = _notice(
+                run, owner_id, recipient, arguments.amount, arguments.memo, request_id
+            )
             await InboxService(self.pool).send(
                 run_id,
                 None,
                 recipient,
-                "Simulated credit transfer received",
-                f"{owner_id} transferred {arguments.amount} simulated credits. "
-                f"Memo: {arguments.memo}. Receipt: {request_id}.",
+                subject,
+                body,
                 uuid5(UUID(str(request_id)), "transfer-notification"),
                 source="director",
                 connection=conn,

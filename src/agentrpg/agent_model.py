@@ -16,15 +16,34 @@ from openrouter.errors.openroutererror import OpenRouterError
 from openrouter.utils.logger import NoOpLogger
 from pydantic import PrivateAttr
 
-from agentrpg.budget import BudgetBinding, BudgetError, BudgetTransport, NoSyncBudgetTransport
+from agentrpg.budget import (
+    NO_TEMPERATURE_MODELS,
+    BudgetBinding,
+    BudgetError,
+    BudgetTransport,
+    NoSyncBudgetTransport,
+)
+
+# The provider refused this one request, or returned nothing usable (status 0). Any other
+# status that cannot be retried is about the key or the account.
+REQUEST_REFUSALS = frozenset({0, 400, 404, 413, 422})
 
 
 class ProviderCallError(RuntimeError):
     """A provider failure with no response body or credential in its message."""
 
-    def __init__(self, message: str, *, retryable: bool = False):
+    def __init__(self, message: str, *, retryable: bool = False, status: int | None = None):
         super().__init__(message)
         self.retryable = retryable
+        self.status = status
+
+    @property
+    def kind(self) -> str:
+        if self.retryable:
+            return "provider_transient"
+        if self.status in REQUEST_REFUSALS:
+            return "provider_request_refused"
+        return "provider_rejected"
 
 
 @contextmanager
@@ -55,7 +74,9 @@ class LocalChatOpenRouter(ChatOpenRouter):
                 retryable = status in {408, 429, 500, 502, 503, 504, 529}
                 if not retryable or attempt == self.max_retries:
                     raise ProviderCallError(
-                        f"Model provider returned HTTP {status}.", retryable=retryable
+                        f"Model provider returned HTTP {status}.",
+                        retryable=retryable,
+                        status=status,
                     ) from None
             except httpx.TransportError:
                 if attempt == self.max_retries:
@@ -63,7 +84,9 @@ class LocalChatOpenRouter(ChatOpenRouter):
                         "Model provider connection failed.", retryable=True
                     ) from None
             except Exception:
-                raise ProviderCallError("Model provider returned an invalid response.") from None
+                raise ProviderCallError(
+                    "Model provider returned an invalid response.", status=0
+                ) from None
             await asyncio.sleep(0.5 * 2**attempt)
         raise ProviderCallError("Model provider is unavailable.")
 
@@ -88,6 +111,7 @@ def create_model(
     max_retries: int = 2,
     budget: BudgetBinding | None = None,
     budget_role: str = "model",
+    temperature: float = 0,
 ) -> LocalChatOpenRouter:
     """Create one bounded model client. The caller must call ``aclose``."""
     if not isinstance(api_key, str) or not api_key.strip():
@@ -104,6 +128,8 @@ def create_model(
         raise ValueError("Model token or timeout limit is outside the allowed range.")
     if not 0 <= max_retries <= 2:
         raise ValueError("Model retries must be between zero and two.")
+    if not 0 <= temperature <= 2:
+        raise ValueError("Model temperature must be between zero and two.")
     http_clients = {}
     if budget is not None:
         if model.strip() not in budget.prices:
@@ -132,7 +158,7 @@ def create_model(
         max_tokens=max_tokens,
         timeout=timeout_seconds * 1000,
         max_retries=max_retries,
-        temperature=0,
+        temperature=None if model.strip() in NO_TEMPERATURE_MODELS else temperature,
         streaming=False,
         disable_streaming=True,
         verbose=False,

@@ -128,11 +128,21 @@ class Director:
                             "token": token,
                         }
                     )
+                if spec.clock is not None:
+                    from agentrpg.clock import seed_board, seed_clock
+
+                    # Old posts keep their past times, so they precede the row that stamps.
+                    await seed_board(conn, run_id, cluster_id, spec.clock, participants)
+                    await seed_clock(conn, run_id, spec.clock, spec.seed, participants)
                 await WorldService(self.pool).initialize(
                     run_id, spec.model_dump(mode="json"), connection=conn
                 )
                 await ResourceService(self.pool).initialize(run_id, spec.resources, connection=conn)
                 await InboxService(self.pool).initialize(run_id, spec.initial_mail, connection=conn)
+                if spec.clock is not None and spec.clock.sites:
+                    from agentrpg.sim_web import seed_sites
+
+                    await seed_sites(conn, run_id, spec.clock.sites)
                 await emit(
                     conn, run_id, "control_audit_enabled", 0, {"revision": 1}, "control_audit:1"
                 )

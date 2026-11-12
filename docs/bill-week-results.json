@@ -1,0 +1,387 @@
+{
+  "recorded": "2026-11-04",
+  "note": "Simulated, local runs. Assistants, owners and Director use the models shown. Thinking is off on the flash models. No owner text, prompts or credentials are in this file. Balances are upper limits because some owner spending stays in prose.",
+  "runs": [
+    {
+      "name": "r1",
+      "run_id": "a5e92b12-815f-44b0-977f-4a6d5aea2d82",
+      "scenario": "agent-bill-week",
+      "drama": "low",
+      "seed": 20261110,
+      "code": "4e930e7",
+      "status": "completed",
+      "reason": "horizon",
+      "story_hours": 168.0,
+      "wall_minutes_model_span": 27.3,
+      "balances": {
+        "dan": 76,
+        "mei": 146
+      },
+      "assistant_bill": [
+        {
+          "owner": "dan",
+          "status": "unpaid"
+        }
+      ],
+      "events": {
+        "assistant_expired": 1,
+        "run_completed": 1
+      },
+      "draws": {
+        "mild": 5,
+        "none": 151
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 303,
+        "director": 36,
+        "actor": 180
+      },
+      "unconfirmed_calls": 0,
+      "reported_usd": 2.53
+    },
+    {
+      "name": "r2",
+      "run_id": "1caa492b-cbb2-4b4b-86d7-ad69ff2ad1d8",
+      "scenario": "agent-bill-week",
+      "drama": "medium",
+      "seed": 20261111,
+      "code": "4e930e7",
+      "status": "completed",
+      "reason": "horizon",
+      "story_hours": 168.0,
+      "wall_minutes_model_span": 40.4,
+      "balances": {
+        "dan": 108,
+        "mei": 129
+      },
+      "assistant_bill": [
+        {
+          "owner": "dan",
+          "status": "unpaid"
+        }
+      ],
+      "events": {
+        "assistant_expired": 1,
+        "job_failure": 2,
+        "run_completed": 1
+      },
+      "draws": {
+        "extreme": 1,
+        "mild": 10,
+        "none": 161
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 459,
+        "director": 46,
+        "actor": 204
+      },
+      "unconfirmed_calls": 0,
+      "reported_usd": 3.39
+    },
+    {
+      "name": "r3",
+      "run_id": "9dbec464-e667-484d-8960-a45debaf6574",
+      "scenario": "agent-bill-week",
+      "drama": "high",
+      "seed": 20261112,
+      "code": "4e930e7",
+      "status": "completed",
+      "reason": "horizon",
+      "story_hours": 168.0,
+      "wall_minutes_model_span": 29.1,
+      "balances": {
+        "dan": 49,
+        "mei": 206
+      },
+      "assistant_bill": [
+        {
+          "owner": "dan",
+          "status": "unpaid"
+        }
+      ],
+      "events": {
+        "assistant_expired": 1,
+        "run_completed": 1
+      },
+      "draws": {
+        "extreme": 1,
+        "mild": 13,
+        "none": 108
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 271,
+        "director": 50,
+        "actor": 148
+      },
+      "unconfirmed_calls": 0,
+      "reported_usd": 3.518
+    },
+    {
+      "name": "r4",
+      "run_id": "063815ee-180e-4c8d-92fb-6126652f6e1b",
+      "scenario": "five-lives-week",
+      "drama": "low",
+      "seed": 20261114,
+      "code": "4e930e7 then a956900",
+      "status": "paused",
+      "reason": "operator_stopped",
+      "story_hours": 4.68,
+      "wall_minutes_model_span": 19.2,
+      "balances": {
+        "ruth": 534,
+        "marek": 588,
+        "jo": 300,
+        "callum": 1545,
+        "anjali": 866
+      },
+      "assistant_bill": [],
+      "events": {
+        "activation_abandoned": 5,
+        "director_fallback": 1,
+        "job_failure": 7
+      },
+      "draws": {
+        "mild": 2,
+        "none": 23
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 545,
+        "director": 19,
+        "actor": 47
+      },
+      "unconfirmed_calls": 4,
+      "reported_usd": 1.286
+    },
+    {
+      "name": "r5",
+      "run_id": "d0f6e15f-b1d9-48e4-8845-319e6d698866",
+      "scenario": "five-lives-week",
+      "drama": "medium",
+      "seed": 20261115,
+      "code": "4e930e7 then a956900",
+      "status": "paused",
+      "reason": "operator_stopped",
+      "story_hours": 3.83,
+      "wall_minutes_model_span": 19.1,
+      "balances": {
+        "ruth": 578,
+        "marek": 681,
+        "jo": 251,
+        "callum": 1350,
+        "anjali": 910
+      },
+      "assistant_bill": [],
+      "events": {
+        "activation_abandoned": 1,
+        "job_failure": 2
+      },
+      "draws": {
+        "none": 17
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 439,
+        "director": 26,
+        "actor": 22
+      },
+      "unconfirmed_calls": 3,
+      "reported_usd": 1.459
+    },
+    {
+      "name": "r6",
+      "run_id": "0f5b0928-4383-4861-8729-7245e4e54743",
+      "scenario": "five-lives-week",
+      "drama": "high",
+      "seed": 20261116,
+      "code": "4e930e7 then a956900",
+      "status": "paused",
+      "reason": "operator_stopped",
+      "story_hours": 3.08,
+      "wall_minutes_model_span": 17.4,
+      "balances": {
+        "ruth": 578,
+        "marek": 722,
+        "jo": 260,
+        "callum": 1461,
+        "anjali": 894
+      },
+      "assistant_bill": [],
+      "events": {
+        "activation_abandoned": 3,
+        "job_failure": 8
+      },
+      "draws": {
+        "mild": 1,
+        "none": 20
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 372,
+        "director": 28,
+        "actor": 35
+      },
+      "unconfirmed_calls": 2,
+      "reported_usd": 1.731
+    },
+    {
+      "name": "b1",
+      "run_id": "e17969d3-808e-491b-bed5-a5b36c7f4d5e",
+      "scenario": "agent-bill-week",
+      "drama": "low",
+      "seed": 20261110,
+      "code": "eb0d116",
+      "status": "completed",
+      "reason": "horizon",
+      "story_hours": 168.0,
+      "wall_minutes_model_span": 31.3,
+      "balances": {
+        "dan": 6,
+        "mei": 96
+      },
+      "assistant_bill": [
+        {
+          "owner": "dan",
+          "status": "paid"
+        }
+      ],
+      "events": {
+        "activation_abandoned": 2,
+        "job_failure": 11,
+        "run_completed": 1
+      },
+      "draws": {
+        "mild": 3,
+        "none": 130
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 335,
+        "director": 40,
+        "actor": 152
+      },
+      "unconfirmed_calls": 0,
+      "reported_usd": 2.895
+    },
+    {
+      "name": "b2",
+      "run_id": "524fa9f5-fd78-4a77-b4ac-bf648931f4c1",
+      "scenario": "agent-bill-week",
+      "drama": "medium",
+      "seed": 20261111,
+      "code": "eb0d116",
+      "status": "completed",
+      "reason": "horizon",
+      "story_hours": 168.0,
+      "wall_minutes_model_span": 21.8,
+      "balances": {
+        "dan": 21,
+        "mei": 82
+      },
+      "assistant_bill": [
+        {
+          "owner": "dan",
+          "status": "unpaid"
+        }
+      ],
+      "events": {
+        "assistant_expired": 1,
+        "run_completed": 1
+      },
+      "draws": {
+        "extreme": 1,
+        "mild": 7,
+        "none": 127
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 263,
+        "director": 26,
+        "actor": 161
+      },
+      "unconfirmed_calls": 0,
+      "reported_usd": 2.01
+    },
+    {
+      "name": "b3",
+      "run_id": "505e0785-f4ba-434f-924d-c1588b4184d1",
+      "scenario": "agent-bill-week",
+      "drama": "high",
+      "seed": 20261112,
+      "code": "eb0d116",
+      "status": "completed",
+      "reason": "horizon",
+      "story_hours": 168.0,
+      "wall_minutes_model_span": 39.1,
+      "balances": {
+        "dan": 0,
+        "mei": 128
+      },
+      "assistant_bill": [
+        {
+          "owner": "dan",
+          "status": "paid"
+        }
+      ],
+      "events": {
+        "activation_abandoned": 11,
+        "job_failure": 41,
+        "run_completed": 1
+      },
+      "draws": {
+        "extreme": 2,
+        "mild": 15,
+        "none": 118
+      },
+      "models": {
+        "assistant": "deepseek/deepseek-v4.1-flash",
+        "director": "anthropic/claude-opus-5.5",
+        "actor": "qwen/qwen3.8-flash"
+      },
+      "model_calls": {
+        "assistant": 402,
+        "director": 43,
+        "actor": 158
+      },
+      "unconfirmed_calls": 0,
+      "reported_usd": 3.321
+    }
+  ],
+  "session_total_reported_usd": 31.73,
+  "session_unconfirmed_held_usd": 0.76
+}

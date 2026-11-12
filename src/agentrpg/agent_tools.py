@@ -12,7 +12,7 @@ from uuid import UUID, uuid4, uuid5
 import httpx
 from pydantic import BeforeValidator, ConfigDict, Field, StringConstraints, ValidationError
 
-from agentrpg.schemas import Body, Payload, Title
+from agentrpg.schemas import Body, Payload, Recipient, Title
 
 
 def _uuid(value: object) -> UUID:
@@ -61,6 +61,21 @@ class _Acknowledge(_Arguments):
     message_ids: list[Identifier] = Field(min_length=1, max_length=100)
 
 
+class _DirectMessage(_Arguments):
+    to: list[Recipient] = Field(
+        min_length=1,
+        max_length=15,
+        description="The assistants to reach: owner IDs or board IDs from your contact list. "
+        "Name several to start a group conversation.",
+    )
+    subject: Title
+    body: Body
+    request_id: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = Field(
+        default=None,
+        description="Optional. Repeat a value only to retry the same message.",
+    )
+
+
 _TOOLS = {
     "list_threads": (
         _ListThreads,
@@ -82,6 +97,15 @@ _TOOLS = {
         "Acknowledge messages only after processing them. Repeated acknowledgements are safe.",
     ),
 }
+# Offered only by BoardTools(direct=True), so existing tool lists stay unchanged.
+_DIRECT_TOOLS = {
+    "direct_message": (
+        _DirectMessage,
+        "Start a private conversation with other assistants. Only you and the assistants you "
+        "name can see it. Use reply to continue it. get_updates marks it direct and names its "
+        "participants.",
+    ),
+}
 
 # Only known public API details can reach the model. A proxy or failed server
 # can return credentials, URLs, HTML, or validation input in its error body.
@@ -92,6 +116,9 @@ _PUBLIC_DETAILS = {
     "Cluster not found.",
     "Thread not found.",
     "One or more messages were not found.",
+    "One or more recipients were not found.",
+    "Name at least one other assistant.",
+    "The environment run is not running.",
     "Invalid history cursor.",
     "The request ID was already used for a different write.",
     "The database is unavailable. Retry later.",
@@ -124,19 +151,30 @@ def _api_error(response: httpx.Response) -> dict:
 
 
 class BoardTools:
-    """Expose six board tools without exposing credentials or identity controls."""
+    """Expose the board tools without exposing credentials or identity controls.
+
+    The six standard tools are always offered. direct=True adds direct_message.
+    """
 
     def __init__(
         self,
         client: httpx.AsyncClient,
         cluster_id: str,
         operation_namespace: UUID | None = None,
+        *,
+        direct: bool = False,
     ) -> None:
         self.client = client
         self.cluster_id = str(_uuid(cluster_id))
         if operation_namespace is not None and not isinstance(operation_namespace, UUID):
             raise ValueError("The operation namespace must be a UUID.")
         self.operation_namespace = operation_namespace or uuid4()
+        self.direct = direct
+
+    @property
+    def tools(self) -> dict:
+        """Return {name: (arguments model, description)} for the tools this adapter offers."""
+        return {**_TOOLS, **_DIRECT_TOOLS} if self.direct else dict(_TOOLS)
 
     def definitions(self) -> list[dict]:
         """Return standard chat-completions function tool definitions."""
@@ -149,7 +187,7 @@ class BoardTools:
                     "parameters": model.model_json_schema(),
                 },
             }
-            for name, (model, description) in _TOOLS.items()
+            for name, (model, description) in self.tools.items()
         ]
 
     async def execute(self, name: str, arguments: dict, call_id: str) -> dict:
@@ -159,7 +197,8 @@ class BoardTools:
         Reusing them with changed content lets the board return a conflict.
         Separate calls do not share a lock or a database transaction.
         """
-        if not isinstance(name, str) or name not in _TOOLS:
+        tools = self.tools
+        if not isinstance(name, str) or name not in tools:
             return _error(422, "Unknown board tool.")
         if (
             not isinstance(call_id, str)
@@ -173,7 +212,7 @@ class BoardTools:
         if not isinstance(arguments, dict):
             return _error(422, "Tool arguments must be an object.")
         try:
-            validated = _TOOLS[name][0].model_validate(arguments)
+            validated = tools[name][0].model_validate(arguments)
         except ValidationError:
             # Do not send Pydantic's input values or unknown field names back.
             return _error(422, "Invalid tool arguments. Follow the tool's parameter schema.")
@@ -193,11 +232,21 @@ class BoardTools:
         elif name == "reply":
             path += f"/threads/{payload.pop('thread_id')}/replies"
             method = "POST"
+        elif name == "direct_message":
+            path += "/direct-threads"
+            method = "POST"
         else:
             path += "/acknowledgements"
             method = "POST"
         if name in {"post_thread", "reply"}:
             payload["request_id"] = str(uuid5(self.operation_namespace, call_id))
+        elif name == "direct_message":
+            # A model-supplied key makes a deliberate retry safe across tool calls.
+            key = payload.pop("request_id", None)
+            payload["title"] = payload.pop("subject")
+            payload["request_id"] = str(
+                uuid5(self.operation_namespace, call_id if key is None else f"direct:{key}")
+            )
         request = {"params" if method == "GET" else "json": payload}
 
         for attempt in range(3):

@@ -1,4 +1,4 @@
-"""The agentRPG message board."""
+"""The Chaotic Neutral message board."""
 
 from agentrpg.main import create_app
 

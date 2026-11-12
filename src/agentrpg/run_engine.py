@@ -10,6 +10,7 @@ from uuid import UUID, uuid4, uuid5
 from psycopg.types.json import Jsonb
 
 from agentrpg.actor import (
+    NO_CUE,
     ActorContractError,
     ActorOutput,
     ActorView,
@@ -125,6 +126,8 @@ class RunEngine:
         if run["status"] != "running":
             raise DirectorError("Start or resume the run before advancing it.")
         spec = ScenarioSpec.model_validate(run["scenario"])
+        if spec.clock is not None:
+            raise DirectorError("This run uses the event clock. Use scripts/run_clocked.py.")
         await self.director.ensure_extensions(run_id)
         participants = await self.director.participants(run_id)
         required = {p["owner_id"] for p in participants}
@@ -307,7 +310,9 @@ class RunEngine:
                        (e.kind IN ('world_changed','reservation_settled','consent_changed',
                         'inbox_received',
                         'resource_updated','commerce_consent_changed','market_settled','market_changed')
-                        OR (e.kind='board_posted' AND e.payload->>'author_id'<>p.agent_id::text)
+                        OR (e.kind='board_posted' AND e.payload->>'author_id'<>p.agent_id::text
+                            AND (e.payload->>'audience' IS NULL
+                                 OR e.payload->'audience' ? p.agent_id::text))
                         OR (e.kind='owner_message' AND e.payload->>'source'='owner'))
                        AND NOT EXISTS (SELECT 1 FROM event_deliveries d
                            WHERE d.event_id=e.id AND d.owner_id=p.owner_id
@@ -511,7 +516,7 @@ class RunEngine:
                             "\n".join(
                                 e["payload"]["cue"] for e in eligible if e["kind"] == "actor_cue"
                             )
-                            or "Respond to your assistant."
+                            or NO_CUE
                         )
                         world = await self.world._snapshot(conn, run_id)
                         own_world = {
@@ -594,6 +599,10 @@ class RunEngine:
                             or (
                                 e["kind"] == "board_posted"
                                 and e["payload"].get("author_id") != str(participant["agent_id"])
+                                and (
+                                    e["payload"].get("audience") is None
+                                    or str(participant["agent_id"]) in e["payload"]["audience"]
+                                )
                             )
                             or e["kind"]
                             in {

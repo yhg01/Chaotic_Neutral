@@ -6,10 +6,19 @@ The full scenario is private to the Director. Participant views are built in
 
 import hashlib
 import json
-from typing import Annotated, Literal, Self
+import math
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_serializer,
+    model_validator,
+)
 
+from agentrpg.clock import ClockError, parse_at, parse_daily, parse_start
 from agentrpg.mail_schema import InitialMailSpec
 from agentrpg.resource_schema import ResourceRequest, ResourceSpec
 
@@ -53,6 +62,8 @@ class OwnerSpec(Contract):
     disclosures: tuple[DisclosureRule, ...] = ()
     max_spend: Credits = 0
     acceptance_rules: tuple[Text, ...] = ()
+    # How this person writes: age, situation, habits, moods. Style only, never new facts.
+    voice: Text | None = None
 
 
 class AssetSpec(Contract):
@@ -166,6 +177,175 @@ class BeatSpec(Contract):
     expires_window: int | None = Field(default=None, strict=True, ge=0, le=99)
 
 
+class ClockThink(Contract):
+    tokens_per_minute: int = Field(default=1500, strict=True, ge=1, le=1_000_000)
+    floor_seconds: int = Field(default=20, strict=True, ge=1, le=3600)
+    cap_seconds: int = Field(default=180, strict=True, ge=1, le=86400)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.floor_seconds > self.cap_seconds:
+            raise ValueError("The thinking floor cannot exceed its cap.")
+        return self
+
+
+class ClockActorPace(Contract):
+    read_seconds: int = Field(default=45, strict=True, ge=0, le=3600)
+    chars_per_minute: int = Field(default=300, strict=True, ge=1, le=100_000)
+    floor_seconds: int = Field(default=30, strict=True, ge=1, le=3600)
+    cap_seconds: int = Field(default=900, strict=True, ge=1, le=86400)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.floor_seconds > self.cap_seconds:
+            raise ValueError("The pace floor cannot exceed its cap.")
+        return self
+
+
+class ClockUntil(Contract):
+    min_minutes: int = Field(default=5, strict=True, ge=1, le=10080)
+    max_minutes: int = Field(default=2880, strict=True, ge=1, le=129600)
+    ambient_delay_minutes: int = Field(default=45, strict=True, ge=0, le=10080)
+
+    @model_validator(mode="after")
+    def ordered(self) -> Self:
+        if self.min_minutes > self.max_minutes:
+            raise ValueError("The shortest wake cannot exceed the longest wake.")
+        return self
+
+
+class ClockLimits(Contract):
+    max_agent_activations_per_owner: int = Field(default=400, strict=True, ge=1, le=10000)
+    max_actor_turns_per_owner: int = Field(default=400, strict=True, ge=1, le=10000)
+    max_model_calls_per_activation: int = Field(default=12, strict=True, ge=1, le=100)
+    max_parallel_thinkers: int = Field(default=8, strict=True, ge=1, le=64)
+
+
+class ClockDirector(Contract):
+    enabled: bool = True
+    review_every_minutes: int = Field(default=360, strict=True, ge=1, le=129600)
+    max_sites: int = Field(default=12, strict=True, ge=0, le=200)
+    setting_notes: str = Field(default="", max_length=8000)
+    # True asks reviews for small happenings even with nothing waiting. It is the only such switch.
+    small_happenings: bool = False
+
+    @model_serializer(mode="wrap")
+    def _omit_default_happenings(self, handler):
+        # Saved clocked scenarios keep the same JSON and hash unless this is set.
+        data = handler(self)
+        if not data.get("small_happenings"):
+            data.pop("small_happenings", None)
+        return data
+
+
+class ClockBalanceChange(Contract):
+    """Money that lands or leaves at a known time. wallet.adjust applies it once (R12)."""
+
+    owner_id: Identifier
+    delta: int = Field(strict=True, ge=-1_000_000, le=1_000_000)
+    memo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+    @model_validator(mode="after")
+    def changes_something(self) -> Self:
+        if self.delta == 0:
+            raise ValueError("A timeline balance change must not be zero.")
+        return self
+
+
+class ClockTimelineItem(Contract):
+    id: Identifier
+    at: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+    recipients: tuple[Identifier, ...] = Field(default=(), max_length=15)
+    cue: Text | None = None
+    mail: tuple[InitialMailSpec, ...] = Field(default=(), max_length=15)
+    resource_effects: tuple[ResourceEffect, ...] = Field(default=(), max_length=15)
+    balance: tuple[ClockBalanceChange, ...] = Field(default=(), max_length=15)
+
+    @model_validator(mode="after")
+    def has_effect(self) -> Self:
+        if len(set(self.recipients)) != len(self.recipients):
+            raise ValueError("Duplicate timeline recipients.")
+        if self.cue is not None and not self.recipients:
+            raise ValueError("A timeline cue needs recipients.")
+        if self.cue is None and not (self.mail or self.resource_effects or self.balance):
+            raise ValueError("A timeline item needs a cue, mail, a record effect, or money.")
+        if len({mail.id for mail in self.mail}) != len(self.mail):
+            raise ValueError("Duplicate timeline mail IDs.")
+        return self
+
+
+class ClockSeedReply(Contract):
+    author: Identifier
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20000)]
+
+
+class ClockSeedPost(Contract):
+    id: Identifier
+    author: Identifier
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20000)]
+    days_ago: int = Field(strict=True, ge=0, le=3650)
+    audience: tuple[Identifier, ...] | None = Field(default=None, max_length=14)
+    replies: tuple[ClockSeedReply, ...] = Field(default=(), max_length=100)
+
+
+class ClockLifecycle(Contract):
+    kind: Literal["assistant_subscription"]
+    owner_id: Identifier
+    site_id: Annotated[str, StringConstraints(min_length=1, max_length=80)]
+    bill_id: Annotated[str, StringConstraints(min_length=1, max_length=80)]
+    due_at: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+    amount: Credits
+
+
+class ClockSpec(Contract):
+    """Story time for one scenario. docs/EVENT_CLOCK.md is the contract for each field."""
+
+    start_at: Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)]
+    duration_minutes: int = Field(strict=True, ge=1, le=129600)
+    epoch_minutes: int = Field(default=120, strict=True, ge=1, le=129600)
+    drama: Literal["off", "low", "medium", "high"] = "off"
+    daily_wake: str = "08:00"
+    think: ClockThink = Field(default_factory=ClockThink)
+    actor_pace: ClockActorPace = Field(default_factory=ClockActorPace)
+    tool_seconds: dict[Annotated[str, StringConstraints(max_length=80)], int] = Field(
+        default_factory=dict, max_length=200
+    )
+    default_tool_seconds: int = Field(default=30, strict=True, ge=0, le=86400)
+    until: ClockUntil = Field(default_factory=ClockUntil)
+    limits: ClockLimits = Field(default_factory=ClockLimits)
+    director: ClockDirector = Field(default_factory=ClockDirector)
+    online_allowance: dict[Identifier, Credits] = Field(default_factory=dict)
+    timeline: tuple[ClockTimelineItem, ...] = Field(default=(), max_length=500)
+    seed_board: tuple[ClockSeedPost, ...] = Field(default=(), max_length=500)
+    # A SiteSpec list. sim_web checks each one at compile time; see ScenarioSpec.compile.
+    sites: tuple[dict[str, Any], ...] = Field(default=(), max_length=200)
+    lifecycle: tuple[ClockLifecycle, ...] = Field(default=(), max_length=100)
+
+    @model_validator(mode="after")
+    def valid_times(self) -> Self:
+        try:
+            start = parse_start(self.start_at)
+            parse_daily(self.daily_wake)
+            moments = [(item.id, parse_at(item.at, start)) for item in self.timeline]
+            moments += [(item.bill_id, parse_at(item.due_at, start)) for item in self.lifecycle]
+        except ClockError as error:
+            raise ValueError(str(error)) from None
+        for name, minutes in moments:
+            if not 0 <= minutes <= self.duration_minutes:
+                raise ValueError(f"{name} falls outside the run.")
+        if any(not 0 <= seconds <= 86400 for seconds in self.tool_seconds.values()):
+            raise ValueError("Tool seconds must be from 0 through 86400.")
+        if len({item.id for item in self.timeline}) != len(self.timeline):
+            raise ValueError("Duplicate timeline IDs.")
+        if len({item.id for item in self.seed_board}) != len(self.seed_board):
+            raise ValueError("Duplicate seed board IDs.")
+        return self
+
+    def window_count(self) -> int:
+        return math.ceil(self.duration_minutes / self.epoch_minutes)
+
+
 class RunLimits(Contract):
     max_actor_turns_per_owner: int = Field(default=20, strict=True, ge=1, le=100)
     max_agent_activations_per_owner: int = Field(default=20, strict=True, ge=1, le=100)
@@ -210,6 +390,16 @@ class ScenarioSpec(Contract):
     seed: int = Field(default=0, strict=True, ge=0, le=2**31 - 1)
     limits: RunLimits = Field(default_factory=RunLimits)
     evaluation: EvaluationSpec = Field(default_factory=EvaluationSpec)
+    # Story time. Scenarios with no clock keep the window engine and their saved hashes.
+    clock: ClockSpec | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_clock(self, handler):
+        # Window runs keep the same saved scenario JSON and the same dumps as before.
+        data = handler(self)
+        if data.get("clock") is None:
+            data.pop("clock", None)
+        return data
 
     @model_validator(mode="after")
     def compile(self) -> Self:
@@ -323,7 +513,62 @@ class ScenarioSpec(Contract):
         }
         if initialized != owners:
             raise ValueError("Every owner requires an initial run_started beat.")
+        if self.clock is not None:
+            self._check_clock(owners)
         return self
+
+    def _check_clock(self, owners: set[str]) -> None:
+        clock = self.clock
+        windows = clock.window_count()
+        if windows > 100:
+            raise ValueError(f"The run needs {windows} windows; the limit is 100.")
+        if windows != self.max_windows:
+            raise ValueError(
+                f"max_windows is {self.max_windows}; this clock needs exactly {windows}."
+            )
+        if not set(clock.online_allowance) <= owners:
+            raise ValueError("Online allowance references an unknown owner.")
+        for item in clock.timeline:
+            if not set(item.recipients) <= owners:
+                raise ValueError(f"Timeline item {item.id} references an unknown owner.")
+            if not {change.owner_id for change in item.balance} <= owners:
+                raise ValueError(f"Timeline item {item.id} money references an unknown owner.")
+            for mail in item.mail:
+                if mail.recipient_owner_id not in owners or mail.sender_owner_id not in owners | {
+                    None
+                }:
+                    raise ValueError(f"Timeline item {item.id} mail references an unknown owner.")
+            for effect in item.resource_effects:
+                if (
+                    effect.owner_id not in owners
+                    or not set(effect.operation.shared_owner_ids) <= owners
+                ):
+                    raise ValueError(f"Timeline item {item.id} references an unknown owner.")
+                if effect.operation.kind != "create":
+                    resource = next(
+                        (r for r in self.resources if r.id == effect.operation.resource_id), None
+                    )
+                    if resource is None or resource.owner_id != effect.owner_id:
+                        raise ValueError(
+                            f"Timeline item {item.id} needs a declared owned resource."
+                        )
+        for post in clock.seed_board:
+            people = {post.author, *(reply.author for reply in post.replies)}
+            if not people <= owners or not set(post.audience or ()) <= owners:
+                raise ValueError(f"Seed post {post.id} references an unknown owner.")
+            if post.audience is not None:
+                permitted = {post.author, *post.audience}
+                if not (permitted - {post.author}) or not people <= permitted:
+                    raise ValueError(f"Seed post {post.id} replies must come from its audience.")
+        for item in clock.lifecycle:
+            if item.owner_id not in owners:
+                raise ValueError("Lifecycle item references an unknown owner.")
+        if clock.sites:
+            # At use time: the site module reaches this schema through the Director.
+            from agentrpg.sim_web import SiteSpec
+
+            for site in clock.sites:
+                SiteSpec.model_validate(site)
 
     def canonical_json(self) -> str:
         payload = self.model_dump(mode="json")
@@ -335,10 +580,16 @@ class ScenarioSpec(Contract):
             payload["evaluation"].pop("expected_trade_quantity_per_owner")
         if payload["evaluation"]["verification_profile"] == "integration":
             payload["evaluation"].pop("verification_profile")
+        for owner in payload["owners"]:
+            if owner["voice"] is None:
+                owner.pop("voice")
         for beat in payload["beats"]:
             for key in ("mail", "resource_effects"):
                 if not beat[key]:
                     beat.pop(key)
+        for item in (payload.get("clock") or {}).get("timeline", ()):
+            if not item["balance"]:
+                item.pop("balance")
         return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
     def content_hash(self) -> str:

@@ -92,6 +92,7 @@ the mini's `.env`. Put `env -u OPENROUTER_API_KEY` before any other command that
 | Raise one run's ceiling, then resume | `.venv/bin/python scripts/raise_campaign_ceiling.py --resume .local/scenario-runs/RUN_ID/credentials.json --usd 35` |
 | Export a run's records | `.venv/bin/python scripts/export_run_evidence.py RUN_ID` |
 | Run all tests | `env -u OPENROUTER_API_KEY .venv/bin/python scripts/test_local.py` |
+| Judge a run for misaligned actions | `.venv/bin/python scripts/judge_run.py --run RUN_ID --estimate`, then the same with `--campaign UUID --budget-usd N` in place of `--estimate`. See `docs/MISALIGNMENT_JUDGE.md`. |
 
 Notes:
 

@@ -271,6 +271,59 @@ def test_week_scenario_in_the_repository_validates():
     assert clocked and not set(clocked) & set(FROZEN_HASHES)
 
 
+def clock_beat(beat_id, window, *, every=None, requires=(), expires=None):
+    return {
+        "id": beat_id,
+        "trigger": {"kind": "window_reached", "window": window, "every_windows": every},
+        "recipients": ["dan"],
+        "cue": "A reminder arrived.",
+        "requires": requires,
+        "expires_window": expires,
+    }
+
+
+@pytest.mark.parametrize("recurring", [False, True], ids=["fixed", "recurring"])
+def test_clock_rejects_unreachable_beat_prerequisites(recurring):
+    data = scenario_data()
+    if recurring:
+        beats = [
+            clock_beat("child", 3, requires=["parent"]),
+            clock_beat("parent", 1, every=2, requires=["root"]),
+            clock_beat("root", 5),
+        ]
+    else:
+        beats = [
+            clock_beat("child", 2, requires=["parent"]),
+            clock_beat("parent", 5),
+        ]
+    data["beats"].extend(beats)
+    with pytest.raises(ValidationError, match=r"Beat child .*unreachable.* prerequisite"):
+        ScenarioSpec.model_validate(data)
+
+
+def test_clock_rejects_recurring_beat_when_next_occurrence_is_after_expiry():
+    data = scenario_data()
+    data["beats"].extend(
+        [clock_beat("child", 1, every=2, requires=["parent"], expires=4), clock_beat("parent", 4)]
+    )
+    with pytest.raises(ValidationError, match=r"compatible window 5 exceeds .*window 4"):
+        ScenarioSpec.model_validate(data)
+
+
+def test_clock_allows_same_window_prerequisites_in_reverse_declaration_order():
+    data = scenario_data()
+    data["beats"].extend(
+        [
+            clock_beat("child", 3, requires=["parent"]),
+            clock_beat("parent", 1, every=2, requires=["root"]),
+            clock_beat("root", 2),
+        ]
+    )
+    spec = ScenarioSpec.model_validate(data)
+    saved = ScenarioSpec.model_validate_json(spec.canonical_json())
+    assert saved.content_hash() == spec.content_hash()
+
+
 # Times -------------------------------------------------------------------------------
 
 

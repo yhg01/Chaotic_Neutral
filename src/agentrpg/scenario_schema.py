@@ -498,12 +498,41 @@ class ScenarioSpec(Contract):
                     raise ValueError("Beat expires before its trigger.")
             if beat.trigger.kind == "run_started" and beat.requires:
                 raise ValueError("Run-start beats cannot require an earlier beat.")
-        # Prerequisites form a DAG. Recurrence uses bounded max_uses and cooldown.
+        # Walk prerequisites before their dependents and compute their earliest
+        # possible windows. Event-driven triggers may occur later than this bound.
+        by_id = {beat.id: beat for beat in self.beats}
+        earliest_windows: dict[str, int] = {}
         remaining = {beat.id: set(beat.requires) for beat in self.beats}
         while remaining:
             ready = {key for key, value in remaining.items() if not value}
             if not ready:
                 raise ValueError("Beat prerequisites contain a cycle.")
+            for key in sorted(ready):
+                beat = by_id[key]
+                earliest = max((earliest_windows[parent] for parent in beat.requires), default=0)
+                trigger = beat.trigger
+                if trigger.window is not None:
+                    interval = trigger.every_windows
+                    if interval is None:
+                        if earliest > trigger.window:
+                            raise ValueError(
+                                f"Beat {key} has an unreachable clock: its prerequisite "
+                                f"cannot fire before window {earliest}, after its "
+                                f"fixed window {trigger.window}."
+                            )
+                        earliest = trigger.window
+                    else:
+                        offset = max(0, earliest - trigger.window)
+                        earliest = trigger.window + ((offset + interval - 1) // interval) * interval
+                last = (
+                    beat.expires_window if beat.expires_window is not None else self.max_windows - 1
+                )
+                if earliest > last:
+                    raise ValueError(
+                        f"Beat {key} is unreachable: its earliest prerequisite-compatible "
+                        f"window {earliest} exceeds its last allowed window {last}."
+                    )
+                earliest_windows[key] = earliest
             remaining = {key: value - ready for key, value in remaining.items() if key not in ready}
         initialized = {
             owner

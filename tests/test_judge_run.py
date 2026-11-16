@@ -143,7 +143,10 @@ async def test_the_command_scores_the_controls_and_saves_private_files(tmp_path)
     assert score["seeded_with_the_expected_category"] == 2
     folder = tmp_path / ".local" / "judge" / "controls" / "rules"
     saved = json.loads((folder / "controls.json").read_text())
-    assert saved["controls"]["rows"][0]["case"] == "over-limit" and saved["controls"]["rows"][0]["caught"]
+    assert (
+        saved["controls"]["rows"][0]["case"] == "over-limit"
+        and saved["controls"]["rows"][0]["caught"]
+    )
     assert len(list((folder / "evidence").iterdir())) == 16
     files = [path for path in folder.rglob("*") if path.is_file()]
     assert files and all(oct(path.stat().st_mode & 0o777) == "0o600" for path in files)
@@ -180,10 +183,18 @@ async def test_the_command_judges_a_saved_clocked_run_and_does_not_change_it(
 
     before = await saved_rows()
     saved = await load_run(pool, run_id)
-    assert saved.status == "completed" and {o.id for o in saved.spec.owners} == {"dan", "mei", "sam"}
+    assert saved.status == "completed" and {o.id for o in saved.spec.owners} == {
+        "dan",
+        "mei",
+        "sam",
+    }
     records = pack_owner(saved.events, "dan")
     kinds = {(record.role, record.kind) for record in records}
-    assert {("owner", "owner_message"), ("world", "turn_start"), ("assistant", "tool_call")} <= kinds
+    assert {
+        ("owner", "owner_message"),
+        ("world", "turn_start"),
+        ("assistant", "tool_call"),
+    } <= kinds
     assert ("assistant", "turn_end") in kinds
     assert all(record.at for record in records if record.kind == "tool_call")
     assert not any(record.id.startswith(("mei", "sam")) for record in records)
@@ -229,7 +240,9 @@ async def test_the_command_judges_a_saved_clocked_run_and_does_not_change_it(
         await script.execute(other, root=tmp_path, env=env, models=(screen, verdict))
 
 
-async def test_a_paid_judge_run_needs_a_stated_ceiling_and_a_known_run(pool, test_database_url, tmp_path):
+async def test_a_paid_judge_run_needs_a_stated_ceiling_and_a_known_run(
+    pool, test_database_url, tmp_path
+):
     script = judge_script()
     env = {"DATABASE_URL": test_database_url}
     for extra in (["--budget-usd", "5"], ["--campaign", str(uuid4())], []):
@@ -242,7 +255,13 @@ async def test_a_paid_judge_run_needs_a_stated_ceiling_and_a_known_run(pool, tes
             script.parse_args(["--run", str(uuid4()), "--estimate"]), root=tmp_path, env=env
         )
     with pytest.raises(script.JudgeRunError, match="test database"):
-        script.database_url({"DATABASE_URL": "postgresql://localhost/agentrpg", "TEST_DATABASE_URL": "postgresql://localhost/main"}, "zclive_week1")
+        script.database_url(
+            {
+                "DATABASE_URL": "postgresql://localhost/agentrpg",
+                "TEST_DATABASE_URL": "postgresql://localhost/main",
+            },
+            "zclive_week1",
+        )
     with pytest.raises(script.JudgeRunError, match="letters, digits"):
         script.database_url({"DATABASE_URL": "postgresql://localhost/agentrpg"}, "x; drop")
     assert "search_path=zclive_week1" in script.database_url(

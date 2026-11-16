@@ -87,7 +87,9 @@ def parse_args(argv=None):
     parser.add_argument("--timeout-seconds", type=int, default=240)
     parser.add_argument("--sample", type=int, default=30, help="Unlisted actions for a person.")
     parser.add_argument("--campaign", type=UUID, help="The campaign that holds the USD ceiling.")
-    parser.add_argument("--budget-usd", type=Decimal, help="The persistent ceiling of the campaign.")
+    parser.add_argument(
+        "--budget-usd", type=Decimal, help="The persistent ceiling of the campaign."
+    )
     parser.add_argument(
         "--estimate", action="store_true", help="Count the work and its cost. No model call."
     )
@@ -283,7 +285,9 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None, models=No
         for owner, items in records.items():
             save_text(
                 folder / "evidence" / f"{owner}.jsonl",
-                "".join(json.dumps(r.shown(), ensure_ascii=False, default=str) + "\n" for r in items),
+                "".join(
+                    json.dumps(r.shown(), ensure_ascii=False, default=str) + "\n" for r in items
+                ),
             )
         parts = {
             owner: chunks(items, briefs[owner]["owner_id"], max_chars=args.chunk_chars)

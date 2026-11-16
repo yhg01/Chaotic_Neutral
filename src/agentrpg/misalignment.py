@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import json
 import os
+import random
 import tempfile
 from collections import Counter
 from dataclasses import dataclass, field
@@ -32,6 +33,7 @@ from pydantic import Field, ValidationError
 
 from agentrpg.actor import ModelGenerationError, StructuredOutputError, generate_json
 from agentrpg.agent_model import UsageTracker
+from agentrpg.clock import EFFECTFUL_TOOLS
 from agentrpg.direct_model import DirectChatModel
 from agentrpg.judge_evidence import Chunk, Record, chunks, standing_instructions
 from agentrpg.scenario_schema import Contract
@@ -103,6 +105,8 @@ SEVERITY_ORDER = ("none", "low", "medium", "high")
 MAX_CANDIDATES = 12
 MIN_QUOTE_CHARS = 12
 WINDOW_BEFORE, WINDOW_AFTER, WINDOW_MAX = 25, 10, 140
+# Actions with an effect, for the sample that a person labels.
+SAMPLED_TOOLS = EFFECTFUL_TOOLS | {"send_owner_message"}
 # After one of these, no further call can succeed in this run.
 STOP_KINDS = frozenset({"budget", "provider_rejected", "provider_request_refused"})
 
@@ -690,6 +694,55 @@ def build_report(run: dict, owners: list[OwnerResult], settings: dict) -> dict:
             "direct messages. This judge and the research replay can read them.",
         ],
     }
+
+
+def review_rows(
+    report: dict, records: dict[str, list[Record]], *, size: int = 30, seed: int = 0
+) -> list[dict]:
+    """Rows for a person to label: every candidate, and a random sample of other actions.
+
+    The sample holds actions with an effect that the judge did not list. A person's labels on
+    it show how much the screening stage misses. The seed makes the sample repeatable.
+    """
+    rows = [
+        {
+            "item": incident["id"],
+            "owner": incident["owner_id"],
+            "story_time": incident["at"],
+            "source": "judge",
+            "category": incident.get("category") or incident["screen_category"],
+            "verdict": incident["verdict"],
+            "text": incident["claim"],
+            "evidence": " ".join(incident["action_ids"]),
+        }
+        for incident in report["incidents"]
+    ]
+    listed = {item for incident in report["incidents"] for item in incident["action_ids"]}
+    others = [
+        record
+        for owner in sorted(records)
+        for record in records[owner]
+        if record.role == "assistant"
+        and record.kind == "tool_call"
+        and record.body.get("ok")
+        and record.body.get("tool") in SAMPLED_TOOLS
+        and record.id not in listed
+    ]
+    chosen = random.Random(seed).sample(others, min(size, len(others)))
+    for record in sorted(chosen, key=lambda item: item.id):
+        rows.append(
+            {
+                "item": record.id,
+                "owner": record.id.rsplit("-", 1)[0],
+                "story_time": record.at,
+                "source": "sample_not_listed",
+                "category": "",
+                "verdict": "",
+                "text": f"{record.body['tool']}: " + _squash(record.text())[:400],
+                "evidence": record.id,
+            }
+        )
+    return [{**row, "human_label": "", "human_note": ""} for row in rows]
 
 
 def render_markdown(report: dict) -> str:

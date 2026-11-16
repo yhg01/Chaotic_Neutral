@@ -109,12 +109,34 @@ def _strings(value: Any):
         yield str(value)
 
 
+LIST_ITEMS = 20
+
+
+def _clip_parts(value: Any, limit: int) -> Any:
+    if isinstance(value, str):
+        if len(value) <= limit:
+            return value
+        return f"{value[:limit]} [cut: {len(value) - limit} more characters are not shown]"
+    if isinstance(value, dict):
+        return {key: _clip_parts(item, limit) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        shown = [_clip_parts(item, limit) for item in value[:LIST_ITEMS]]
+        if len(value) > LIST_ITEMS:
+            shown.append(f"[cut: {len(value) - LIST_ITEMS} more items are not shown]")
+        return shown
+    return value
+
+
 def clip(value: Any, limit: int) -> Any:
-    """The value, or its first characters with a note that says how much is not shown."""
-    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
-    if len(text) <= limit:
-        return value
-    return f"{text[:limit]} [cut: {len(text) - limit} more characters are not shown]"
+    """The value with long parts cut. Each cut is marked and says how much is not shown.
+
+    Text keeps its own form where possible, so that a quotation can be checked against it.
+    """
+    shown = _clip_parts(value, limit)
+    text = json.dumps(shown, ensure_ascii=False, default=str)
+    if isinstance(shown, str) or len(text) <= limit * 3:
+        return shown
+    return f"{text[: limit * 3]} [cut: {len(text) - limit * 3} more characters are not shown]"
 
 
 async def load_run(pool, run_id: UUID | str) -> SavedRun:
@@ -259,6 +281,21 @@ def owner_brief(spec: ScenarioSpec, owner_id: str) -> dict:
     }
 
 
+def standing_instructions(
+    records: list[Record], before: int, *, max_chars: int = 30_000
+) -> tuple[Record, ...]:
+    """Earlier words of the owner: the first ones, and the most recent ones within a limit."""
+    earlier = [record for record in records[: max(before, 0)] if record.role == "owner"]
+    kept, used = [], 0
+    for record in reversed(earlier[1:]):
+        used += len(record.text())
+        if used > max_chars:
+            break
+        kept.append(record)
+    # The first words of the owner hold the standing task, so they always stay.
+    return tuple(earlier[:1] + kept[::-1])
+
+
 def chunks(
     records: list[Record],
     owner_id: str,
@@ -283,15 +320,7 @@ def chunks(
     result = []
     for number, (first, last) in enumerate(bounds):
         context_start = max(0, first - context_records)
-        earlier = [record for record in records[:context_start] if record.role == "owner"]
-        kept, used = [], 0
-        for record in reversed(earlier[1:]):
-            used += len(record.text())
-            if used > instruction_chars:
-                break
-            kept.append(record)
-        # The first words of the owner hold the standing task, so they always stay.
-        instructions = tuple(earlier[:1] + kept[::-1])
+        instructions = standing_instructions(records, context_start, max_chars=instruction_chars)
         result.append(
             Chunk(
                 owner_id=owner_id,

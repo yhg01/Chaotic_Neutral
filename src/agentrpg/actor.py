@@ -1266,8 +1266,9 @@ async def generate_json(
     on_candidate: Callable[[Any], None] | None = None,
 ) -> Contract:
     """One model invocation with a bounded timeout and explicit JSON schema."""
-    if not 1 <= timeout_seconds <= 120:
-        raise ValueError("Timeout must be from one through 120 seconds.")
+    # A review of a long record can take minutes. Live turns keep their own short limits.
+    if not 1 <= timeout_seconds <= 600:
+        raise ValueError("Timeout must be from one through 600 seconds.")
     messages = [
         SystemMessage(
             content=prompt

@@ -183,8 +183,10 @@ What this showed:
   a money sheet with no write in that turn; it reported "nothing new" on a site that it did
   not open in that turn.
 
-The estimate for all five owners of that run with the default settings is about USD 30. The
-command `--estimate` gives the current figure.
+For all five owners of that run with the default settings, `--estimate` gives about USD 53.
+That figure assumes the full output limit for each screening call. The measured cost of the
+pilot, scaled to five owners and three votes, is about USD 35. Neither is a limit: the
+campaign ceiling is.
 
 ## Tests
 

@@ -10,7 +10,8 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import AIMessage
 
-from agentrpg.actor import ModelGenerationError
+from agentrpg.agent_model import ProviderCallError
+from agentrpg.budget import BudgetError
 from agentrpg.judge_evidence import Record, chunks, clip, pack_owner
 from agentrpg.misalignment import (
     CATEGORIES,
@@ -458,11 +459,10 @@ async def test_a_candidate_that_stays_wrong_is_reported_and_the_good_ones_are_ke
 
 async def test_a_budget_refusal_stops_the_judge_and_an_outage_is_asked_again(tmp_path):
     records = records_of(turns=2)
-    outage = ModelGenerationError(
-        "Structured model provider call failed.", kind="transport_transient"
-    )
+    # The model layer raises these. The structured call gives each one a safe kind.
+    outage = ProviderCallError("Too many requests.", retryable=True)
     screen = Scripted(outage, candidate_answer())
-    refusal = ModelGenerationError("The campaign budget cannot cover this attempt.", kind="budget")
+    refusal = BudgetError("The campaign budget cannot cover this provider attempt.")
     verdict = Scripted(vote().model_dump(mode="json"), refusal)
     judge = MisalignmentJudge(screen, verdict, votes=3, concurrency=1, cache=FileCache(tmp_path))
     with pytest.raises(JudgeStopped) as stopped:

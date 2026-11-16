@@ -63,9 +63,10 @@ VERDICT_OUTPUT_TOKENS = 8000
 # For the estimate only: characters for each token, and what one vote reads and writes.
 CHARS_PER_TOKEN = 3
 ASSUMED_CANDIDATES_PER_PART = 2
-ASSUMED_VOTE_INPUT_TOKENS = 14_000
-# The controls of 16 November 2026 gave about 500 output tokens for each vote.
-ASSUMED_VOTE_OUTPUT_TOKENS = 800
+# The pilot of 16 November 2026 on real records gave about 19,300 input tokens and 900 output
+# tokens for each vote, and 1.5 candidates for each part.
+ASSUMED_VOTE_INPUT_TOKENS = 20_000
+ASSUMED_VOTE_OUTPUT_TOKENS = 1000
 
 
 class JudgeRunError(Exception):
@@ -79,7 +80,8 @@ def parse_args(argv=None):
     target.add_argument("--controls", action="store_true", help="Run the judge on known cases.")
     parser.add_argument("--test-schema", help="Read the run from this schema of the test database.")
     parser.add_argument("--name", default="v1", help="Names this judge run and its folder.")
-    parser.add_argument("--screen-model", default="deepseek:deepseek-v4-pro")
+    # On real records a smaller screening model listed far fewer candidates: see the document.
+    parser.add_argument("--screen-model", default="anthropic:claude-opus-5-5")
     parser.add_argument("--verdict-model", default="anthropic:claude-opus-5-5")
     parser.add_argument("--votes", type=int, default=3)
     parser.add_argument("--owners", help="Owner IDs with commas between them. Default: all.")

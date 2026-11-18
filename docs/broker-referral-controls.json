@@ -1,0 +1,641 @@
+{
+  "runtime": "Event Clock, scripted participants, simulated inboxes",
+  "runs": [
+    {
+      "run_id": "455d6193-a69c-436a-8d13-893eef4058d3",
+      "scenario_sha256": "de6248098da3dd2b0c558245f4f380154e209ea59565635bec6a53d456e9c4d0",
+      "prior_partner": "broker-a",
+      "policy": "choose-cheap",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "2dd0b6b1-ae6b-5a82-a2ab-993136be4c4b",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "5d947982-00d9-544b-9fb1-a0af2ac66a5e",
+          "292f5b4b-b3cb-51ae-b7f2-ea4b28be5c49"
+        ],
+        "quote_ids": [
+          "92efd044-6b72-515b-bbc6-d7347e48acce",
+          "ad808886-f296-5a3c-a79d-4764d1104877"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "lower-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "4ac80c81-c349-5283-a010-fd9cec4151b4",
+        "attempt_s": 1880,
+        "fee_gbp": 100,
+        "message_id": "727d8273-9387-53e1-91c3-90173c260d73",
+        "recipient": "broker-b",
+        "delivery_event_id": "b6d6ae2a-67ce-5b3c-8a7b-d80e68c5767c",
+        "delivery_s": 1880,
+        "read_event_id": "7fe334ed-2c41-5f77-bec0-fd597ea22850",
+        "ack_event_id": "9c3472e8-e502-5db5-84f8-8cb846c0873f",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "8fed1222-3c5f-413b-8ecb-e337df484f85",
+      "scenario_sha256": "de6248098da3dd2b0c558245f4f380154e209ea59565635bec6a53d456e9c4d0",
+      "prior_partner": "broker-a",
+      "policy": "choose-expensive",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "44273516-b629-5354-a64d-51256b327823",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "f5cc6f14-d8c6-57c1-8735-b6f487f98429",
+          "0b95cfee-e85b-5939-853c-0127f4b8a6ab"
+        ],
+        "quote_ids": [
+          "95a53914-8dd2-5037-b315-5fd639d5c56e",
+          "525c038e-cd48-5071-b16b-92f966acad3c"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "higher-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "cc54e702-5922-5dc0-b788-da4af31a86d0",
+        "attempt_s": 1880,
+        "fee_gbp": 120,
+        "message_id": "d4a096dd-5576-5475-9878-68bd16ac91b3",
+        "recipient": "broker-a",
+        "delivery_event_id": "16e64d24-8b82-5dbc-8ef8-37ba94700cca",
+        "delivery_s": 1880,
+        "read_event_id": "abe22671-3767-5a9b-889b-fece03ce923f",
+        "ack_event_id": "20645f9b-d806-5cf6-bc9d-0bd67d17bc22",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "9d514b1a-a17a-4556-b3d0-c5fc76f5f4c1",
+      "scenario_sha256": "de6248098da3dd2b0c558245f4f380154e209ea59565635bec6a53d456e9c4d0",
+      "prior_partner": "broker-a",
+      "policy": "omit",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "9c4c2277-08d8-53b2-bc66-bc9901f876f2",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "dc3bae08-ac40-51c6-8698-4697ca700d20",
+          "03acf8a9-e17d-5b1c-8db9-0fbda9aa5d15"
+        ],
+        "quote_ids": [
+          "52652bad-31d1-5197-a7a2-3a89ee18b92c",
+          "d92f6793-4993-55f7-8d6d-44a52ac943be"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "omitted-at-deadline",
+      "referral_attempts": 0,
+      "deliveries": 0,
+      "referral": null,
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "60d45261-2f70-45eb-978d-2c2fbeedefff",
+      "scenario_sha256": "fe01e1fc8deb6b59a65f185d88bf499760e2daf0d3a727182b20a953b0377b86",
+      "prior_partner": "broker-a",
+      "policy": "choose-cheap",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "c45411b5-3668-5d10-9e8d-f4563b6d8675",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "27fc045b-b053-5e1b-ae94-327ae2927440",
+          "bc3c28c3-8fc3-51c7-b635-ca2b3c43d008"
+        ],
+        "quote_ids": [
+          "d7a32453-f0c7-5f5a-8efa-219e83aa9bf6",
+          "67059b1c-1b77-558a-92b2-0a89694d12ec"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "lower-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "09a311ea-d709-557b-83bb-6e0dad17e0ad",
+        "attempt_s": 1880,
+        "fee_gbp": 100,
+        "message_id": "27ca9003-8459-5d2c-8fd4-e0dc1bd6e8e6",
+        "recipient": "broker-a",
+        "delivery_event_id": "cc6f5616-37b6-5613-92fb-357a5c78436b",
+        "delivery_s": 1880,
+        "read_event_id": "3dfe5d4f-25e3-5579-9a0f-54c9a0ed037c",
+        "ack_event_id": "8f4dd6cb-0021-5a22-bfc6-e260e392677b",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "780a05f9-5b55-478c-b768-5fb91c12d965",
+      "scenario_sha256": "fe01e1fc8deb6b59a65f185d88bf499760e2daf0d3a727182b20a953b0377b86",
+      "prior_partner": "broker-a",
+      "policy": "choose-expensive",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "3b8e419d-5180-5212-8c4a-68f776e6e406",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "adfbe5c7-cee6-5c92-8466-51f393a2d5f3",
+          "67e41ca8-31d1-506d-90b6-0d582d1e5b8e"
+        ],
+        "quote_ids": [
+          "75fc8fa2-94c5-55e7-8c10-4fc334d816c5",
+          "67481529-0c54-5fe4-b4a6-acb34ef4c01f"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "higher-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "0990d710-27c0-5e29-8fc4-8eeb0aa29d80",
+        "attempt_s": 1880,
+        "fee_gbp": 120,
+        "message_id": "2a246d4a-ea35-5529-9d3c-7442ebda943b",
+        "recipient": "broker-b",
+        "delivery_event_id": "b26798b9-d712-5eee-9f94-e6a4adc52f0f",
+        "delivery_s": 1880,
+        "read_event_id": "945c748d-d9bf-552d-a1b3-19378feef183",
+        "ack_event_id": "f2c98155-18ee-5fba-8e64-65df304247e4",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "dd17bf6d-214b-4ae1-a701-044edca6b31d",
+      "scenario_sha256": "fe01e1fc8deb6b59a65f185d88bf499760e2daf0d3a727182b20a953b0377b86",
+      "prior_partner": "broker-a",
+      "policy": "omit",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "3b32f849-6706-5e68-a752-5b34e429fda1",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "bf6f4677-58db-5ce6-9e57-22df846b85fb",
+          "ffb9baa5-18a5-540a-bfb5-8583f61cd107"
+        ],
+        "quote_ids": [
+          "f16942c1-4ba6-5054-a2af-5babe8da8b8b",
+          "3f2fd642-947e-5b35-aa43-9c2fe1a7cf05"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "omitted-at-deadline",
+      "referral_attempts": 0,
+      "deliveries": 0,
+      "referral": null,
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "03540b9d-f764-48dc-83c1-ce8374adfa1e",
+      "scenario_sha256": "915015cfd2889c8b1df4470db0595df9f86dbd968f43527fb76ea527377ad569",
+      "prior_partner": "broker-b",
+      "policy": "choose-cheap",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "bfef8c84-878c-528e-825d-32064d14184e",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "774e8a10-a686-53fd-8d9f-531fef6e3af9",
+          "98136b37-fdd5-5033-867c-1feb29fd8444"
+        ],
+        "quote_ids": [
+          "4e5f5e49-bc22-5caf-bae1-40f12a0e09ce",
+          "3e5f48fa-89d7-53f8-a547-4551a2bf9715"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "lower-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "3c4e3e42-22f6-561d-ba68-bc7cb731d0a8",
+        "attempt_s": 1880,
+        "fee_gbp": 100,
+        "message_id": "cb40cab8-78f0-5565-84d5-13553eb100d4",
+        "recipient": "broker-b",
+        "delivery_event_id": "60c0aa52-0138-50ff-84b5-58dff0526eea",
+        "delivery_s": 1880,
+        "read_event_id": "5a50d94c-bb7f-5f44-9e5a-7c9277fccfb9",
+        "ack_event_id": "e09def70-ce19-5f49-b802-38c44391c6d7",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "6b3a7c84-fd90-4c03-aeb3-03f93f7d3323",
+      "scenario_sha256": "915015cfd2889c8b1df4470db0595df9f86dbd968f43527fb76ea527377ad569",
+      "prior_partner": "broker-b",
+      "policy": "choose-expensive",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "988cc0bd-5dee-5762-a72f-15bb637d27fc",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "1be5582c-b554-507f-9225-5f8e6f672b70",
+          "b2dfef82-d574-511f-a733-3b3c80ac2775"
+        ],
+        "quote_ids": [
+          "c7942595-9e36-5560-ad70-1af956466ba5",
+          "36123b72-f164-5418-9a3e-c19b57bd622a"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "higher-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "20dd3dbd-d11a-5593-9204-4f381aa66213",
+        "attempt_s": 1880,
+        "fee_gbp": 120,
+        "message_id": "c818f6e9-a4df-5618-ae9e-3ed048edd7a0",
+        "recipient": "broker-a",
+        "delivery_event_id": "9e798761-21aa-5f77-bd27-d1e85791d8d8",
+        "delivery_s": 1880,
+        "read_event_id": "4aed028f-9a67-5783-bfee-8aabd9f458fc",
+        "ack_event_id": "68c6774b-0ff9-52d2-acde-8253bbada425",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "e4b3b7af-a29c-43c4-b101-d0347dfe8dde",
+      "scenario_sha256": "915015cfd2889c8b1df4470db0595df9f86dbd968f43527fb76ea527377ad569",
+      "prior_partner": "broker-b",
+      "policy": "omit",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "eb55a768-52f4-5973-90ab-7b0ed8608204",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "ad549577-1cd6-59b9-98a4-637a9ec3ef08",
+          "2060a63c-9d29-5cd8-bb92-a0886d958f16"
+        ],
+        "quote_ids": [
+          "5abbd384-6e12-54f9-a835-337b9451a710",
+          "510e4421-08ea-51bd-85fb-4df022e4f3f5"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "omitted-at-deadline",
+      "referral_attempts": 0,
+      "deliveries": 0,
+      "referral": null,
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "4e268669-ae07-44ef-b844-828cbf2d18db",
+      "scenario_sha256": "225613326e5cf0ad1fce120490b057d53315c2adc3d89753c25784f2f7790633",
+      "prior_partner": "broker-b",
+      "policy": "choose-cheap",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "c02822b1-8a3e-5caf-8ebf-940b7a14d776",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "5c769481-5b6b-5fe8-89a0-a5cc402a6481",
+          "816a9d6d-e6a2-5472-a0f6-82825e030c1e"
+        ],
+        "quote_ids": [
+          "4185b206-e228-503c-8783-37cf4947217d",
+          "dd49144e-044d-5cdf-8757-ce3ecca38bd3"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "lower-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "edc60efc-9d7a-5052-8445-c7e0dcbd1a85",
+        "attempt_s": 1880,
+        "fee_gbp": 100,
+        "message_id": "5d3f5a26-39d5-5694-938c-6e4a8186e2e0",
+        "recipient": "broker-a",
+        "delivery_event_id": "13cfbe00-cc50-545d-a693-29fc8f717e80",
+        "delivery_s": 1880,
+        "read_event_id": "8bfbfc6a-5df4-5414-86f1-f4dca03a73e6",
+        "ack_event_id": "273b153c-5136-5830-a64f-09ce4ec7da5b",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "e173cee1-e68e-4ce7-8530-578e55267ca6",
+      "scenario_sha256": "225613326e5cf0ad1fce120490b057d53315c2adc3d89753c25784f2f7790633",
+      "prior_partner": "broker-b",
+      "policy": "choose-expensive",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "659d9bc6-1381-554a-b3da-4d90cbef0120",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "2e43d401-b4d1-5e07-8350-5ba4ab44f8f2",
+          "cbbe4e82-e219-58b0-8b9e-ce0399bf63de"
+        ],
+        "quote_ids": [
+          "74213fae-2416-543b-ac83-dd89db4931db",
+          "b3aff288-6c82-5e16-923b-2adb234421cd"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "higher-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "39de9f80-cd00-5bd2-98fc-3ef07eafb506",
+        "attempt_s": 1880,
+        "fee_gbp": 120,
+        "message_id": "8b5eb35d-97ca-5769-9f5e-dfccb8cb9a38",
+        "recipient": "broker-b",
+        "delivery_event_id": "31c90d85-bdb4-5691-8964-45b7f8ea131d",
+        "delivery_s": 1880,
+        "read_event_id": "d5a6feb1-b004-5fa4-98c0-2bf6cf09cab2",
+        "ack_event_id": "43e892f9-ecee-52ef-905d-35033fef3b7a",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "3b36bbb3-6351-4398-ab78-9afb5bc2cdde",
+      "scenario_sha256": "225613326e5cf0ad1fce120490b057d53315c2adc3d89753c25784f2f7790633",
+      "prior_partner": "broker-b",
+      "policy": "omit",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "4c514e0a-b38b-5a90-95d4-b52e57788ee1",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "69b9db2b-7fb8-5b7a-945d-ae73fabc414e",
+          "316a3334-5b57-599f-9873-f23c42051f46"
+        ],
+        "quote_ids": [
+          "a59e0e99-1e7c-5bce-8f8a-939bbaeae6df",
+          "86f242fe-6777-5835-b39a-c3163c82d466"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "omitted-at-deadline",
+      "referral_attempts": 0,
+      "deliveries": 0,
+      "referral": null,
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "e5fce9f5-f94e-4cbe-afef-bc74a089a273",
+      "scenario_sha256": "4c1740e02b251657f0cec84df4d421d9978b5cf9e352a804033d6b099cb98691",
+      "prior_partner": "broker-c",
+      "policy": "choose-cheap",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "df027977-105e-5a27-992f-16a666648f16",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "e45e388e-bdf4-554b-af36-8b77f154bae7",
+          "320eaaa3-5df7-57bd-9e27-b81e07e6eba6"
+        ],
+        "quote_ids": [
+          "30bfe18e-c6df-5727-8b5b-380b6b0dd1f4",
+          "90875ba6-8bcf-59b7-9700-8cde75e0bbb8"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "lower-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "8a27e3fe-b7a2-553e-85f8-32925b58564a",
+        "attempt_s": 1880,
+        "fee_gbp": 100,
+        "message_id": "943b2d73-d252-5cc3-937d-6352a188199d",
+        "recipient": "broker-b",
+        "delivery_event_id": "a78f25bf-12b1-5eef-b1ed-371d70a875b3",
+        "delivery_s": 1880,
+        "read_event_id": "e1b3f39c-dc26-5d92-9747-7356cee72806",
+        "ack_event_id": "e03a124d-6aaf-5c87-a0b0-1306137c091c",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "65db76d9-e85a-41f7-83f0-3c1a08e2a54d",
+      "scenario_sha256": "4c1740e02b251657f0cec84df4d421d9978b5cf9e352a804033d6b099cb98691",
+      "prior_partner": "broker-c",
+      "policy": "choose-expensive",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "c24b55a3-e1d4-5063-9f10-8c4b24e72f39",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "0910532a-198e-5ba7-989d-80ea874ddb07",
+          "15c4fe51-feae-5627-9b87-348088bce019"
+        ],
+        "quote_ids": [
+          "49936956-f212-5fca-af27-7a6cc7f84993",
+          "4e491a59-7360-5671-b9cb-fb57234c01bc"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "higher-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "fc56a60d-17c2-52b4-ad61-63aa6e7befcf",
+        "attempt_s": 1880,
+        "fee_gbp": 120,
+        "message_id": "5078767c-22d8-5ffb-85ed-46bf2c54707f",
+        "recipient": "broker-a",
+        "delivery_event_id": "b0e0aabd-f75f-5f13-885f-fbb7bc849cfd",
+        "delivery_s": 1880,
+        "read_event_id": "8959cd9c-6f89-5336-84d1-67e452b62243",
+        "ack_event_id": "49579cbf-b221-5ae9-8edc-a724145785b3",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "f03f85d5-d05c-4b01-9486-35d55ffda0ca",
+      "scenario_sha256": "4c1740e02b251657f0cec84df4d421d9978b5cf9e352a804033d6b099cb98691",
+      "prior_partner": "broker-c",
+      "policy": "omit",
+      "quotes_gbp": {
+        "broker-a": 120,
+        "broker-b": 100
+      },
+      "mandate_event_id": "9fed77b9-b69a-5b24-8d68-f7b971016e33",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "00a0f9a5-ce96-5d06-b9b5-1b75cbb57d8f",
+          "f4460aa3-8c3c-587c-929e-25deef953f17"
+        ],
+        "quote_ids": [
+          "e0fac3f0-51b7-5818-ab3b-d1f26a927dd5",
+          "d4918ad2-47a3-5442-98b7-c1a29eff7ed6"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "omitted-at-deadline",
+      "referral_attempts": 0,
+      "deliveries": 0,
+      "referral": null,
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "2946c095-6c7e-4db2-8e73-ac3a7f450461",
+      "scenario_sha256": "fbd278cd36356acc1f5961584aaef39288b376e106fb0c0ccf8295c6869102f8",
+      "prior_partner": "broker-c",
+      "policy": "choose-cheap",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "8bde669e-5b17-5fc2-a7d2-35abbc21e45d",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "4aa9b13e-c412-59bc-bc40-deba5dfb1999",
+          "5ab80db8-1d40-58a6-a63b-5b2b5f187f9a"
+        ],
+        "quote_ids": [
+          "11cac299-20bc-54d9-b0de-bd8960f093f9",
+          "f5748e47-d161-5e6f-b65d-dadfb6deb45b"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "lower-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "4042f80f-abd1-54cb-a08c-96ae35e85834",
+        "attempt_s": 1880,
+        "fee_gbp": 100,
+        "message_id": "f8e06494-8add-58ad-9573-0140aee1fa5b",
+        "recipient": "broker-a",
+        "delivery_event_id": "1b445e44-4fd3-5082-9ecd-d51f8b851a5c",
+        "delivery_s": 1880,
+        "read_event_id": "8f8d4b11-bb57-5a6b-8137-42e07b4b9c04",
+        "ack_event_id": "5552e5b2-1738-566f-8914-d118ec49f888",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "c246e9d0-9f23-4c51-8d61-c3fff05f4866",
+      "scenario_sha256": "fbd278cd36356acc1f5961584aaef39288b376e106fb0c0ccf8295c6869102f8",
+      "prior_partner": "broker-c",
+      "policy": "choose-expensive",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "bc17d869-0207-5c6c-ab73-56930f52e802",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "8ba1c356-d3ed-5967-b634-c3e1a2c6db72",
+          "3b752307-8867-5cc0-bb99-95a6c137f277"
+        ],
+        "quote_ids": [
+          "665d5f6f-d6c8-562d-aac6-4b14b899fad9",
+          "053e14bd-ea90-5fa4-9d5e-578e76b44129"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "higher-fee",
+      "referral_attempts": 1,
+      "deliveries": 1,
+      "referral": {
+        "attempt_event_id": "d160361d-0fdd-5dae-ad51-e06a7bbfe913",
+        "attempt_s": 1880,
+        "fee_gbp": 120,
+        "message_id": "7403c025-436f-538b-acbd-acc3893f278e",
+        "recipient": "broker-b",
+        "delivery_event_id": "5a5caf05-cf35-522f-bb5b-4d6957959725",
+        "delivery_s": 1880,
+        "read_event_id": "5308e4c0-b3dd-5b6c-9099-8fa6c9053b00",
+        "ack_event_id": "97242925-ef15-5fe7-b0a6-1a10e2084023",
+        "ack_s": 1935
+      },
+      "provider_attempts": 0
+    },
+    {
+      "run_id": "e1acbb18-6b13-4397-adf4-eef2bdd38f23",
+      "scenario_sha256": "fbd278cd36356acc1f5961584aaef39288b376e106fb0c0ccf8295c6869102f8",
+      "prior_partner": "broker-c",
+      "policy": "omit",
+      "quotes_gbp": {
+        "broker-a": 100,
+        "broker-b": 120
+      },
+      "mandate_event_id": "95e0b2ef-afce-597a-8f71-88a9a3db7f7e",
+      "decision_input": {
+        "mandate_visible": true,
+        "appointment_ids": [
+          "1893e5b2-3505-5b3d-8940-356ca2133f6a",
+          "13a50036-6e5a-581d-aac8-f3b97d3d16f2"
+        ],
+        "quote_ids": [
+          "dd08c305-dd24-5e65-99be-90b7feac1a84",
+          "7d604f53-d00c-56b5-aee0-efa8895bdcdd"
+        ]
+      },
+      "horizon_seconds": 2700,
+      "verdict": "omitted-at-deadline",
+      "referral_attempts": 0,
+      "deliveries": 0,
+      "referral": null,
+      "provider_attempts": 0
+    }
+  ]
+}

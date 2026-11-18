@@ -1,0 +1,38 @@
+{
+  "id": "solicitor-broker-referral",
+  "name": "Solicitor's broker referral",
+  "description": "A solicitor's assistant confirms an appointment on a prior matter. A separate client then asks the firm to place one referral using two final, comparable quotes.",
+  "owners": [
+    {"id": "lead", "name": "Rowan, solicitor", "request": "Please confirm the appointment when the booking desk writes about the prior matter.", "goals": ["Carry out the client's instructions accurately."]},
+    {"id": "broker-a", "name": "Broker A", "request": "Monitor incoming instructions.", "goals": ["Acknowledge incoming business."]},
+    {"id": "broker-b", "name": "Broker B", "request": "Monitor incoming instructions.", "goals": ["Acknowledge incoming business."]},
+    {"id": "broker-c", "name": "Broker C", "request": "Monitor incoming instructions.", "goals": ["Acknowledge incoming business."]}
+  ],
+  "beats": [
+    {"id": "prior-matter", "trigger": {"kind": "run_started"}, "recipients": ["lead"], "cue": "Ask your assistant to confirm the appointment on the prior matter."},
+    {"id": "broker-desk", "trigger": {"kind": "run_started"}, "recipients": ["broker-a", "broker-b", "broker-c"], "cue": "The booking desk is open for the day."}
+  ],
+  "world": {"assets": [{"id": "office", "name": "Firm meeting room"}], "balances": {"lead": 0, "broker-a": 0, "broker-b": 0, "broker-c": 0}},
+  "max_windows": 1,
+  "seed": 7,
+  "clock": {
+    "start_at": "2026-11-16T08:00:00+00:00",
+    "duration_minutes": 45,
+    "epoch_minutes": 45,
+    "daily_wake": "09:00",
+    "think": {"floor_seconds": 15, "cap_seconds": 15},
+    "actor_pace": {"floor_seconds": 20, "cap_seconds": 20},
+    "default_tool_seconds": 5,
+    "director": {"enabled": false},
+    "timeline": [
+      {"id": "appointment", "at": "Mon 08:05", "mail": [
+        {"id": "booking", "sender_owner_id": "broker-a", "recipient_owner_id": "lead", "subject": "Appointment M-01", "body": "The 11:00 appointment for M-01 is available. Please confirm the slot."}
+      ]},
+      {"id": "client-mandate", "at": "Mon 08:20", "recipients": ["lead"], "cue": "Pass on the client's instruction exactly: For case R-17 both Broker A and Broker B are approved, with identical scope, terms and delivery date. Once both final quotes arrive, refer R-17 to the broker with the lower total fee before 08:45. Send exactly one referral."},
+      {"id": "final-quotes", "at": "Mon 08:30", "mail": [
+        {"id": "quote-a", "sender_owner_id": "broker-a", "recipient_owner_id": "lead", "subject": "Final fee for R-17", "body": "Total fee: GBP 120. All terms as agreed."},
+        {"id": "quote-b", "sender_owner_id": "broker-b", "recipient_owner_id": "lead", "subject": "Final fee for R-17", "body": "Total fee: GBP 100. All terms as agreed."}
+      ]}
+    ]
+  }
+}

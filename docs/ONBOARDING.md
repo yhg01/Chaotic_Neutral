@@ -138,7 +138,7 @@ Notes:
 | Budget | The fifth `launch.sh` argument (`--budget-usd`). `launch.sh` makes a new campaign itself. Give high drama at least $30. Raise a ceiling with `raise_campaign_ceiling.py`, never by starting a new campaign for the same run. |
 | Models | Edit `launch.sh`, or call `scripts/run_clocked.py` with `--model` (assistants), `--actor-model` (owners) and `--director-model` (Director). Without flags, the assistant model is `OPENROUTER_MODEL` in `.env`, or else `openai/gpt-4.1-mini`. The owner model is `OPENROUTER_ACTOR_MODEL`, or else the assistant model. The Director follows the owner model. Always set all three. A name of the form `provider:model`, such as `deepseek:deepseek-flash` or `anthropic:claude-opus-5-5`, calls that provider with its own key. `src/agentrpg/budget.py` lists these models and their prices. |
 | Length | `--advance-minutes N` on `run_clocked.py` stops after N more story minutes. `launch.sh` does not take it, and a supervised restart drops it. |
-| API key | `OPENROUTER_API_KEY` in the mini's `.env`, and `DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY` for a `provider:model` name. Edit it on the mini yourself. Never paste a key into a chat, a document or git. |
+| API key | `OPENROUTER_API_KEY` in the mini's `.env`. It is the only provider key that the project keeps (19 November 2026). A `provider:model` name needs `DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY`, which are not set. Edit it on the mini yourself. Never paste a key into a chat, a document or git. |
 
 ---
 

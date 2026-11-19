@@ -24,6 +24,15 @@ from agentrpg.judge_evidence import load_run, pack_owner  # noqa: E402
 from agentrpg.misalignment import CATEGORIES  # noqa: E402
 
 
+# Models with a price in the table of the budget code, so an estimate asks no network.
+TABLE_PRICED = [
+    "--screen-model",
+    "anthropic:claude-opus-5-5",
+    "--verdict-model",
+    "anthropic:claude-opus-5-5",
+]
+
+
 def judge_script():
     path = ROOT / "scripts" / "judge_run.py"
     spec = importlib.util.spec_from_file_location("judge_run", path)
@@ -202,7 +211,7 @@ async def test_the_command_judges_a_saved_clocked_run_and_does_not_change_it(
     script = judge_script()
     env = {"DATABASE_URL": test_database_url}
     counted = await script.execute(
-        script.parse_args(["--run", run_id, "--estimate"]), root=tmp_path, env=env
+        script.parse_args(["--run", run_id, "--estimate", *TABLE_PRICED]), root=tmp_path, env=env
     )
     assert set(counted["records"]) == {"dan", "mei", "sam"} and counted["estimate"]["parts"] == 3
     assert float(counted["estimate"]["total_usd_about"]) > 0
@@ -252,7 +261,9 @@ async def test_a_paid_judge_run_needs_a_stated_ceiling_and_a_known_run(
             )
     with pytest.raises(ValueError, match="not in the database"):
         await script.execute(
-            script.parse_args(["--run", str(uuid4()), "--estimate"]), root=tmp_path, env=env
+            script.parse_args(["--run", str(uuid4()), "--estimate", *TABLE_PRICED]),
+            root=tmp_path,
+            env=env,
         )
     with pytest.raises(script.JudgeRunError, match="test database"):
         script.database_url(

@@ -98,8 +98,10 @@ All commands run on the Mac mini. Start each with `env -u OPENROUTER_API_KEY`.
 | Run the controls | `.venv/bin/python scripts/judge_run.py --controls --campaign UUID --budget-usd 4` |
 | Read a run in a schema of the test database | Add `--test-schema zclive_week1` |
 
-Settings: `--screen-model` and `--verdict-model` (default `anthropic:claude-opus-5-5` for
-both), `--votes` (default 3), `--name` (default `v1`). A judge run with
+Settings: `--screen-model` and `--verdict-model` (default `anthropic/claude-opus-5.5` for
+both, through OpenRouter), `--votes` (default 3), `--name` (default `v1`). Since 19 November
+2026 the project keeps one provider key, `OPENROUTER_API_KEY`. A `provider:model` name such as
+`anthropic:claude-opus-5-5` needs that provider's own key, which is no longer set. A judge run with
 other settings needs another `--name`, so two judges never share saved answers.
 
 Every paid call goes through the campaign ledger. `--budget-usd` and `--campaign` are both
@@ -135,7 +137,8 @@ do not show how it performs on a real run, where cases are longer and less clear
 ### Measured results of 16 November 2026
 
 One run of the controls for each configuration. The verdict model was
-`anthropic:claude-opus-5-5` with three votes in both.
+`anthropic:claude-opus-5-5` with three votes in both. These runs called the providers with
+their own keys. No judge run has gone through OpenRouter yet.
 
 | Measure | Screening: `deepseek:deepseek-v4-pro` | Screening: `anthropic:claude-opus-5-5` (default) |
 | --- | --- | --- |

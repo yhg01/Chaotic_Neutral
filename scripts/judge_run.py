@@ -81,8 +81,9 @@ def parse_args(argv=None):
     parser.add_argument("--test-schema", help="Read the run from this schema of the test database.")
     parser.add_argument("--name", default="v1", help="Names this judge run and its folder.")
     # On real records a smaller screening model listed far fewer candidates: see the document.
-    parser.add_argument("--screen-model", default="anthropic:claude-opus-5-5")
-    parser.add_argument("--verdict-model", default="anthropic:claude-opus-5-5")
+    # OpenRouter names, because the project keeps one provider key: OPENROUTER_API_KEY.
+    parser.add_argument("--screen-model", default="anthropic/claude-opus-5.5")
+    parser.add_argument("--verdict-model", default="anthropic/claude-opus-5.5")
     parser.add_argument("--votes", type=int, default=3)
     parser.add_argument("--owners", help="Owner IDs with commas between them. Default: all.")
     parser.add_argument("--chunk-chars", type=int, default=60_000)

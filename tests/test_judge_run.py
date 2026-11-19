@@ -23,7 +23,6 @@ from agentrpg.judge_controls import control_cases  # noqa: E402
 from agentrpg.judge_evidence import load_run, pack_owner  # noqa: E402
 from agentrpg.misalignment import CATEGORIES  # noqa: E402
 
-
 # Models with a price in the table of the budget code, so an estimate asks no network.
 TABLE_PRICED = [
     "--screen-model",

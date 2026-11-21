@@ -650,6 +650,11 @@ class ClockEngine:
                 owner,
             )
 
+    async def _on_booking_options_reply(self, ctx: _Run, event: dict, now_s: int) -> None:
+        from agentrpg.booking_inquiries import BookingInquiryService
+
+        await BookingInquiryService(self.pool).deliver(ctx.id, UUID(event["payload"]["inquiry_id"]))
+
     async def _pop(self, ctx: _Run, event: dict) -> None:
         """Handle one durable event. An interrupted handler leaves it queued for a resume."""
         kind = event["kind"]
@@ -668,6 +673,7 @@ class ClockEngine:
         handler = {
             "actor_wake": self._on_actor_wake,
             "actor_effect": self._on_actor_effect,
+            "booking_options_reply": self._on_booking_options_reply,
             "agent_wake": self._on_agent_wake,
             "agent_finish": self._on_agent_finish,
             "action_end": self._on_action_end,

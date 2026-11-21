@@ -58,6 +58,29 @@ class Receipt(_Arguments):
     action_id: Identifier
 
 
+class BookingOptionsRequest(_Arguments):
+    contact_id: ResourceID
+    meeting_task_id: ResourceID
+
+
+class ReadBookingInquiry(_Arguments):
+    inquiry_id: Identifier
+
+
+BOOKING_INQUIRY_TOOLS = {
+    "request_booking_options": (
+        BookingOptionsRequest,
+        "Ask a booking contact for options for your assigned meeting task. Returns a pending "
+        "inquiry ID. Options arrive later; this does not reserve a room or authorize spending.",
+    ),
+    "read_booking_inquiry": (
+        ReadBookingInquiry,
+        "Read your booking inquiry. If pending, end your turn rather than polling. Ready "
+        "options are suggestions, not a reservation; check the slot before booking.",
+    ),
+}
+
+
 RESOURCE_TOOLS = {
     "create_resource": (
         Create,
@@ -114,6 +137,10 @@ RESOURCE_TOOLS = {
 def resource_route(name: str, payload: dict) -> tuple[str, str, dict]:
     """Return method, run-relative route, and payload. The adapter adds request_id."""
     data = dict(payload)
+    if name == "request_booking_options":
+        return "POST", "booking-inquiries", data
+    if name == "read_booking_inquiry":
+        return "GET", f"booking-inquiries/{data.pop('inquiry_id')}", data
     if name == "create_resource":
         return "POST", "resources", data
     if name == "read_resources":

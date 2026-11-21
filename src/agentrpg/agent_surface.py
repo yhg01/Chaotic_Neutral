@@ -626,6 +626,12 @@ def _notice(kind: str, content: str, *, clocked: bool = False) -> str | None:
             f"{origin}: {json.dumps(payload.get('subject', ''))} "
             f"(message ID {payload.get('message_id')})."
         )
+    if kind == "booking_options_ready":
+        return (
+            f"Booking options from {payload.get('contact_id')} are ready for meeting task "
+            f"{payload.get('meeting_task_id')}. Use read_booking_inquiry with inquiry_id "
+            f"{payload.get('inquiry_id')}. No room has been reserved."
+        )
     if kind == "resource_updated":
         return f"Record {payload.get('resource_id')} changed (version {payload.get('version')})."
     if kind == "world_changed" and payload.get("kind") == "branch_restored":

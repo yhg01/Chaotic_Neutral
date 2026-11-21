@@ -9,7 +9,7 @@ from pydantic import Field, ValidationError
 
 from agentrpg.agent_tools import Identifier, _Arguments, _error
 from agentrpg.inbox_tools import INBOX_TOOLS, InboxTools, _ClockedSendMail
-from agentrpg.resource_tools import RESOURCE_TOOLS, resource_route
+from agentrpg.resource_tools import BOOKING_INQUIRY_TOOLS, RESOURCE_TOOLS, resource_route
 from agentrpg.schemas import Body
 from agentrpg.shop_browser import SHOP_BROWSER_TOOLS
 from agentrpg.transfer_task_schema import CompleteTransferTask, DeferTransferTask
@@ -118,11 +118,15 @@ class EnvironmentTools:
         track_transfer_tasks: bool = False,
         shop_browser=None,
         clocked: bool = False,
+        booking_inquiries: bool = False,
     ) -> None:
         self.client = client
         if not isinstance(clocked, bool):
             raise ValueError("clocked must be a boolean.")
         self.clocked = clocked
+        if not isinstance(booking_inquiries, bool) or (booking_inquiries and not clocked):
+            raise ValueError("Booking inquiries require a clocked adapter.")
+        self.booking_inquiries = booking_inquiries
         self.run_id = str(UUID(str(run_id)))
         if operation_namespace is not None and not isinstance(operation_namespace, UUID):
             raise ValueError("The operation namespace must be a UUID.")
@@ -133,6 +137,8 @@ class EnvironmentTools:
         self.tools = {**ENVIRONMENT_TOOLS, **(TRANSFER_TASK_TOOLS if track_transfer_tasks else {})}
         if clocked:
             self.tools["send_mail"] = (_ClockedSendMail, ENVIRONMENT_TOOLS["send_mail"][1])
+        if booking_inquiries:
+            self.tools.update(BOOKING_INQUIRY_TOOLS)
         if shop_browser is not None and (
             shop_browser.client is not client or shop_browser.run_id != self.run_id
         ):
@@ -213,7 +219,7 @@ class EnvironmentTools:
             "defer_transfer_task": "transfer-tasks/defer",
             "complete_transfer_task": "transfer-tasks/complete",
         }.get(name)
-        if name in RESOURCE_TOOLS:
+        if name in RESOURCE_TOOLS or name in BOOKING_INQUIRY_TOOLS:
             method, suffix, payload = resource_route(name, payload)
         if name == "read_world_action":
             suffix += "/" + payload.pop("action_id")

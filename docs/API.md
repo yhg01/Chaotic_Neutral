@@ -710,3 +710,18 @@ A zero quantity removes the line. A task or page text cannot create authority.
 The browser adapter supplies transport headers; model arguments and page scripts
 never contain credentials. Browser orders, pending IDs, statuses and paid totals
 come from committed market records. The observer route has no write equivalent.
+
+## Opt-in booking inquiries
+
+See [booking inquiries](BOOKING_INQUIRIES.md) for provisioning. Agent credentials
+scope these routes to their owner:
+
+| Method | Route | Request or result |
+| --- | --- | --- |
+| POST | `/api/v1/runs/{run_id}/booking-inquiries` | `{request_id, contact_id, meeting_task_id}` returns a pending inquiry. |
+| GET | `/api/v1/runs/{run_id}/booking-inquiries/{inquiry_id}` | The requester's pending or ready inquiry. |
+
+The opt-in tools are `request_booking_options` and `read_booking_inquiry`.
+Scripted responses arrive through the clock; no reservation or authority is
+created. Foreign tasks/inquiries return 404, unapproved contacts 403, and changed
+retry payloads 409. Identical writes replay their original receipt after pause.

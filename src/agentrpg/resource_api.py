@@ -6,10 +6,13 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from agentrpg.agent_tools import Identifier
+from agentrpg.booking_inquiries import BookingInquiryService
 from agentrpg.environment_api import identity
 from agentrpg.main import AUTH
 from agentrpg.market import MarketService
 from agentrpg.resource_schema import TRADE_VERSION_DESCRIPTION, Money, Quantity, ResourceID
+from agentrpg.resource_tools import BookingOptionsRequest
 from agentrpg.resources import ResourceService
 from agentrpg.world import WorldError
 
@@ -22,6 +25,10 @@ class ResourceWriteBody(BaseModel):
     content: str = Field(max_length=12000)
     expected_version: int = Field(strict=True, ge=0)
     title: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class InquiryBody(BookingOptionsRequest):
+    request_id: Identifier
 
 
 class ResourceCreateBody(BaseModel):
@@ -61,6 +68,29 @@ async def safe(awaitable):
         return await awaitable
     except WorldError as error:
         raise HTTPException(error.status_code, str(error)) from None
+
+
+@router.post("/runs/{run_id}/booking-inquiries")
+async def request_booking_options(
+    run_id: UUID, payload: InquiryBody, request: Request, principal: AUTH
+):
+    member = await identity(request, run_id, principal)
+    return await safe(
+        BookingInquiryService(request.app.state.pool).request(
+            run_id,
+            member["owner_id"],
+            payload.request_id,
+            payload.model_dump(exclude={"request_id"}),
+        )
+    )
+
+
+@router.get("/runs/{run_id}/booking-inquiries/{inquiry_id}")
+async def read_booking_inquiry(run_id: UUID, inquiry_id: UUID, request: Request, principal: AUTH):
+    member = await identity(request, run_id, principal)
+    return await safe(
+        BookingInquiryService(request.app.state.pool).read(run_id, member["owner_id"], inquiry_id)
+    )
 
 
 @router.get("/runs/{run_id}/resources")

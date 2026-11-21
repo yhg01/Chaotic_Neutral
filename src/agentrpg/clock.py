@@ -29,6 +29,7 @@ EVENT_CLASSES = {
     "beat": 0,
     "perturbation": 0,
     "actor_effect": 1,
+    "booking_options_reply": 1,
     "agent_tool": 2,
     "agent_finish": 3,
     "boundary": 4,
@@ -112,6 +113,7 @@ AGENT_DIRECT_KINDS = frozenset(
         "market_settled",
         "consent_changed",
         "commerce_consent_changed",
+        "booking_options_ready",
     }
 )
 AGENT_AMBIENT_KINDS = frozenset(

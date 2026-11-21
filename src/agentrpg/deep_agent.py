@@ -859,6 +859,7 @@ class PersonalAgent:
                 if environment.shop_browser is not None
                 else None,
                 clocked=gate is not None,
+                booking_inquiries=environment.booking_inquiries,
             )
             if environment is not None
             else None
@@ -903,6 +904,11 @@ class PersonalAgent:
                     **(
                         {"track_transfer_tasks": True}
                         if environment is not None and environment.track_transfer_tasks
+                        else {}
+                    ),
+                    **(
+                        {"booking_inquiries": True}
+                        if environment is not None and environment.booking_inquiries
                         else {}
                     ),
                     **({"require_explicit_finish": True} if require_explicit_finish else {}),

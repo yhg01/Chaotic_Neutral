@@ -279,7 +279,7 @@ async def test_cli_passes_retry_ids_and_credentials_to_the_correct_boundary(
     class FakeAgent:
         async def run(self, task, *, task_id):
             output = capsys.readouterr().out
-            assert str(task_id) in output  # Retry ID is visible before work starts.
+            assert str(task_id) in output
             assert str(session_id) in output
             assert get_tracing_context()["enabled"] is False
             recorded.update(task=task, task_id=task_id)

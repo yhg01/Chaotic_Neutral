@@ -168,7 +168,6 @@ async def test_branch_restores_pending_prompt_without_later_prompt(
     original = accepted.json()
     await capture_boundary(pool, parent_id)
     if legacy:
-        # Version 1 boundaries written before this extension omitted this table.
         async with pool.connection() as conn:
             boundary = await row(
                 conn,
@@ -182,7 +181,6 @@ async def test_branch_restores_pending_prompt_without_later_prompt(
                 "WHERE run_id=%s AND window_index=0",
                 (Jsonb(snapshot), fingerprint(snapshot), parent_id),
             )
-    # The original now applies the prompt and accepts a second, later prompt.
     await Director(pool).control(parent_id, "start")
     async with pool.connection() as conn, conn.transaction():
         run = await row(conn, "SELECT * FROM environment_runs WHERE id=%s FOR UPDATE", (parent_id,))

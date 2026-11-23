@@ -107,7 +107,6 @@ async def test_post_restore_new_turn_and_completed_task_replay(test_database_url
             assert "task" not in model.offered and "execute" not in model.offered
             assert {"post_thread", "reply", "read_thread"} <= set(model.offered)
             assert agent.events[0]["result"]["ok"]
-        # New pool, saver, graph, model, and adapter recreate a process restart.
         async with AgentRuntime(test_database_url) as runtime:
             restored_model = ScriptedModel(responses=[AIMessage(content="Orange.")])
             restored = make_agent(runtime, client, cluster, identities[0], restored_model, session)
@@ -383,8 +382,6 @@ async def test_completed_graph_without_receipt_is_recovered(test_database_url, a
             session,
         )
         await agent.run("Commit my post", task_id=task_id)
-        # Reproduce the durable boundary after the graph's last checkpoint and
-        # before the separate completion receipt, without losing that checkpoint.
         async with runtime.pool.connection() as connection:
             await connection.execute(
                 """UPDATE agent_tasks SET status='pending', result=NULL, completed_at=NULL
@@ -465,7 +462,6 @@ async def test_fifteen_sessions_run_with_small_checkpoint_pool(
             asyncio.create_task(agent.run("Post concurrently", task_id=uuid4())) for agent in agents
         ]
         try:
-            # All 15 models must be in flight before any is allowed to finish.
             await asyncio.wait_for(asyncio.gather(*(event.wait() for event in entered)), timeout=10)
         finally:
             gate.set()
@@ -567,7 +563,7 @@ async def test_summary_uses_same_durable_model_budget(
         if budget == 1:
             with pytest.raises(AgentLimitError):
                 await agent.run("Second request", task_id=task_id)
-            assert model.calls == 2  # First turn plus the second turn's summary.
+            assert model.calls == 2
         else:
             assert await agent.run("Second request", task_id=task_id) == "Second answer"
             snapshot = await agent.graph.aget_state(agent.config)

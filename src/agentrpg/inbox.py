@@ -2,13 +2,14 @@
 
 import base64
 import json
+import re
 from contextlib import asynccontextmanager
 from uuid import UUID, uuid5
 
 from pydantic import ValidationError
 
 from agentrpg.director import emit, fingerprint, row, rows
-from agentrpg.mail_schema import InitialMailSpec, MailRequest
+from agentrpg.mail_schema import AddressedMailRequest, InitialMailSpec, MailRequest, mail_sender
 
 
 class InboxError(ValueError):
@@ -18,11 +19,40 @@ class InboxError(ValueError):
 
 
 def _public(message):
-    return {
+    result = {
         key: value
         for key, value in message.items()
-        if key not in {"payload_hash", "sender_key", "sequence", "request_id"}
+        if key not in {"payload_hash", "sender_key", "sequence", "request_id", "outside_recipient"}
     }
+    if message.get("outside_recipient") is not None:
+        result["recipient_owner_id"] = message["outside_recipient"]
+    return result
+
+
+def _contact_names(address: str) -> set[str]:
+    """The forms of an address that could name a person in the run."""
+    text = address.replace("\u2019", "'").casefold().strip()
+    text = text.split("<", 1)[0].strip() or text.strip("<> ")
+    text = re.sub(r"'s assistant$", "", text).strip()
+    names = {text}
+    if "@" in text:
+        names.add(re.sub(r"[._-]+", " ", text.split("@", 1)[0]).strip())
+    return names
+
+
+def _surname(address: str) -> str | None:
+    """The surname in an address such as "Mrs Adeyemi"."""
+    match = re.fullmatch(r"(?:mr|mrs|ms|miss|dr)\.? (\S+)", address.casefold().strip())
+    return match[1] if match else None
+
+
+def _reply_address(original: dict) -> str:
+    """Who a reply to outside mail goes to, when the assistant addressed its own owner."""
+    return (
+        original["outside_recipient"]
+        or mail_sender(original["body"])
+        or f"The sender of: {original['subject']}"[:160]
+    )
 
 
 class InboxService:
@@ -47,7 +77,7 @@ class InboxService:
             raise InboxError("Mailbox not found.", 404)
 
     async def _missing_reference(self, conn, run_id, owner_id, ids):
-        # Inspect only this caller's own chat. A foreign private ID stays a 404.
+        # Privacy: look only in the caller's own chat. A foreign private ID stays a plain 404.
         if await row(
             conn,
             "SELECT 1 FROM owner_messages WHERE run_id=%s AND owner_id=%s AND id=ANY(%s)",
@@ -59,6 +89,68 @@ class InboxService:
                 422,
             )
         raise InboxError("One or more Inbox email references were not found.", 404)
+
+    @staticmethod
+    async def _original(conn, run_id, sender_owner_id, payload):
+        if payload.in_reply_to is None:
+            return None
+        original = await row(
+            conn,
+            "SELECT * FROM inbox_messages WHERE run_id=%s AND id=%s "
+            "AND (sender_owner_id=%s OR recipient_owner_id=%s)",
+            (run_id, payload.in_reply_to, sender_owner_id, sender_owner_id),
+        )
+        if original is None:
+            raise InboxError("The reply message was not found in this mailbox.", 404)
+        return original
+
+    @staticmethod
+    def _counterpart(original, sender_owner_id):
+        return (
+            original["recipient_owner_id"]
+            if original["sender_owner_id"] == sender_owner_id
+            else original["sender_owner_id"]
+        )
+
+    async def _contact(self, conn, run_id, address):
+        """The participant an address names, by owner ID, name or email-like text, or None."""
+        participants = await rows(
+            conn, "SELECT owner_id FROM run_participants WHERE run_id=%s", (run_id,)
+        )
+        owner_ids = {item["owner_id"] for item in participants}
+        if address in owner_ids:
+            return address
+        wanted, surname = _contact_names(address), _surname(address)
+        record = await row(
+            conn, "SELECT scenario->'owners' AS owners FROM environment_runs WHERE id=%s", (run_id,)
+        )
+        for owner in (record or {}).get("owners") or ():
+            if owner["id"] not in owner_ids:
+                continue
+            name = owner["name"].casefold()
+            if wanted & {owner["id"].casefold(), name, name.split()[0]}:
+                return owner["id"]
+            if surname and " " in name and surname == name.split()[-1]:
+                return owner["id"]
+        return None
+
+    async def _route(self, conn, run_id, sender_owner_id, payload):
+        """Where an assistant's mail goes on a clocked run: (recipient, outside address, original).
+
+        A person in the run gets it in their mailbox. Anyone else gets it outside this store.
+        """
+        address = payload.recipient_owner_id
+        contact = await self._contact(conn, run_id, address)
+        original = await self._original(conn, run_id, sender_owner_id, payload)
+        if original is not None and not (
+            original["sender_owner_id"] is None or original["outside_recipient"] is not None
+        ):
+            if contact != self._counterpart(original, sender_owner_id):
+                raise InboxError("A reply must address the other mail participant.", 422)
+            return contact, None, original
+        if contact is not None and (contact != sender_owner_id or original is None):
+            return contact, None, original
+        return None, address if contact is None else _reply_address(original), original
 
     async def initialize(self, run_id, initial_mail, *, connection):
         for value in initial_mail:
@@ -93,13 +185,21 @@ class InboxService:
         connection=None,
         allow_pending=False,
     ):
+        fields = {
+            "recipient_owner_id": recipient_owner_id,
+            "subject": subject,
+            "body": body,
+            "in_reply_to": in_reply_to,
+        }
+        addressed = False
         try:
-            payload = MailRequest(
-                recipient_owner_id=recipient_owner_id,
-                subject=subject,
-                body=body,
-                in_reply_to=in_reply_to,
-            )
+            try:
+                payload = MailRequest(**fields)
+            except ValidationError:
+                if source != "agent":
+                    raise
+                payload = AddressedMailRequest(**fields)
+                addressed = True
             request_id = UUID(str(request_id))
             run_id = UUID(str(run_id))
         except (ValidationError, ValueError, TypeError):
@@ -119,8 +219,16 @@ class InboxService:
                 "SELECT status,current_window FROM environment_runs WHERE id=%s FOR SHARE",
                 (run_id,),
             )
-            if run is None:
+            if run is None and not addressed:
                 raise InboxError("Run not found.", 404)
+            clocked = (
+                run is not None
+                and source == "agent"
+                and await row(conn, "SELECT 1 FROM clock_state WHERE run_id=%s", (run_id,))
+                is not None
+            )
+            if addressed and not clocked:
+                raise InboxError("Invalid mail arguments.", 422)
             if sender_owner_id is not None:
                 await self._owner(conn, run_id, sender_owner_id)
             existing = await row(conn, "SELECT * FROM inbox_messages WHERE id=%s", (message_id,))
@@ -130,29 +238,23 @@ class InboxService:
                 return _public(existing)
             if run["status"] != "running" and not (allow_pending and run["status"] == "pending"):
                 raise InboxError("The run is not running.")
-            await self._owner(conn, run_id, payload.recipient_owner_id)
-            if payload.in_reply_to is not None:
-                original = await row(
-                    conn,
-                    "SELECT * FROM inbox_messages WHERE run_id=%s AND id=%s "
-                    "AND (sender_owner_id=%s OR recipient_owner_id=%s)",
-                    (run_id, payload.in_reply_to, sender_owner_id, sender_owner_id),
+            recipient, outside, original = payload.recipient_owner_id, None, None
+            if clocked:
+                recipient, outside, original = await self._route(
+                    conn, run_id, sender_owner_id, payload
                 )
-                if original is None:
-                    raise InboxError("The reply message was not found in this mailbox.", 404)
-                # A reply stays between the participants of the original message.
-                counterpart = (
-                    original["recipient_owner_id"]
-                    if original["sender_owner_id"] == sender_owner_id
-                    else original["sender_owner_id"]
-                )
-                if payload.recipient_owner_id != counterpart:
+            else:
+                await self._owner(conn, run_id, recipient)
+                original = await self._original(conn, run_id, sender_owner_id, payload)
+                if original is not None and recipient != self._counterpart(
+                    original, sender_owner_id
+                ):
                     raise InboxError("A reply must address the other mail participant.", 422)
             await conn.execute(
                 """INSERT INTO inbox_messages
                 (id,run_id,sender_owner_id,sender_source,sender_key,recipient_owner_id,
-                 subject,body,in_reply_to,request_id,payload_hash,"window")
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                 outside_recipient,subject,body,in_reply_to,request_id,payload_hash,"window")
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT DO NOTHING""",
                 (
                     message_id,
@@ -160,7 +262,8 @@ class InboxService:
                     sender_owner_id,
                     source,
                     sender_key,
-                    payload.recipient_owner_id,
+                    recipient,
+                    outside,
                     payload.subject,
                     payload.body,
                     payload.in_reply_to,
@@ -172,6 +275,24 @@ class InboxService:
             existing = await row(conn, "SELECT * FROM inbox_messages WHERE id=%s", (message_id,))
             if existing["payload_hash"] != payload_hash:
                 raise InboxError("The mail request ID has different content.")
+            if outside is not None:
+                await emit(
+                    conn,
+                    run_id,
+                    "site_message",
+                    existing["window"],
+                    {
+                        "message_kind": "mail",
+                        "to": outside,
+                        "subject": payload.subject,
+                        "body": payload.body,
+                        "request_id": str(message_id),
+                        **({"replying_to": original["subject"]} if original else {}),
+                    },
+                    f"mail:outside:{message_id}",
+                    sender_owner_id,
+                )
+                return _public(existing)
             await emit(
                 conn,
                 run_id,
@@ -180,12 +301,12 @@ class InboxService:
                 {
                     "message_id": str(message_id),
                     "sender_owner_id": sender_owner_id,
-                    "recipient_owner_id": payload.recipient_owner_id,
+                    "recipient_owner_id": recipient,
                     "source": {"agent": "assistant"}.get(source, source),
                     "subject": payload.subject,
                 },
                 f"mail:{message_id}",
-                payload.recipient_owner_id,
+                recipient,
             )
             from agentrpg.transfer_tasks import TransferTaskService
 
@@ -318,9 +439,6 @@ class InboxService:
             limit=limit,
             connection=connection,
         )
-        # The Actor receives observations, not an unbounded email archive.
-        # Keep the original history cursor and every returned message identity.
-        # Only this private observation copy has shortened body text.
         bodies = [item["body"] for item in result["items"]]
         for item in result["items"]:
             item.update(body="", body_truncated=True)

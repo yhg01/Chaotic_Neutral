@@ -8,7 +8,7 @@ from agentrpg.main import create_app
 
 def main() -> None:
     settings = Settings()
-    # Local operator access uses the actual peer address, never forwarded data.
+    # Security: local operator access trusts the real peer address. Keep proxy_headers off.
     uvicorn.run(create_app(settings), host=settings.host, port=settings.port, proxy_headers=False)
 
 

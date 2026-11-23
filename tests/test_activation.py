@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from pydantic import ValidationError
 from test_deep_agent import ScriptedModel, call
 
@@ -144,7 +144,7 @@ async def test_pending_action_yields_and_next_activation_runs(app, provision, te
     ) as (agent, envelope, model, transport):
         result = await agent.run_activation(envelope)
         assert result.status == "waiting"
-        assert result.text == ""  # An automatic pending receipt is not owner dialogue.
+        assert result.text == ""
         assert len(result.pending_ids) == 1
         assert model.calls == 1
         assert len(transport.actions) == 1
@@ -160,6 +160,50 @@ async def test_pending_action_yields_and_next_activation_runs(app, provision, te
         next_envelope = envelope.model_copy(update={"activation_id": uuid4(), "window_id": 1})
         assert (await agent.run_activation(next_envelope)).text == "Done."
         assert model.calls == 2
+
+
+@pytest.mark.asyncio
+async def test_natural_surface_booking_alias_yields_like_the_internal_tool(
+    app, provision, test_database_url
+):
+    async with agent_setup(
+        app,
+        provision,
+        test_database_url,
+        [
+            call("submit_booking", {"kind": "reserve", "asset_id": "car"}),
+            AIMessage(content="Done."),
+        ],
+        max_model_calls=1,
+        surface="natural",
+    ) as (agent, envelope, model, transport):
+        result = await agent.run_activation(envelope)
+        assert result.status == "waiting"
+        assert result.text == ""
+        assert len(result.pending_ids) == 1
+        assert model.calls == 1
+        assert len(transport.actions) == 1
+        assert agent.events[0]["tool"] == "submit_world_action"
+        prompt = next(item.content for item in model.seen if isinstance(item, HumanMessage))
+        assert "DIRECTOR" not in prompt and "world_observations" not in prompt
+        tool_message = next(item for item in agent.messages if isinstance(item, ToolMessage))
+        assert tool_message.name == "submit_booking"
+        assert '"run_id"' not in tool_message.content
+
+
+@pytest.mark.asyncio
+async def test_natural_surface_end_turn_delivers_text_and_pending_ids(
+    app, provision, test_database_url
+):
+    async with agent_setup(
+        app,
+        provision,
+        test_database_url,
+        [call("end_turn", {"status": "waiting", "text": "Waiting on you."})],
+        surface="natural",
+    ) as (agent, envelope, _model, _transport):
+        result = await agent.run_activation(envelope)
+        assert result == ActivationResult(status="waiting", text="Waiting on you.")
 
 
 @pytest.mark.asyncio
@@ -266,7 +310,6 @@ async def test_activation_rejects_wrong_session_and_changed_scope(
         changed = uuid4()
         agent.environment.run_id = str(changed)
         transport.view["run_id"] = str(changed)
-        # Recreate with another scoped run, exactly as a new worker would.
         replacement = agent.runtime.agent(
             model=ScriptedModel(),
             board=agent.board,
@@ -328,7 +371,6 @@ async def test_waiting_checkpoint_survives_new_runtime_before_receipt_save(
     ) as (agent, envelope, model, transport):
         result = await agent.run_activation(envelope)
         headers = dict(agent.board.client.headers)
-        # Simulate loss of the receipt update after the graph's durable finish.
         async with agent.runtime.pool.connection() as connection:
             await connection.execute(
                 """UPDATE agent_tasks SET status='pending', result=NULL, completed_at=NULL

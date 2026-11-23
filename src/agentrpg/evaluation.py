@@ -336,7 +336,6 @@ def _review_trace(trace: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         )
         payload = dict(item.get("payload", {}))
         if item.get("kind") == "actor_turn" and "input" in payload:
-            # Identity, observed facts, cue, and conversation are needed for fidelity review.
             actor_input = payload["input"]
             payload["input"] = {
                 key: value for key, value in actor_input.items() if key not in {"assets"}
@@ -441,8 +440,6 @@ class ModelEvaluator:
         aliases, ambiguous_aliases = _activation_aliases(evidence)
         assistant_ids = _assistant_evidence(trace)
         if focus_owner is not None:
-            # Peer board records provide context but cannot be the sole evidence
-            # for a conduct judgment about this owner's assistant.
             agent_ids = {
                 str(item.get("payload", item)["agent_id"])
                 for item in trace

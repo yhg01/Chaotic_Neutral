@@ -80,8 +80,6 @@ def save_scenario(path: Path, content: str, *, overwrite: bool) -> None:
         if overwrite:
             os.replace(temporary, path)
         else:
-            # Hard-link publication fails atomically if another process created
-            # the destination during authoring. The temporary file is complete.
             try:
                 os.link(temporary, path)
             except FileExistsError:
@@ -101,8 +99,6 @@ def save_author_report(output: Path, report: dict) -> Path:
     report["report"] = str(report_path)
     content = json.dumps(report, indent=2, default=str)
     save_scenario(history_path, content, overwrite=False)
-    # Concurrent invocations can replace the latest summary, but each immutable
-    # invocation record keeps its own counts and outcome.
     save_scenario(report_path, content, overwrite=True)
     return report_path
 
@@ -175,7 +171,6 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                             "status": "Read the durable ledger for final cost status.",
                         }
 
-                # Capture before the pool closes, including failed model attempts.
                 stack.push_async_callback(capture_campaign)
                 prices = await fetch_model_prices([model_name, args.reviewer_model or model_name])
                 binding = BudgetBinding(ledger, campaign_id, prices)
@@ -214,7 +209,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         report.update(outcome="interrupted", failure_kind="cancelled")
         raise
     except Exception as error:
-        # Only a class name is retained. Raw errors can expose prompts or credentials.
+        # Class name only: raw errors can expose prompts or credentials.
         report.update(
             outcome="failed",
             failure_kind=type(error).__name__,

@@ -41,7 +41,6 @@ GLOSSARY = {
 
 
 def marker(index):
-    # Alphabetic labels cannot be mistaken for an amount or a receipt number.
     label = ""
     while True:
         label = chr(65 + index % 26) + label
@@ -136,7 +135,6 @@ class EnglishDisplay:
         if source in GLOSSARY:
             return GLOSSARY[source]
         output = []
-        # Bound long paragraphs without cutting through an amount or identifier.
         for part in sentence_parts(source):
             if not HAN.search(part):
                 output.append(part)
@@ -147,8 +145,6 @@ class EnglishDisplay:
             direct = re.sub(r"\bcredites\b", "credits", direct, flags=re.IGNORECASE)
             direct = re.sub(r"\bceramic bug\b", "ceramic mug", direct, flags=re.IGNORECASE)
             required = PROTECTED.findall(part)
-            # Prefer fluent sentence translation when all exact values survived.
-            # Otherwise use protected markers, then the conservative fragment path.
             if (
                 not HAN.search(direct)
                 and all(term.lower() in direct.lower() for term in required)
@@ -156,8 +152,6 @@ class EnglishDisplay:
             ):
                 output.append(direct)
                 continue
-            # Keep identifiers and exact numbers outside the translation model's
-            # vocabulary. A missing/duplicated marker uses a conservative fallback.
             terms = []
 
             def protect(value, terms=terms):
@@ -179,8 +173,6 @@ class EnglishDisplay:
                     break
                 result = pattern.sub(lambda _, original=original: original, result)
             if not valid:
-                # Preserve all ASCII evidence exactly if the sentence model
-                # cannot preserve its protected identifiers. Translate Han runs.
                 result = re.sub(r"[\u3400-\u9fff]+", lambda m: self._fragment(m.group()), part)
             output.append(result.strip())
         return " ".join(output).replace(" \n ", "\n").strip()

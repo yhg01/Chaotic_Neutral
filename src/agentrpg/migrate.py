@@ -26,7 +26,6 @@ async def migrate(database_url: str, directory: Path = MIGRATIONS) -> None:
     async with await psycopg.AsyncConnection.connect(
         database_url, row_factory=dict_row
     ) as connection:
-        # This lock exists only during schema changes, never during board writes.
         await connection.execute("SELECT pg_advisory_xact_lock(679132104257)")
         await connection.execute(
             """CREATE TABLE IF NOT EXISTS schema_migrations (

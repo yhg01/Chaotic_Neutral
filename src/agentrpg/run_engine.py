@@ -10,6 +10,7 @@ from uuid import UUID, uuid4, uuid5
 from psycopg.types.json import Jsonb
 
 from agentrpg.actor import (
+    NO_CUE,
     ActorContractError,
     ActorOutput,
     ActorView,
@@ -99,16 +100,13 @@ class RunEngine:
         key = int.from_bytes(
             hashlib.sha256(f"director:{run_id}".encode()).digest()[:8], "big", signed=True
         )
-        # Session lock, committed before external calls. It serializes only the
-        # conductor for this run; board writes and participant work remain independent.
+        # Session lock, committed before external calls. While held, no other conductor owns leases.
         async with self.pool.connection() as lease:
             acquired = await row(lease, "SELECT pg_try_advisory_lock(%s) AS ok", (key,))
             await lease.commit()
             if not acquired["ok"]:
                 raise DirectorError("This run already has an active conductor.")
             try:
-                # The prior conductor has released its session lock. Its jobs
-                # can now resume without waiting for a dead process's lease.
                 async with self.pool.connection() as conn:
                     await conn.execute(
                         "UPDATE run_jobs SET lease_until=NULL WHERE run_id=%s "
@@ -125,6 +123,8 @@ class RunEngine:
         if run["status"] != "running":
             raise DirectorError("Start or resume the run before advancing it.")
         spec = ScenarioSpec.model_validate(run["scenario"])
+        if spec.clock is not None:
+            raise DirectorError("This run uses the event clock. Use scripts/run_clocked.py.")
         await self.director.ensure_extensions(run_id)
         participants = await self.director.participants(run_id)
         required = {p["owner_id"] for p in participants}
@@ -187,8 +187,6 @@ class RunEngine:
             current_run = await self.director.get_run(run_id)
             if current_run["status"] != "running":
                 if current_run["status"] in {"invalid", "incomplete", "completed"}:
-                    # Gather has finished: these peers can no longer apply effects.
-                    # Retain their saved output, but do not display a running job.
                     async with self.pool.connection() as conn:
                         await conn.execute(
                             "UPDATE run_jobs SET status='failed',lease_until=NULL, "
@@ -252,9 +250,6 @@ class RunEngine:
             if current["status"] != "running":
                 return current
             raise
-        # Actor replies and settlement can create new plot triggers after the
-        # opening pass. Save their cues before deciding whether the run can end.
-        # fire_beats takes its own run lock and leaves paused runs unchanged.
         await self.director.fire_beats(run_id)
         async with self.pool.connection() as conn:
             async with conn.transaction():
@@ -307,7 +302,9 @@ class RunEngine:
                        (e.kind IN ('world_changed','reservation_settled','consent_changed',
                         'inbox_received',
                         'resource_updated','commerce_consent_changed','market_settled','market_changed')
-                        OR (e.kind='board_posted' AND e.payload->>'author_id'<>p.agent_id::text)
+                        OR (e.kind='board_posted' AND e.payload->>'author_id'<>p.agent_id::text
+                            AND (e.payload->>'audience' IS NULL
+                                 OR e.payload->'audience' ? p.agent_id::text))
                         OR (e.kind='owner_message' AND e.payload->>'source'='owner'))
                        AND NOT EXISTS (SELECT 1 FROM event_deliveries d
                            WHERE d.event_id=e.id AND d.owner_id=p.owner_id
@@ -511,7 +508,7 @@ class RunEngine:
                             "\n".join(
                                 e["payload"]["cue"] for e in eligible if e["kind"] == "actor_cue"
                             )
-                            or "Respond to your assistant."
+                            or NO_CUE
                         )
                         world = await self.world._snapshot(conn, run_id)
                         own_world = {
@@ -594,6 +591,10 @@ class RunEngine:
                             or (
                                 e["kind"] == "board_posted"
                                 and e["payload"].get("author_id") != str(participant["agent_id"])
+                                and (
+                                    e["payload"].get("audience") is None
+                                    or str(participant["agent_id"]) in e["payload"]["audience"]
+                                )
                             )
                             or e["kind"]
                             in {
@@ -608,8 +609,6 @@ class RunEngine:
                                 "market_changed",
                             }
                         ]
-                        # A declared wait does not wake on an empty clock tick. Old
-                        # suppressed ticks must not reappear after a material event.
                         eligible = [
                             e
                             for e in eligible
@@ -624,7 +623,6 @@ class RunEngine:
                         original_board = [e for e in eligible if e["kind"] == "board_posted"]
                         bounded = []
                         size, owner_count = 0, 0
-                        # Reserve envelope slots for per-task shop context.
                         event_limit = 70 if await ShopService.enabled(conn, run_id) else 80
                         for event in eligible:
                             if event["kind"] == "board_posted":
@@ -716,9 +714,6 @@ class RunEngine:
                                     default=str,
                                 )
                             )
-                            # Keep every unresolved task, plus recent closures.
-                            # Each record has its own bounded observation. A growing
-                            # order history must not overflow one 12k input field.
                             active = [t for t in shopping if t["status"] in {"open", "submitted"}]
                             closed = [
                                 t for t in shopping if t["status"] not in {"open", "submitted"}
@@ -897,7 +892,7 @@ class RunEngine:
             )
         async with self.pool.connection() as conn:
             async with conn.transaction():
-                # Fence accepted effects with the run first, matching world lock order.
+                # Lock order: run row, then job row, as in world.py. Another order can deadlock.
                 run = await row(
                     conn, "SELECT * FROM environment_runs WHERE id=%s FOR UPDATE", (job["run_id"],)
                 )
@@ -1049,9 +1044,6 @@ class RunEngine:
                         job["owner_id"],
                     )
                 else:
-                    # Text is an owner reply for every status, including waiting for
-                    # a peer. Empty automatic receipts do not create dialogue. Keep
-                    # exact text and stable chunk IDs for interrupted delivery.
                     if output["text"].strip():
                         text = output["text"]
                         chunks = [
@@ -1103,8 +1095,7 @@ class RunEngine:
                                     f"message:{job['owner_id']}:agent:{request_id}",
                                 )
                                 payload_hash = fingerprint({"content": chunk})
-                                # save_message trims individual messages. Raw chunks must
-                                # preserve boundary whitespace and their reading order.
+                                # Not save_message, which strips: chunks keep edge whitespace.
                                 await conn.execute(
                                     """INSERT INTO owner_messages
                                        (id,run_id,owner_id,source,content,request_id,payload_hash,

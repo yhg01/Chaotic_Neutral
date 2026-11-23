@@ -30,8 +30,6 @@ class ShopControlModel(BaseChatModel):
 
     async def _agenerate(self, messages, **kwargs):
         self.calls += 1
-        # A new activation has its own final HumanMessage. Never use another
-        # activation's browser controls or report as the current observation.
         start = max(i for i, m in enumerate(messages) if isinstance(m, HumanMessage))
         tools = [m for m in messages[start + 1 :] if isinstance(m, ToolMessage)]
         snapshot = next(

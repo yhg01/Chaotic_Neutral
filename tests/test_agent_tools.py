@@ -293,7 +293,6 @@ async def test_definitions_exclude_identity_and_operation_controls():
     ],
 )
 async def test_invalid_arguments_are_rejected_before_a_request(name, arguments):
-    # No base URL is provided: any accidental request would fail with 503.
     async with httpx.AsyncClient() as client:
         result = await BoardTools(client, str(uuid4())).execute(name, arguments, "valid-call")
     assert result["ok"] is False

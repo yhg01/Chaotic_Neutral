@@ -98,10 +98,12 @@ def test_empty_assets_are_opt_in_and_legacy_hash_is_preserved():
 
 
 def test_new_instructions_use_tools_for_owner_needs_and_resume_keeps_saved_text(tmp_path):
-    args = cli.parse_args([])
+    args = cli.parse_args(["--agent-surface", "legacy"])
     config = cli.new_run_configuration(args, {})
     assert "Conversation can itself be the task" in config["instructions"]
     assert "when transport is relevant" in config["instructions"]
+    natural = cli.new_run_configuration(cli.parse_args([]), {})["instructions"]
+    assert "Talking something through can be the whole job" in natural
     saved = {
         "run_id": str(uuid4()),
         "cluster_id": str(uuid4()),

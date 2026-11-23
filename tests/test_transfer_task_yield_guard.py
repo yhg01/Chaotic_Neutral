@@ -91,8 +91,6 @@ async def test_wait_tool_requires_explicit_task_update_before_yield(
     )
     async with client_for(app, manifest) as client, AgentRuntime(test_database_url) as runtime:
         agent = make_agent(runtime, client, manifest, model)
-        # Dedicated wait tools are opt-in with the existing completion mode.
-        # Rebuild before the first task so the session policy remains consistent.
         if finish != "finish_activation":
             member = manifest["participants"][0]
             agent = runtime.agent(

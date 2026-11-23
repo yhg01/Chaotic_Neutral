@@ -128,11 +128,20 @@ class Director:
                             "token": token,
                         }
                     )
+                if spec.clock is not None:
+                    from agentrpg.clock import seed_board, seed_clock
+
+                    await seed_board(conn, run_id, cluster_id, spec.clock, participants)
+                    await seed_clock(conn, run_id, spec.clock, spec.seed, participants)
                 await WorldService(self.pool).initialize(
                     run_id, spec.model_dump(mode="json"), connection=conn
                 )
                 await ResourceService(self.pool).initialize(run_id, spec.resources, connection=conn)
                 await InboxService(self.pool).initialize(run_id, spec.initial_mail, connection=conn)
+                if spec.clock is not None and spec.clock.sites:
+                    from agentrpg.sim_web import seed_sites
+
+                    await seed_sites(conn, run_id, spec.clock.sites)
                 await emit(
                     conn, run_id, "control_audit_enabled", 0, {"revision": 1}, "control_audit:1"
                 )
@@ -266,8 +275,6 @@ class Director:
                     s["beat_id"]: s
                     for s in await rows(conn, "SELECT * FROM run_beats WHERE run_id=%s", (run_id,))
                 }
-                # Scenario validation proves this graph is acyclic. Evaluate
-                # prerequisites first even when the author listed a child first.
                 ordered, remaining, seen = [], list(spec.beats), set()
                 while remaining:
                     ready = [beat for beat in remaining if set(beat.requires) <= seen]

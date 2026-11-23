@@ -29,7 +29,6 @@ async def main(args):
             run_id = UUID(run)
             folder = ROOT / ".local/transfer-actor-runs" / run
             original = json.loads((folder / "report.json").read_text())
-            # Extract only public model settings. Never export the credential manifest.
             configuration = json.loads((folder / "credentials.json").read_text())["configuration"]
             report = await validation_report(app.state.pool, run_id, case)
             save_private(folder / f"validation.{uuid4()}.json", report)

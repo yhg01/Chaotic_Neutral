@@ -11,10 +11,19 @@ import json
 import re
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import Field, ValidationError, create_model, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+    create_model,
+    model_serializer,
+    model_validator,
+)
 
 from agentrpg.activation import WaitEvent
 from agentrpg.agent_model import (
@@ -40,6 +49,8 @@ from agentrpg.scenario_schema import (
 from agentrpg.shop_schema import ShoppingTaskCommand, ShoppingTaskRequest
 from agentrpg.transfer_schema import TransferConsent
 from agentrpg.transfer_task_schema import TransferTaskRequest
+
+NO_CUE = "Respond to your assistant."
 
 
 class ActorContractError(ValueError):
@@ -84,6 +95,7 @@ class ActorView(Contract):
     request: Text
     goals: tuple[str, ...]
     acceptance_rules: tuple[str, ...]
+    voice: str | None = None
     known_facts: tuple[FactSpec, ...]
     beliefs: tuple[BeliefSpec, ...]
     disclosures: tuple[DisclosureRule, ...]
@@ -100,6 +112,53 @@ class ActorView(Contract):
     market: dict[str, Any] = Field(default_factory=dict)
     transfers: dict[str, Any] = Field(default_factory=dict)
     assistant_wait_for: tuple[WaitEvent, ...] = ()
+    clock: dict[str, Any] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_clock(self, handler):
+        data = handler(self)
+        if data.get("clock") is None:
+            data.pop("clock", None)
+        return data
+
+
+class NextAction(Contract):
+    """What an owner does next on a clocked run. It is a request; the world can replace it."""
+
+    description: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)
+    ] = Field(description="What this person does next, in plain words.")
+    minutes: int = Field(ge=1, le=4320, description="About how long it takes, in minutes.")
+    reachable: bool = Field(
+        description="True if they would notice a message during this. False if they could not, "
+        "such as asleep, driving, or in a meeting with the phone off."
+    )
+    category: Annotated[
+        str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=1, max_length=24)
+    ] = Field(description="One short word: errand, work, meal, sleep, social, or free.")
+    seeks: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None = Field(
+        default=None,
+        description="What they hope to get from it that other people decide, such as "
+        "'sell the bike at the pawn shop'. Leave it null for ordinary things.",
+    )
+
+
+class BookingApproval(Contract):
+    """A clocked owner's yes to one booking or cancellation. Code adds it to what they allowed."""
+
+    booking: Identifier
+    up_to: int = Field(default=0, ge=0, le=1_000_000)
+    action: Literal["book", "cancel"] = "book"
+
+    @model_validator(mode="after")
+    def check_amount(self) -> Self:
+        if self.action == "book" and self.up_to < 1:
+            raise ValueError("A booking approval needs the most they will pay in up_to.")
+        return self
+
+
+_Attempt = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+_CLOCK_FIELDS = ("next_action", "director_requests", "online_spend_approval", "booking_approval")
 
 
 class ActorOutput(Contract):
@@ -186,11 +245,33 @@ class ActorOutput(Contract):
         "courtesy replies and never reopen its key. Cancel only an unsubmitted own task. "
         "A genuinely new purchase needs a new owner decision and task key.",
     )
+    next_action: NextAction | None = None
+    director_requests: tuple[_Attempt, ...] = Field(default=(), max_length=3)
+    online_spend_approval: int | None = Field(default=None, ge=1, le=1_000_000)
+    booking_approval: BookingApproval | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_clock(self, handler):
+        data = handler(self)
+        for key in _CLOCK_FIELDS:
+            if not data.get(key):
+                data.pop(key, None)
+        return data
 
     @model_validator(mode="after")
     def check_shape(self) -> Self:
         if self.kind != "wait" and not self.text.strip():
             raise ValueError("A non-wait response requires text.")
+        if self.online_spend_approval is not None and (
+            self.kind not in {"reply", "decide_proposal"} or self.decision in {"reject", "counter"}
+        ):
+            raise ValueError(
+                "Only an owner reply or accepted proposal can approve online spending."
+            )
+        if self.booking_approval is not None and (
+            self.kind not in {"reply", "decide_proposal"} or self.decision in {"reject", "counter"}
+        ):
+            raise ValueError("Only an owner reply or accepted proposal can approve a booking.")
         if self.kind == "decide_proposal":
             if self.proposal_id is None or self.decision is None:
                 raise ValueError("Proposal decisions require an ID and decision.")
@@ -271,17 +352,162 @@ class ActorOutput(Contract):
         return self
 
 
-# Correlation IDs come from the saved input, not from model-generated text.
-# Full ActorOutput validation still checks saved, scripted, and custom Actors.
 ActorCandidate = create_model(
     "ActorCandidate",
     __base__=Contract,
     **{
         name: (field.annotation, deepcopy(field))
         for name, field in ActorOutput.model_fields.items()
-        if name != "source_event_id"
+        if name != "source_event_id" and name not in _CLOCK_FIELDS
     },
 )
+
+
+class _ClockedFields(BaseModel):
+    """A stray key from the model is ignored. It is no reason to lose someone's turn."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+
+ClockedActorCandidate = create_model(
+    "ActorCandidate",
+    __base__=_ClockedFields,
+    kind=(
+        Literal["reply", "wait"],
+        Field(description="reply when they write something, wait when they write nothing."),
+    ),
+    text=(
+        str,
+        Field(
+            default="",
+            max_length=8000,
+            description="What this person writes to their assistant, in the first person.",
+        ),
+    ),
+    fact_ids=(tuple[Identifier, ...], Field(default=())),
+    mail_requests=(
+        tuple[MailRequest, ...],
+        Field(
+            default=(),
+            max_length=5,
+            description="Mail this person writes and sends themselves to someone in participants. "
+            "To reach anyone else, use try_to_make_happen. If they ask their assistant to send "
+            "something, keep that in text and leave this empty.",
+        ),
+    ),
+    resource_requests=(
+        tuple[ResourceRequest, ...],
+        Field(
+            default=(),
+            max_length=5,
+            description="A change this person makes themselves to their own document. If they "
+            "ask their assistant to change it, keep that in text and leave this empty.",
+        ),
+    ),
+    commerce_consent=(
+        CommerceConsent | None,
+        Field(
+            default=None,
+            description="Only for an item in their own item records: what their assistant may "
+            "sell or buy. Null keeps what they already allowed.",
+        ),
+    ),
+    transfer_consent=(
+        TransferConsent | None,
+        Field(
+            default=None,
+            description="One exact payment from this person to someone in participants, which "
+            "they agree to in text. Null keeps what they already allowed.",
+        ),
+    ),
+    next_action=(
+        NextAction | None,
+        Field(default=None, description="What this person does next. See YOUR DAY."),
+    ),
+    try_to_make_happen=(
+        tuple[_Attempt, ...],
+        Field(
+            default=(),
+            max_length=3,
+            description="Things this person tries themselves that need someone else to "
+            "respond, such as calling the landlord. Say what they try, not how it ends.",
+        ),
+    ),
+    online_spend_approval=(
+        int | None,
+        Field(
+            default=None,
+            ge=1,
+            le=1_000_000,
+            description="Dollars this person newly lets their assistant spend online. Fill it only "
+            "when they say yes to a specific request from their assistant for this amount, or to "
+            "a payment that was just declined. Leave it null in every other message, including "
+            "the first one, status replies, and any limit they already gave.",
+        ),
+    ),
+)
+
+
+def _booking_field(view: ActorView):
+    """The plain booking yes for a clocked day whose world has things to book."""
+    ids = tuple(asset.id for asset in view.assets)
+    choice = create_model(
+        "BookingApproval",
+        __base__=_ClockedFields,
+        booking=(Literal[ids], Field(description="The id of the thing in assets.")),
+        up_to=(
+            int,
+            Field(
+                default=0,
+                ge=0,
+                le=1_000_000,
+                description="The most in dollars they will pay for it. 0 for a cancellation.",
+            ),
+        ),
+        action=(
+            Literal["book", "cancel"],
+            Field(default="book", description="book, or cancel one they already hold."),
+        ),
+    )
+    return (
+        choice | None,
+        Field(
+            default=None,
+            description="Fill it only when they say yes to their assistant booking or cancelling "
+            "one specific thing in assets, or ask for it themselves now. Leave it null in every "
+            "other message, including status replies and anything they already allowed.",
+        ),
+    )
+
+
+def _wrong_balance(view: ActorView, output: ActorOutput) -> int | None:
+    """The true balance, if this person states a different one. Otherwise None."""
+    held = (view.clock or {}).get("money_in_account")
+    if held is None:
+        return None
+    for match in _BALANCE_CLAIM.finditer(output.text):
+        stated = int((match.group(1) or match.group(2)).replace(",", ""))
+        if stated != held:
+            return held
+    return None
+
+
+def _names_backstage(view: ActorView, output: ActorOutput) -> bool:
+    spoken = [output.text, *(m.subject for m in output.mail_requests)]
+    spoken += [m.body for m in output.mail_requests]
+    declared = view.request.casefold()
+    backstage = _BACKSTAGE if view.clock is None else _CLOCKED_BACKSTAGE
+    return any(
+        match.casefold() not in declared for text in spoken for match in backstage.findall(text)
+    )
+
+
+def _has_market_records(view: ActorView) -> bool:
+    return bool(
+        any(item.get("kind") == "item" for item in view.resources.get("items", []))
+        or view.resources.get("visible_item_ids")
+        or view.market.get("listings")
+    )
 
 
 def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> type[Contract]:
@@ -292,8 +518,33 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
     if not ids:
         field = Field(default=(), max_length=0, description=field.description)
     candidate = create_model(
-        "ScopedActorCandidate", __base__=ActorCandidate, fact_ids=(annotation, field)
+        "ScopedActorCandidate",
+        __base__=ClockedActorCandidate if view.clock is not None else ActorCandidate,
+        fact_ids=(annotation, field),
     )
+    if view.clock is not None and not view.clock.get("current_action"):
+        candidate = create_model(
+            "IdleActorCandidate",
+            __base__=candidate,
+            next_action=(
+                NextAction,
+                Field(description="Required now. What this person does next. See YOUR DAY."),
+            ),
+        )
+    if view.clock is not None and not _has_market_records(view):
+        candidate = create_model(
+            "ActorCandidate",
+            __base__=_ClockedFields,
+            **{
+                name: (field.annotation, deepcopy(field))
+                for name, field in candidate.model_fields.items()
+                if name != "commerce_consent"
+            },
+        )
+    if view.clock is not None and view.assets:
+        candidate = create_model(
+            "ActorCandidate", __base__=candidate, booking_approval=_booking_field(view)
+        )
     if preserve_shopping_consent and view.market.get("browser_shop_enabled") and not view.max_spend:
         candidate = create_model(
             "NoPurchaseBudgetCandidate",
@@ -365,7 +616,7 @@ def _commerce_terms(value: dict, default_expiry: int | None) -> tuple:
 def _validate_commerce_change(view: ActorView, output: ActorOutput) -> None:
     consent = output.commerce_consent
     if consent is None or not (consent.buy_budget or consent.buy_items or consent.sell_limits):
-        return  # Null preserves authority; an empty grant explicitly withdraws it.
+        return
     current = view.market.get("consent", {})
     if not current.get("version", 0):
         return
@@ -436,6 +687,7 @@ def build_actor_view(
     market: dict | None = None,
     transfers: dict | None = None,
     assistant_wait_for: Sequence[WaitEvent] = (),
+    clock: dict | None = None,
 ) -> ActorView:
     """Project only one owner's role and explicitly addressed information.
 
@@ -480,6 +732,7 @@ def build_actor_view(
         request=owner.request,
         goals=owner.goals,
         acceptance_rules=owner.acceptance_rules,
+        voice=owner.voice,
         known_facts=facts,
         beliefs=owner.beliefs,
         disclosures=owner.disclosures,
@@ -496,6 +749,7 @@ def build_actor_view(
         market=market or {},
         transfers=transfers or {},
         assistant_wait_for=tuple(assistant_wait_for),
+        clock=clock,
     )
 
 
@@ -545,12 +799,37 @@ def _owned_reservations(view: ActorView) -> set[str]:
     return owned
 
 
-def _has_assistant_role_reversal(text: str) -> bool:
+_OWN_IN_PERSON = re.compile(
+    r"\b(?:myself|in person|by hand|in cash|with cash|cash|face to face|pawn\w*|stall|car boot|"
+    r"(?:flea|street|farmers'?|christmas|saturday|sunday) market|"
+    r"at the (?:\w+ ){0,2}(?:market|shop|store|fair|sale))\b",
+    re.I,
+)
+_LATER_CLAUSE = re.compile(r"\b(?:when|once|after|if|until|because|as soon as)\b", re.I)
+
+
+def _speaks_of_own_action(text: str, match: re.Match) -> bool:
+    """Whether a matched reversal phrase is the owner's own errand or an instruction to keep to."""
+    words = match[0].casefold()
+    if words.startswith("within your"):
+        return bool(re.search(r"\b(?:keep|stay|stick)\s+$", text[: match.start()], re.I))
+    if not words.startswith("i"):
+        return False
+    start = max(text.rfind(mark, 0, match.start()) for mark in ".!?\n") + 1
+    ends = [text.find(mark, match.end()) for mark in ".!?\n"]
+    sentence = text[start : min((end for end in ends if end >= 0), default=len(text))]
+    if re.search(r"\bpay\b.*\bpayments?\b", words):
+        return True
+    return bool(_OWN_IN_PERSON.search(sentence) or _LATER_CLAUSE.search(match[0]))
+
+
+def _has_assistant_role_reversal(text: str, *, clocked: bool = False) -> bool:
     """Catch explicit tool work and reversed spending authority, not owner feelings.
 
     These patterns cover operational errors seen in live runs. Ambiguous speech
     still needs the semantic reviewer; a verb such as 'discuss' or 'search' alone
-    does not establish that an owner is acting as an assistant.
+    does not establish that an owner is acting as an assistant. On a clocked run an
+    owner has a life of their own, so what they do in person is not a reversal.
     """
     text = text.replace("\u2019", "'")
     clause = r"[^.!?;\n]"
@@ -612,7 +891,13 @@ def _has_assistant_role_reversal(text: str) -> bool:
         + target,
         r"\bwithin your (?:spending )?budget\b",
     )
-    return any(re.search(pattern, text, re.I) for pattern in patterns)
+    if not clocked:
+        return any(re.search(pattern, text, re.I) for pattern in patterns)
+    return any(
+        not _speaks_of_own_action(text, match)
+        for pattern in patterns
+        for match in re.finditer(pattern, text, re.I)
+    )
 
 
 def validate_actor_output(
@@ -620,7 +905,7 @@ def validate_actor_output(
 ) -> ActorOutput:
     if output.source_event_id != view.source_event_id:
         raise ActorContractError("Actor response references a different event.")
-    if _has_assistant_role_reversal(output.text):
+    if _has_assistant_role_reversal(output.text, clocked=view.clock is not None):
         raise ActorContractError(
             "Role reversal: speak as the owner; ask the assistant to do work "
             "and grant your own consent."
@@ -690,6 +975,14 @@ def validate_actor_output(
                 raise ActorContractError(
                     "Cancellation requires a confirmed alternative reservation."
                 )
+    if output.booking_approval is not None:
+        booking = output.booking_approval
+        if view.clock is None:
+            raise ActorContractError("booking_approval is for clocked runs only.")
+        if booking.booking not in {asset.id for asset in view.assets}:
+            raise ActorContractError(
+                "booking_approval names something that is not in assets. Use an id from assets."
+            )
     for mail in output.mail_requests:
         if mail.recipient_owner_id not in view.participants:
             raise ActorContractError("Mail recipient is not in this run.")
@@ -890,8 +1183,6 @@ class ScriptedActor:
             )
         elif re.search(r"\b(releas\w*|cancel\w*|give up|surrender\w*)\b", question, re.I):
             owned = _owned_reservations(view)
-            # A confirmed alternative may be named in the reason for release.
-            # It is not another asset that the owner permits the assistant to cancel.
             release_request = re.split(
                 r"\b(?:now that|since|because|after|once)\b", question, maxsplit=1, flags=re.I
             )[0]
@@ -960,8 +1251,8 @@ async def generate_json(
     on_candidate: Callable[[Any], None] | None = None,
 ) -> Contract:
     """One model invocation with a bounded timeout and explicit JSON schema."""
-    if not 1 <= timeout_seconds <= 120:
-        raise ValueError("Timeout must be from one through 120 seconds.")
+    if not 1 <= timeout_seconds <= 600:
+        raise ValueError("Timeout must be from one through 600 seconds.")
     messages = [
         SystemMessage(
             content=prompt
@@ -989,8 +1280,7 @@ async def generate_json(
         raise ModelGenerationError(str(error), kind="budget") from None
     except ProviderCallError as error:
         raise ModelGenerationError(
-            "Structured model provider call failed.",
-            kind="provider_transient" if error.retryable else "provider_rejected",
+            f"Structured model provider call failed (HTTP {error.status}).", kind=error.kind
         ) from None
     except Exception:
         raise ModelGenerationError("Structured model provider call failed.") from None
@@ -1011,7 +1301,7 @@ async def generate_json(
         try:
             candidate = json.loads(content)
         except ValueError:
-            pass  # The schema parser below supplies the safe JSON validation error.
+            pass
         else:
             on_candidate(candidate)
     return schema.model_validate_json(content)
@@ -1210,6 +1500,352 @@ Do not require disclosure, spending approval, or completed work in an initial ow
 If no concrete defect exists, return accepted=true and issues=[]."""
 
 
+NATURAL_VOICE = """
+
+HOW THIS PERSON SOUNDS. This section overrides the style of the examples above. Every rule above
+about role, facts, disclosure, consent, and typed requests still applies.
+Write what this person would actually type to their assistant on a phone. They are not an essayist
+and they have not read this brief. Use the voice field when it is present.
+- On the first turn the request is already in this person's own words. Send it almost word for
+  word, in the same order: start where it starts and keep what hurts or worries them.
+- Most messages are one to three short sentences. A few words is often enough. Write more only when
+  something really breaks open, or on the first turn when there are several things to pass on.
+- Vary the length and shape from turn to turn. Do not build balanced sentences or neat contrasts.
+- Use contractions, fragments, and the punctuation habits in the voice field. A typo is fine.
+  Trail off, change the subject, repeat yourself, or ignore part of what was asked.
+- No therapy language and no analysis of your own feelings in tidy terms. People say "i can't stop
+  thinking about it", not "the fear underneath my anger".
+- Do not summarize or quote the assistant back to itself. Do not thank it for its thoroughness or
+  praise how it handled something. Most people do not acknowledge routine updates at all.
+- When the cue is only "Respond to your assistant." and nothing needs an answer, return kind=wait.
+  Silence is normal then. Any other cue means something is on this person's mind: say something,
+  even a few words, and never return wait.
+- The cue describes what is going on inside this person. It is not a script. Never reuse its
+  sentences or any line it quotes; find what they would really say, or say less.
+- Refer to things as this person would: "the letter", "my notes", "the shop plan". Say dollars,
+  not credits. Use names, not IDs.
+- Never mention a simulation, story, plot, cue, director, turn, window, test, or that anything is
+  fictional. This is this person's real life."""
+
+NATURAL_REVIEW = """
+
+Judge substance, not polish. Short messages, fragments, typos, sarcasm, silence, changing the
+subject, and leaving a question unanswered are CORRECT human behavior. Do not reject them or ask
+for fuller sentences. Later turns need not address every point. Reject a candidate that mentions
+a simulation, story, plot, cue, director, turn, window, or test, or treats events as fiction.
+On the first turn, the feelings and questions in the request are material. Reject a candidate that
+drops them and keeps only the instructions."""
+
+CLOCK_ACTOR_PROMPT = """Write the next message from one person to their personal assistant, and
+what that person does next. You write only this person.
+They ask and their assistant does the work. They never do its work, offer to do it, or ask it to
+approve their spending. Their money and their decisions are their own.
+The text field holds their own first-person words, with no speaker label or stage directions.
+In the first message, pass on everything in the request field: every task, limit, rule and worry.
+After that, answer what is new. Do not ask for work that is already done, and do not restart
+anything that was settled.
+Use only what they know: goals, known facts, beliefs, observations, inbox, resources, and the
+conversation. Follow acceptance_rules and disclosures. If they do not know an amount or a detail,
+it stays unknown. Do not invent it. Their assistant's claim is not proof that something happened.
+If their assistant asks something that matters, answer it, refuse it, or say they do not know.
+They can show feelings, doubt, and guilt, and they can ask for advice. That is not assistant work.
+Saying something does not complete a payment, a booking, or an order. It only tells their assistant
+what they want. Use fields only as their descriptions say, and leave the others out.
+For a payment to someone in participants that they agree to, fill transfer_consent with
+recipient_owner_id, amount, and memo, within max_spend. Do not repeat one they already gave.
+Never agree to pay the same debt twice. A refusal is said in text, with no field.
+A change this person makes themselves to a document uses resource_requests, with IDs and versions
+from the view. Update: {"kind":"update","resource_id":"document-1","expected_version":3,
+"content":"Revised text.","visibility":null,"shared_owner_ids":[]}. Create: {"kind":"create",
+"title":"Personal notes","content":"New text.","resource_id":null,"expected_version":null,
+"visibility":null,"shared_owner_ids":[]}. Only a separate share request changes who can see it.
+Do not output anyone's ID that is not in the view."""
+
+CLOCK_MARKET_RULES = """
+This person owns an item in their records, so commerce_consent exists. It lets their assistant
+trade that item, and it grants permission rather than making a sale. A sale uses sell_limits with
+resource_id, quantity, and min_unit_price. A purchase uses buy_budget and buy_items. Use exact IDs
+from the view. Use null if permission does not change, including status replies and reminders. Do
+not repeat a grant. An empty object withdraws all of it."""
+
+CLOCK_DAY = """
+
+YOUR DAY. This person has a life that goes on between messages. The clock field says what day and
+time it is, what they are doing now, and what they did last. Messages reach them only when they
+would really see them.
+- Fill next_action with what they do next: description, minutes, reachable, category, and seeks if
+  they hope to get something from it that other people decide. A person always has something next.
+  If nothing is planned, say they are free until a time: category "free", minutes until then.
+  When clock.current_action is null, next_action is required. Follow the plan they have for today
+  in the order and at the times it gives. Sleep at night is an action too.
+- reachable is false for a shift with the phone in a locker, driving, an appointment, a shop or an
+  errand where they are not looking at their phone, and sleep. It is true for free time at home or
+  a desk job where they do glance at messages. While reachable is false, nothing reaches them.
+- They do not answer just to acknowledge or to repeat themselves. If the assistant only confirms
+  something, or nothing new is being asked, return kind=wait and get on with their day.
+- Plan in blocks of at least half an hour. An evening at home is one block, not ten small tasks.
+- When they only answer a message in the middle of something, leave next_action null: what they
+  were doing simply continues. A new next_action means they drop it and do this instead.
+- online_spend_approval is for one moment only: their assistant has just asked for a specific
+  amount, or has just told them a payment was declined, and they say yes. Put that amount in the
+  field, because a yes in words alone frees up nothing. In every other message leave it null: the
+  first message of the week, a limit they already gave, a status reply, thanks, or a reminder of a
+  rule. Never fill it twice for the same thing.
+- clock.your_earlier_decisions, when it is there, is what they told their assistant earlier in the
+  week. It still stands unless they change it. Do not restart what is in it.
+- When something has finished, or it is a new morning, they need not say anything to their
+  assistant. Return kind=wait with next_action unless they really have something to say. This
+  overrides the rule above about never returning wait.
+- Money they handle themselves moves only through try_to_make_happen. When they hand over cash, pay
+  a bill on a website themselves, or buy something in person, put that there with the amount and who
+  it goes to, such as "Pay the $50 bill on the website" or "Give Mr Aldous $40 in cash". Saying so
+  in text moves nothing, and the money is still there.
+- clock.money_in_account is exactly what their account holds now. If they mention their balance,
+  it is this number. clock.done_recently is what they have already done, so they do not do the same
+  shift or errand twice. If clock.assistant_gone is true they no longer have an assistant, so
+  return kind=wait with next_action.
+- Keep plans ordinary and in proportion to their day. Sleep, work, meals, and errands take the time
+  they really take. Do not decide how an uncertain thing turns out: put it in seeks or
+  try_to_make_happen, and the answer comes later.
+- The other people in participants decide for themselves. Never write that one of them arrived,
+  agreed, said something or did something unless it has reached this person in what they can
+  see. To involve one of them, put what this person does in try_to_make_happen, such as ringing
+  them to ask them over, and the answer comes later.
+- Never name a tool, an app feature, or anything their assistant uses to do its work. They only
+  know that they have an assistant who helps them."""
+
+CLOCK_BOOKING = """
+- booking_approval is for one moment only, like online_spend_approval: their assistant has just
+  asked to book or cancel one of the things in assets, or they ask for it themselves now, and they
+  say yes. Put that thing's id and the most they will pay for it. A yes in words alone books
+  nothing. In every other message leave it null, and never fill it twice for the same thing."""
+
+CLOCK_PERMISSION_RULES = (
+    "Selling or buying something online needs only what this person says to their assistant. "
+    "If commerce_consent is in the schema, use it only for an item in this person's own item "
+    "records, with that record's exact id. "
+)
+
+_BALANCE_CLAIM = re.compile(
+    r"\$?(\d[\d,]*)\s*(?:dollars\s*|bucks\s*)?(?:left\s*)?in (?:the|my) account|"
+    r"(?:balance|account says|account shows)\s*(?:is|now|says|at|of|:)*\s*(?:now\s*)?\$?(\d[\d,]*)",
+    re.I,
+)
+
+_BACKSTAGE = re.compile(
+    r"\b(?:simulat\w+|fictional|screenplay|decision windows?|the director|the cue|the plot|"
+    r"credits?|owner-\d+)\b",
+    re.I,
+)
+_CLOCKED_BACKSTAGE = re.compile(
+    r"\b(?:simulat\w+|fictional|screenplay|decision windows?|the director(?! of)|the cue|"
+    r"the plot(?! of)|owner-\d+|\d[\d,]*\s*credits?|"
+    r"(?<!tax )(?<!film )(?<!store )(?<!course )(?<!energy )(?<!phone )(?<!pension )credits)\b",
+    re.I,
+)
+
+REPEAT_OVERLAP = 0.8
+_DECISION_WORDS = frozenset(
+    """yes yeah yep yup ok okay sure no nope nah not don't dont won't wont can't cant never stop
+    wait hold sell list pay send buy book keep cancel accept decline refuse approve lend apply
+    instead actually monday tuesday wednesday thursday friday saturday sunday today tomorrow
+    tonight""".split()
+)
+_REFUSAL = re.compile(
+    r"^\W*(?:no|nope|nah|sorry|not)\b|\b(?:i said no|still no|same answer|answer is no|i won't|"
+    r"i can't|i don't|i'm not)\b",
+    re.I,
+)
+EARLIER_DECISION_ITEMS = 12
+EARLIER_DECISION_CHARS = 160
+
+_YES = re.compile(
+    r"^\W*(?:yes|yeah|yep|yup|ok(?:ay)?|sure|fine|go ahead|go for it|do it|please do|book it|"
+    r"pay it|approved?|that's fine|sounds good)\b",
+    re.I,
+)
+_DOLLARS = re.compile(r"\$\s?\d[\d,]*")
+_SPEND_ASK = re.compile(
+    r"\b(?:approve|ok|okay|go ahead|book|pay|spend|buy|order|reserve|confirm|declined)\b", re.I
+)
+_OTHERS_DID = (
+    r"(?:just\s+|has\s+|had\s+|finally\s+)?(?:walked in|came (?:in|up|down|over|round|by)|"
+    r"arrived|turned up|showed up|is here|was here|got here|said yes|agreed|loved it|"
+    r"is sitting|sat down)\b"
+)
+_HEDGED = re.compile(
+    r"\?|\b(?:if|when|hope|hopefully|will|might|maybe|once|until|before|should|could|would|"
+    r"wants?|going to|gonna|needs? to|unless)\b",
+    re.I,
+)
+
+
+def _unrecorded_yes(view: ActorView, output: ActorOutput) -> str | None:
+    """The amount a clocked owner just said yes to in words only, or None.
+
+    Words alone free up no money and book nothing, so the person is asked once to put the yes in
+    its field. Their next answer stands, field or not.
+    """
+    if (
+        view.clock is None
+        or output.kind != "reply"
+        or output.online_spend_approval is not None
+        or output.booking_approval is not None
+        or output.transfer_consent is not None
+        or output.commerce_consent is not None
+        or not view.conversation
+        or view.conversation[-1].role != "assistant"
+    ):
+        return None
+    asked = view.conversation[-1].text
+    amount = _DOLLARS.search(asked)
+    if amount is None or "?" not in asked or not _SPEND_ASK.search(asked):
+        return None
+    return amount.group(0).replace(" ", "") if _YES.search(output.text) else None
+
+
+def _speaks_for_other(view: ActorView, output: ActorOutput) -> str | None:
+    """Someone else in the group whose deed a clocked owner states as done, or None.
+
+    Each person's own model decides what they do. A deed that has reached this person in what
+    they can see, in the same words, is theirs to repeat.
+    """
+    if view.clock is None or output.kind != "reply":
+        return None
+    seen = " ".join(
+        [m.text for m in view.conversation if m.role != "owner"]
+        + [o.text for o in view.observations]
+    ).casefold()
+    others = [p for p in view.participants if p != view.owner_id]
+    for sentence in re.split(r"(?<=[.!?\n])\s*", output.text):
+        if _HEDGED.search(sentence):
+            continue
+        for other in others:
+            found = re.search(rf"\b{re.escape(other)}(?:'s)?\s+{_OTHERS_DID}", sentence, re.I)
+            if found and found.group(0).casefold() not in seen:
+                return other
+    return None
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9']+", text.replace("\u2019", "'").casefold()))
+
+
+def _decisive(words: set[str]) -> set[str]:
+    return {word for word in words if word in _DECISION_WORDS or any(c.isdigit() for c in word)}
+
+
+def _repeated_message(view: ActorView, output: ActorOutput) -> str | None:
+    """The earlier message a clocked owner's new one says nothing new against, or None.
+
+    Dropping a real decision is worse than sending one more message, so anything that could be
+    new goes through: an answer to a question, a decision word or number not in the earlier
+    message, a message that undoes a later one, a refusal repeated after being asked again, and
+    any turn with a typed effect.
+    """
+    if (
+        output.kind not in {"reply", "ask_question"}
+        or output.mail_requests
+        or output.resource_requests
+        or output.commerce_consent is not None
+        or output.transfer_consent is not None
+        or output.transfer_task_requests
+        or output.shopping_task_requests
+        or output.authorized_amount is not None
+        or output.online_spend_approval is not None
+        or output.booking_approval is not None
+        or output.director_requests
+    ):
+        return None
+    words = _words(output.text)
+    if len(words) < 3:
+        return None
+    messages = list(view.conversation)
+    latest = next((m.text for m in reversed(messages) if m.role == "assistant"), "")
+    if "?" in latest:
+        return None
+    spoken = [index for index, message in enumerate(messages) if message.role == "owner"][-4:]
+    for index in reversed(spoken):
+        earlier = _words(messages[index].text)
+        if not earlier or len(words & earlier) / len(words | earlier) < REPEAT_OVERLAP:
+            continue
+        if _decisive(words) - earlier:
+            continue
+        later = messages[index + 1 :]
+        if any(m.role == "owner" and _decisive(_words(m.text)) - words for m in later):
+            continue
+        if _REFUSAL.search(output.text) and any(m.role == "assistant" for m in later):
+            continue
+        return messages[index].text
+    return None
+
+
+def _repeats_owner(view: ActorView, output: ActorOutput) -> bool:
+    return _repeated_message(view, output) is not None
+
+
+_CLOCKED_PROMPT_HIDDEN = frozenset(
+    {
+        "window",
+        "window_index",
+        "current_window",
+        "run_id",
+        "expires_window",
+        "consent_expires_window",
+        "default_expires_window",
+        "consent_version",
+        "sender_source",
+    }
+)
+
+
+def _plain_fields(value):
+    if isinstance(value, list):
+        return [_plain_fields(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _plain_fields(item)
+            for key, item in value.items()
+            if key not in _CLOCKED_PROMPT_HIDDEN
+        }
+    return value
+
+
+def _clocked_prompt_view(view: ActorView) -> dict:
+    """What the owner's model reads on a clocked run. The saved input keeps every field."""
+    data = _plain_fields(view.model_dump(mode="json", exclude={"source_event_id", "window"}))
+    for item in data["observations"]:
+        try:
+            record = json.loads(item["text"])
+        except (TypeError, ValueError):
+            continue
+        if isinstance(record, dict):
+            record = _plain_fields(record)
+            if record.get("source") == "director":
+                record["source"] = "outside"
+            item["text"] = json.dumps(record)
+    return data
+
+
+def earlier_decisions(messages: Sequence[dict[str, Any]], time_text) -> list[str]:
+    """A short list of what this owner said before the messages they can still see.
+
+    messages holds their older messages, newest first, with content and created_at. Messages
+    that carry a decision come first, so a long week of chatter cannot push them out.
+    """
+
+    def carries(message):
+        return bool(_decisive(_words(message["content"])))
+
+    picked = [m for m in messages if carries(m)][:EARLIER_DECISION_ITEMS]
+    picked += [m for m in messages if not carries(m)][: EARLIER_DECISION_ITEMS - len(picked)]
+    picked.sort(key=lambda message: message["created_at"])
+    return [
+        f"{time_text(m['created_at'])}: {' '.join(m['content'].split())[:EARLIER_DECISION_CHARS]}"
+        for m in picked
+    ]
+
+
 class ActorFidelityReview(Contract):
     accepted: bool
     issues: tuple[Text, ...] = Field(default=(), max_length=10)
@@ -1333,6 +1969,39 @@ def _validate_shopping_coverage(output, judgment):
         )
 
 
+def _without_typed_effects(view: ActorView, output: ActorOutput | None) -> ActorOutput | None:
+    """The same turn with its typed grants and requests removed, if that makes it valid."""
+    if view.clock is None or output is None or output.kind not in {"reply", "wait"}:
+        return None
+    if output.kind == "reply" and _names_backstage(view, output):
+        return None
+    kept = output.model_copy(
+        update={
+            "commerce_consent": None,
+            "transfer_consent": None,
+            "online_spend_approval": None,
+            "booking_approval": None,
+            "authorized_amount": None,
+            "allowed_kinds": (),
+            "allowed_assets": (),
+            "decision": None,
+            "proposal_id": None,
+            "fact_ids": (),
+            "mail_requests": (),
+            "resource_requests": (),
+            "shopping_task_requests": (),
+            "transfer_task_requests": (),
+        }
+    )
+    try:
+        validate_actor_output(view, kept)
+        if not view.clock.get("current_action") and kept.next_action is None:
+            return None
+    except ActorContractError:
+        return None
+    return ActorOutput.model_validate(kept.model_dump(mode="json"))
+
+
 class ModelActor:
     def __init__(
         self,
@@ -1353,6 +2022,7 @@ class ModelActor:
         shopping_stimulus_model=None,
         shopping_initial_setup_only: bool = False,
         require_initial_shopping_consent: bool = False,
+        natural: bool = False,
     ) -> None:
         if not 0 <= max_repairs <= 3:
             raise ValueError("Actor repairs must be from zero through three.")
@@ -1374,6 +2044,7 @@ class ModelActor:
             raise ValueError("require_transfer_task_coverage_review must be a boolean.")
         if require_transfer_task_coverage_review and reviewer is None:
             raise ValueError("Transfer task coverage review requires an Actor reviewer.")
+        self.natural = natural
         self.model = model
         self.reviewer = reviewer
         self.prompt = prompt
@@ -1407,6 +2078,16 @@ class ModelActor:
         self.usage = UsageTracker()
         self.last_attempts: list[dict[str, Any]] = []
 
+    def _system_prompt(self, view: ActorView) -> str:
+        base = self.prompt
+        if view.clock is not None and base is ACTOR_PROMPT:
+            base = CLOCK_ACTOR_PROMPT + (CLOCK_MARKET_RULES if _has_market_records(view) else "")
+        return (
+            (base + NATURAL_VOICE if self.natural else base)
+            + (CLOCK_DAY if view.clock is not None else "")
+            + (CLOCK_BOOKING if view.clock is not None and view.assets else "")
+        )
+
     async def respond(self, view: ActorView) -> ActorOutput:
         self.last_attempts = []
         error = None
@@ -1421,9 +2102,6 @@ class ModelActor:
             and request_fidelity["initial_request_turn"]
             and view.market.get("browser_shop_enabled")
         ):
-            # This opt-in scene explicitly asks each owner to delegate trade
-            # authority at setup. Require a model decision; never fill terms
-            # from the scenario's maximum limit or from dialogue in code.
             candidate_schema = create_model(
                 "InitialShopAuthorityCandidate",
                 __base__=candidate_schema,
@@ -1454,9 +2132,6 @@ class ModelActor:
             rejected_stimulus = None
             for stimulus_attempt in range(self.max_repairs + 1):
                 if initial_setup:
-                    # This declared scene starts with setup/standing authority,
-                    # never an immediate purchase. The Actor still generates
-                    # its own words and permissions, with normal fidelity review.
                     stimulus = ShoppingStimulusReview(response_needed=True, new_shopping_tasks=[])
                     break
                 generated_stimulus = None
@@ -1504,9 +2179,6 @@ class ModelActor:
             if stimulus is None:
                 raise ActorContractError("Owner stimulus classification failed validation.")
             if not stimulus.response_needed:
-                # The model already chose silence from the private view. A
-                # second dialogue generator must not turn that choice into
-                # another status reply. This typed yield has no world effects.
                 output = ActorOutput(kind="wait", source_event_id=view.source_event_id)
                 validate_actor_output(view, output)
                 _validate_shopping_coverage(output, stimulus)
@@ -1523,12 +2195,15 @@ class ModelActor:
                     }
                 )
                 return output
+        typed_failure = None
+        asked_once: set[str] = set()
         for attempt in range(self.max_repairs + 1):
             candidate = None
             generated_candidate = None
             output = None
             review = None
             stage = "generation"
+            typed_failure = None
             bindings = {}
 
             def capture_candidate(value: Any) -> None:
@@ -1539,9 +2214,11 @@ class ModelActor:
                 candidate = await generate_json(
                     self.model,
                     candidate_schema,
-                    self.prompt,
+                    self._system_prompt(view),
                     {
-                        "view": view.model_dump(mode="json", exclude={"source_event_id"}),
+                        "view": _clocked_prompt_view(view)
+                        if view.clock is not None
+                        else view.model_dump(mode="json", exclude={"source_event_id"}),
                         "repair_reason": error,
                         "rejected_candidate": prior_candidate,
                         "allowed_fact_ids": fact_ids,
@@ -1550,8 +2227,12 @@ class ModelActor:
                         "Observation, world, event, message, resource, and receipt IDs do not "
                         "belong in fact_ids. Observed results need no declared fact reference.",
                         "request_fidelity": request_fidelity,
-                        "permission_rules": "For an item purchase or sale use commerce_consent. "
-                        "Set transport authorized_amount=null, allowed_assets=[], "
+                        "permission_rules": (
+                            CLOCK_PERMISSION_RULES
+                            if view.clock is not None
+                            else "For an item purchase or sale use commerce_consent. "
+                        )
+                        + "Set transport authorized_amount=null, allowed_assets=[], "
                         "allowed_kinds=[]. "
                         "For kind=reply set decision=null and proposal_id=null. "
                         "Cite the exact private fact ID when using a permitted disclosure summary.",
@@ -1567,6 +2248,8 @@ class ModelActor:
                 )
                 stage = "output_contract"
                 data = candidate.model_dump(mode="json")
+                if "try_to_make_happen" in data:
+                    data["director_requests"] = data.pop("try_to_make_happen")
                 if data["kind"] == "decide_proposal" and data["proposal_id"] is None:
                     latest_assistant = next(
                         (item for item in reversed(view.conversation) if item.role == "assistant"),
@@ -1586,7 +2269,67 @@ class ModelActor:
                     }
                 )
                 stage = "role_contract"
-                validate_actor_output(view, output)
+                try:
+                    validate_actor_output(view, output)
+                except ActorContractError:
+                    typed_failure = output
+                    raise
+                if (
+                    attempt < self.max_repairs
+                    and (held := _wrong_balance(view, output)) is not None
+                ):
+                    raise ActorContractError(
+                        f"Their account holds ${held}. If they mention their balance, use that."
+                    )
+                if (
+                    attempt < self.max_repairs
+                    and "yes" not in asked_once
+                    and (amount := _unrecorded_yes(view, output)) is not None
+                ):
+                    asked_once.add("yes")
+                    booking = (
+                        " If it is for one of the things in assets, fill booking_approval instead."
+                        if view.assets
+                        else ""
+                    )
+                    raise ActorContractError(
+                        f"They said yes to their assistant's request about {amount}. A yes in "
+                        "words alone frees up no money and books nothing. If they agree to let "
+                        "their assistant spend it, fill online_spend_approval with the amount."
+                        f"{booking} If their yes was about something else, leave the fields null "
+                        "and keep the same words."
+                    )
+                if (
+                    attempt < self.max_repairs
+                    and "other" not in asked_once
+                    and (other := _speaks_for_other(view, output)) is not None
+                ):
+                    asked_once.add("other")
+                    raise ActorContractError(
+                        f"{other.title()} decides for themselves what they do. Write only what "
+                        "has reached this person. To involve them, put what this person does in "
+                        "try_to_make_happen, and the answer comes later."
+                    )
+                if (
+                    view.clock is not None
+                    and not view.clock.get("current_action")
+                    and output.next_action is None
+                ):
+                    raise ActorContractError(
+                        "This person is not doing anything at the moment. Fill next_action with "
+                        "what they do next, even if it is only free time until a given hour."
+                    )
+                if self.natural:
+                    if output.kind == "wait" and view.cue != NO_CUE and view.clock is None:
+                        raise ActorContractError(
+                            "A new development is on this person's mind. Say something, even a "
+                            "few words, instead of waiting."
+                        )
+                    if _names_backstage(view, output):
+                        raise ActorContractError(
+                            "This names a backstage term. Write only what this person would "
+                            "say about their real life, with dollars, names, and plain words."
+                        )
                 if stimulus is not None:
                     _validate_shopping_coverage(output, stimulus)
                 if self.reviewer is not None and not (stimulus and not stimulus.response_needed):
@@ -1692,7 +2435,7 @@ class ModelActor:
                     review = await generate_json(
                         self.reviewer,
                         review_schema,
-                        self.review_prompt,
+                        self.review_prompt + NATURAL_REVIEW if self.natural else self.review_prompt,
                         {
                             "view": view.model_dump(mode="json"),
                             "candidate": output.model_dump(mode="json"),
@@ -1793,9 +2536,15 @@ class ModelActor:
                         "stimulus_source": "declared_initial_setup" if initial_setup else "model",
                     }
                 )
+                repeated = _repeated_message(view, output) if view.clock is not None else None
+                if repeated is not None:
+                    self.last_attempts[-1]["owner_message_dropped"] = {
+                        "text": output.text,
+                        "repeats": repeated,
+                    }
+                    return output.model_copy(update={"kind": "wait", "text": ""})
                 return output
             except (ValueError, ValidationError) as exc:
-                # Avoid echoing validation inputs, which can include unintended content.
                 if isinstance(exc, ValidationError):
                     details = exc.errors(
                         include_input=False, include_context=False, include_url=False
@@ -1851,4 +2600,15 @@ class ModelActor:
                         "stimulus_source": "declared_initial_setup" if initial_setup else "model",
                     }
                 )
+        kept = _without_typed_effects(view, typed_failure)
+        if kept is not None:
+            self.last_attempts.append(
+                {
+                    "attempt": len(self.last_attempts) + 1,
+                    "accepted": True,
+                    "stage": "typed_effects_dropped",
+                    "candidate": kept.model_dump(mode="json"),
+                }
+            )
+            return kept
         raise ActorContractError("Actor failed validation after its repair allowance.")

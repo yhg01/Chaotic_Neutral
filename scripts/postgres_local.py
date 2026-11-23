@@ -91,7 +91,7 @@ def data_directory(env: dict) -> Path:
         selected = Path(value).expanduser()
         if not selected.is_absolute():
             selected = ROOT / selected
-        # Keep the final path intact so preparation can reject a symbolic link.
+        # abspath, not resolve(): prepare_data_directory must see and reject a symbolic link.
         selected = Path(os.path.abspath(selected))
     except (OSError, RuntimeError, ValueError):
         raise SystemExit("AGENTRPG_PGDATA must be a valid directory path.") from None
@@ -130,7 +130,7 @@ def control(action: str) -> None:
     try:
         _control(action)
     except (OSError, ValueError, psycopg.Error, subprocess.CalledProcessError):
-        # Connection parsing and provider errors can contain private configuration.
+        # No error text: connection and provider errors can contain private configuration.
         raise SystemExit(
             "PostgreSQL control failed. Check the selected data path, permissions, "
             "local configuration, and PostgreSQL log. Existing data was not moved or deleted."

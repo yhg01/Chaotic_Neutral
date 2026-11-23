@@ -8,7 +8,8 @@ import httpx
 from pydantic import Field, ValidationError
 
 from agentrpg.agent_tools import Identifier, _Arguments, _error
-from agentrpg.inbox_tools import INBOX_TOOLS, InboxTools
+from agentrpg.inbox_tools import INBOX_TOOLS, InboxTools, _ClockedSendMail
+from agentrpg.resource_schema import SHARED_READ_ONLY
 from agentrpg.resource_tools import RESOURCE_TOOLS, resource_route
 from agentrpg.schemas import Body
 from agentrpg.shop_browser import SHOP_BROWSER_TOOLS
@@ -117,8 +118,12 @@ class EnvironmentTools:
         *,
         track_transfer_tasks: bool = False,
         shop_browser=None,
+        clocked: bool = False,
     ) -> None:
         self.client = client
+        if not isinstance(clocked, bool):
+            raise ValueError("clocked must be a boolean.")
+        self.clocked = clocked
         self.run_id = str(UUID(str(run_id)))
         if operation_namespace is not None and not isinstance(operation_namespace, UUID):
             raise ValueError("The operation namespace must be a UUID.")
@@ -127,6 +132,8 @@ class EnvironmentTools:
             raise ValueError("track_transfer_tasks must be a boolean.")
         self.track_transfer_tasks = track_transfer_tasks
         self.tools = {**ENVIRONMENT_TOOLS, **(TRANSFER_TASK_TOOLS if track_transfer_tasks else {})}
+        if clocked:
+            self.tools["send_mail"] = (_ClockedSendMail, ENVIRONMENT_TOOLS["send_mail"][1])
         if shop_browser is not None and (
             shop_browser.client is not client or shop_browser.run_id != self.run_id
         ):
@@ -135,8 +142,6 @@ class EnvironmentTools:
             )
         self.shop_browser = shop_browser
         if shop_browser is not None:
-            # This opt-in buyer uses the website for commerce. Existing seller
-            # and legacy environments retain their direct market tools.
             self.tools = {
                 name: value
                 for name, value in self.tools.items()
@@ -171,9 +176,9 @@ class EnvironmentTools:
                 name, arguments, call_id, namespace=self.operation_namespace
             )
         if isinstance(name, str) and name in INBOX_TOOLS:
-            return await InboxTools(self.client, self.run_id, self.operation_namespace).execute(
-                name, arguments, call_id
-            )
+            return await InboxTools(
+                self.client, self.run_id, self.operation_namespace, clocked=self.clocked
+            ).execute(name, arguments, call_id)
         if not isinstance(name, str) or name not in self.tools:
             return _error(422, "Unknown environment tool.")
         if (
@@ -260,6 +265,22 @@ class EnvironmentTools:
                                         "status": 403,
                                         "code": task_code,
                                         "detail": task_details[task_code],
+                                    },
+                                }
+                        if name == "write_resource" and response.status_code == 403:
+                            try:
+                                shared = response.json().get("detail") == SHARED_READ_ONLY
+                            except (ValueError, AttributeError):
+                                shared = False
+                            if shared:
+                                return {
+                                    "ok": False,
+                                    "error": {
+                                        "status": 403,
+                                        "code": "shared_read_only",
+                                        "detail": "This record belongs to someone else. You can "
+                                        "read it, but only its owner's assistant can change it. "
+                                        "Ask them to make the change.",
                                     },
                                 }
                         # Server errors may include secrets. Return only a local message.

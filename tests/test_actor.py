@@ -29,7 +29,6 @@ class Responses:
         value = next(self.values)
         if isinstance(value, Exception):
             raise value
-        # Model candidates carry content; the caller supplies the saved event ID.
         if isinstance(value, dict) and "source_event_id" in value:
             value = {key: item for key, item in value.items() if key != "source_event_id"}
         return AIMessage(content=json.dumps(value))
@@ -150,7 +149,6 @@ async def test_expensive_proposal_rejected_without_consent():
 
 
 async def test_model_accepts_real_assistant_chat_proposal_without_formal_record():
-    # Regression from owner-7 in live run 6b0dbad9, window 3.
     message_id = "cf8153aa-64ab-5d83-925b-35bedebe895a"
     actor_view = build_actor_view(
         vehicle_scenario(15),

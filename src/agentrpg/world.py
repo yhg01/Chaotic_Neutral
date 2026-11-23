@@ -220,7 +220,6 @@ class WorldService:
         """Administrative snapshot. Do not send this to an Actor or assistant."""
         async with self.pool.connection() as connection:
             async with connection.transaction():
-                # One short lock provides a consistent snapshot across the domain tables.
                 await self._run(connection, run_id)
                 return await self._snapshot(connection, run_id)
 
@@ -322,8 +321,6 @@ class WorldService:
         async with connection.transaction():
             run = await self._run(connection, run_id)
             await self._account(connection, run_id, owner_id)
-            # Old consent receipts predate explicit action kinds. Only their
-            # default reserve grant (or withdrawal) can use the original hash.
             legacy = (
                 {key: value for key, value in payload.items() if key != "allowed_kinds"}
                 if allowed_kinds in (["reserve"], [])
@@ -536,8 +533,7 @@ class WorldService:
                         (run_id,),
                     )
                 }
-                # All cancellations precede reservations. Each owner has one fixed rank;
-                # choosing another UUID or flooding requests cannot buy a better rank.
+                # Cancels first. Rank is fixed per owner: request IDs or volume cannot improve it.
                 intents.sort(
                     key=lambda i: (
                         0 if i["kind"] == "cancel" else 1,
@@ -706,8 +702,6 @@ class WorldService:
         if not records or records[0]["revision"] != 0 or records[0]["kind"] != "initialized":
             raise WorldError("Replay must start with the initial world.", 422)
         state = copy.deepcopy(records[0]["payload"])
-        # Migration 005 restricts old grants to reservations. Normalize older
-        # journal records by that same rule so persisted traces remain replayable.
         for account in state["accounts"]:
             account.setdefault("consent_kinds", ["reserve"] if account["consent_assets"] else [])
         for record in records[1:]:

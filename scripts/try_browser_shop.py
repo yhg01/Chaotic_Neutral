@@ -57,7 +57,6 @@ async def main(args):
         director = Director(pool)
         binding, ledger = None, CampaignLedger(pool)
         if uses_models:
-            # Never create a campaign or change its ceiling in this runner.
             budget = await ledger.summary(args.campaign)
             if Decimal(str(budget["remaining_usd"])) <= 0:
                 raise SystemExit("The existing campaign has no available budget.")
@@ -142,8 +141,6 @@ async def main(args):
         )
         if uses_models:
             report["campaign_budget"] = await ledger.summary(args.campaign)
-        # Preserve each invocation, including partial and failed reports, before
-        # updating the latest report. Resuming never erases earlier evidence.
         latest = folder / "report.json"
         if latest.exists():
             digest = hashlib.sha256(latest.read_bytes()).hexdigest()[:16]

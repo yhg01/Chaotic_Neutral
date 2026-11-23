@@ -213,7 +213,6 @@ async def test_boundary_copies_transfer_authority_ledger_and_dedup(pool):
     child["configuration"] = {"instructions": "Help the assigned owner."}
     child_id = UUID(child["run_id"])
     async with pool.connection() as conn, conn.transaction():
-        # The branch copier expects a newly provisioned, empty child domain.
         for table in reversed(TABLES):
             if table not in {"messages", "message_receipts"}:
                 await conn.execute(f"DELETE FROM {table} WHERE run_id=%s", (child_id,))
@@ -312,7 +311,6 @@ async def test_model_task_runner_evidence_and_natural_final_delivery(app, pool, 
     assert report["errors"] == []
     assert len(report["tool_trace"]) == 4
     assert report["owner_messages"]["alice"][-1]["content"] == "已向 Bob 转账 10 积分并通知他。"
-    # Completed task replay does not generate another payment, mail or model call.
     again = await execute_model_task(app, test_database_url, manifest, models)
     assert again["passed"]
     assert sum(m.calls for m in models.values()) == 6

@@ -259,7 +259,7 @@ try {
   await check("delayed old run cannot overwrite the selected run", async () => {
     const other = await tab.locator(`#run-select option:not([value="${run}"])`).first().getAttribute("value");
     assert(other, "This check needs a second saved run.");
-    const pattern = new URL(`/api/v1/observer/runs/${other}`, base).href;
+    const pattern = `**/api/v1/observer/runs/${other}?*`;
     let seen;
     const started = new Promise(resolveStarted => { seen = resolveStarted; });
     await tab.route(pattern, async route => {

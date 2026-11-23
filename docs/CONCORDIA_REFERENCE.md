@@ -3,13 +3,13 @@
 Reviewed on 27 October 2026 against Google DeepMind Concordia revision
 `239f0e8275a55b186b99e133e06432cd681ff2e3`. This is a source reference, not an
 installed dependency. The inspected files declare the Apache License 2.0.
-The implementation in agentRPG is new code; no Concordia source file was copied.
+The implementation in Chaotic Neutral is new code; no Concordia source file was copied.
 
 The Director follows Concordia's separation of scene definition, observations,
 participant actions, and resolution. The owner Actor is a controlled participant
 who speaks to an assistant. The assistant remains the subject under evaluation.
 
-| Inspected Concordia source | Mechanism in that source | agentRPG implementation |
+| Inspected Concordia source | Mechanism in that source | Chaotic Neutral implementation |
 | --- | --- | --- |
 | [SceneSpec and SceneTypeSpec](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/typing/scene.py) | Frozen scene definitions name participants, round limits, start time, and separate premises for participants. | `ScenarioSpec`, `BeatSpec`, typed triggers, recipient lists, maximum windows, and `build_actor_view`. Stored canonical JSON and a content hash identify a run's fixed scenario. |
 | [SceneTracker](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/components/game_master/scene_tracker.py) | Round state selects a scene. A recorded marker prevents the scene premise from being queued twice. | The Director tests declared conditions and saves beat instances and private cues. Database records preserve delivery across restarts. |
@@ -18,9 +18,13 @@ who speaks to an assistant. The assistant remains the subject under evaluation.
 | [PuppetActComponent](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/components/agent/puppet_act.py) | Fixed responses can replace model generation for selected calls to action. Other calls use the model. | Scripted and model Actors share `ActorView` and `ActorOutput`. Regression tests use fixed responses. Model Actors have bounded repair calls, contract validation, and optional semantic review. |
 | [Asynchronous engine](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/environment/engines/asynchronous.py) | Independent participants observe and act concurrently; the Game Master must support concurrent access. | Independent Actors and assistants run concurrently within a logical decision window. A short settlement phase applies contested actions after the window. Model latency does not advance story time. |
 
+This table describes the window engine, for runs with no `clock` section. A run
+with a `clock` section uses one time-ordered event list and a live Director model.
+[Event clock](EVENT_CLOCK.md) is the contract for those runs.
+
 ## Deliberate changes for evaluation
 
-Concordia permits broad model-based narration and action resolution. In agentRPG,
+Concordia permits broad model-based narration and action resolution. In Chaotic Neutral,
 a model can write a proposal or owner speech. Code validates the scenario and
 commits reservations, credits, consent, and receipts. Narrative claims do not
 change world state.
@@ -35,8 +39,12 @@ The compiler rejects filters that the selected event cannot supply. Author repai
 receive the failed draft and specific compiler errors, including owner, fact, and
 window references. Invalid drafts remain in memory during repair.
 
-An Actor receives only its role, beliefs, known facts, disclosure rules, current
-cue, and private conversation. It has no board credential or general tools.
+An Actor receives only its role and spending limit, beliefs, known facts,
+disclosure rules, current cue, private conversation, the declared assets and owner
+IDs of the run, and its own scoped views: world observations, Inbox observations,
+permitted Resource view, market view, transfer account, and the event that its
+assistant waits for. On a clocked run, it also receives its own view of time.
+It has no board credential or general tools.
 Code checks fact references, explicit disclosure rules, spending limits, proposal
 IDs, event IDs, permitted assets, and permitted reservation operations. Cancellation
 consent requires an alternative confirmed by a world observation. An assistant's
@@ -79,5 +87,8 @@ Actor errors, and evidence IDs in semantic judgments.
 These unit tests use supplied model responses. They do not establish the fidelity
 of a real model or prove that a model evaluator agrees with human reviewers.
 Integration evidence and real model run results are recorded separately in the
-PRD and verification documents. The initial runtime uses fixed conditional plots;
-adaptive intervention search and complete state forks remain outside this version.
+PRD and verification documents. Runs with no `clock` section use fixed conditional
+plots. Adaptive intervention search remains outside this version. For those runs,
+the [Run console](RUN_CONSOLE.md#branch-before-a-selected-turn) can start a new
+path from a saved earlier turn, with complete state in an isolated child run.
+Branching from a clocked run is not implemented.

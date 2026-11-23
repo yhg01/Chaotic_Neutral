@@ -120,8 +120,7 @@ runs: three repeats of each of the five declared cases. The source hash is
 unchanged across the batch. Its three shopping runs complete nine purchases in
 total and each records one automatic recovery after a committed checkout response
 is lost. There are no hard-failure checks, no simulator errors and zero provider
-attempts. [Control report](autonomy-control-results.md),
-[structured evidence](autonomy-control-results.json).
+attempts. [Control evidence](autonomy-control-results.json).
 
 The saved genuine model repayment, safe wait and completed three-purchase runs
 still pass their 20, 14 and 11 functional checks. Their historical audit coverage

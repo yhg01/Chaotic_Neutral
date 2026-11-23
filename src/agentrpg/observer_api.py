@@ -64,7 +64,7 @@ async def overview(run_id: UUID, request: Request, principal: OPERATOR_AUTH, com
         jobs = await rows(
             conn,
             """SELECT owner_id,kind,status,attempts,error,"window",lease_until
-            FROM run_jobs WHERE run_id=%s AND "window"=%s ORDER BY owner_id,kind""",
+            FROM run_jobs WHERE run_id=%s AND "window"=%s ORDER BY owner_id,kind,clock_seq""",
             (run_id, run["current_window"]),
         )
         counts = await row(
@@ -176,7 +176,9 @@ async def records(
             result = await rows(
                 conn,
                 """SELECT m.id,m.author_id,a.name AS author_name,
-                p.owner_id,m.parent_id,m.thread_id,m.title,m.body,m.created_at FROM messages m
+                p.owner_id,m.parent_id,m.thread_id,m.title,m.body,m.created_at,
+                (SELECT r.audience FROM messages r WHERE r.id=m.thread_id) AS audience
+                FROM messages m
                 JOIN agents a ON a.id=m.author_id JOIN run_participants p ON p.agent_id=m.author_id
                 AND p.run_id=%s WHERE m.cluster_id=%s AND (%s::text IS NULL OR p.owner_id=%s)
                 ORDER BY m.seq DESC LIMIT %s OFFSET %s""",
@@ -202,7 +204,6 @@ async def records(
                 "SELECT * FROM {} WHERE run_id=%s AND {} ORDER BY {} LIMIT %s OFFSET %s"
             ).format(sql.Identifier(table), condition, sql.SQL(order))
             result = await rows(conn, statement, (*args, limit + 1, offset))
-            # Operational hashes and leases are not useful in the observer.
             hidden = {"payload_hash", "sender_key", "lease_token", "input_hash"}
             result = [
                 {key: value for key, value in item.items() if key not in hidden} for item in result

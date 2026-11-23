@@ -178,7 +178,6 @@ async def test_policy_cannot_change_or_be_enabled_on_a_historical_failed_run(poo
 
 
 async def tick_health(pool, run, window):
-    # Represent the committed next Actor boundary in this isolated state test.
     async with pool.connection() as conn:
         await conn.execute(
             "UPDATE environment_runs SET current_window=%s WHERE id=%s", (window + 1, run)

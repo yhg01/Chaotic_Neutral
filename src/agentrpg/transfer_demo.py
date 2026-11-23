@@ -69,7 +69,6 @@ async def prepare_task(pool):
     grant = TransferArguments(
         authorization_id=uuid4(), recipient_owner_id="bob", amount=10, memo="昨天的午饭钱"
     )
-    # The task's explicit typed owner input is authority. Neither assistant can grant it.
     await TransferService(pool).authorize(run_id, "alice", message["id"], grant)
     return manifest, grant
 

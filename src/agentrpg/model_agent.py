@@ -82,7 +82,6 @@ class ModelAgent:
             "temperature": 0,
             "provider": {"require_parameters": True},
         }
-        # Only inference is retried here. Board writes have their own operation IDs.
         for attempt in range(3):
             self.usage.requests += 1
             self.usage.in_flight += 1

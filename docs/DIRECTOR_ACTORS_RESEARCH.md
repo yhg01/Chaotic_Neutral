@@ -40,7 +40,7 @@ Initial validation should cover missing facts, controlled disclosure, false beli
 
 ## Source versions and reuse limits
 
-The research inspected source and papers. It did not execute these projects or measure their performance in agentRPG.
+The research inspected source and papers. It did not execute these projects or measure their performance in Chaotic Neutral.
 
 | Code project | Inspected commit | Repository license |
 |---|---|---|

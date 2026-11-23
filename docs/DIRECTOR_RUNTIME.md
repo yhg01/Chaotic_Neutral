@@ -6,10 +6,15 @@ control of their decisions. The environment includes transport reservations,
 private internal mail, owner Resources, and an item market. Transactions use
 integer credits, explicit consent, and saved receipts.
 
+This guide covers runs with no `clock` section. They use the window engine and
+`scripts/run_scenario.py`. A scenario with a `clock` section runs by story time,
+with one time-ordered event list and a live Director model, through
+`scripts/run_clocked.py`. [Event clock](EVENT_CLOCK.md) is the contract for those
+runs.
+
 This guide describes operation and current scope. The [PRD](../PRD.md) and
-[verification record](VERIFICATION.md) contain the test evidence. The
-[implementation plan](DIRECTOR_ACTORS_PLAN.md) includes later capabilities that
-are not part of this version.
+[verification record](VERIFICATION.md) contain the test evidence. PRD rows AD-01
+to AD-13 track the implementation.
 
 ## Run a scenario
 
@@ -27,8 +32,9 @@ uv run python -m agentrpg.migrate
 uv run python -m agentrpg
 ```
 
-The default API origin is `http://127.0.0.1:8000`. Restart an older API process
-before using the new routes. To use a separate local port, start the process with
+The default API origin is `http://127.0.0.1:8000`. Restart an API process that
+started before a code update, so that it serves the current routes. To use a
+separate local port, start the process with
 `PORT=8001 uv run python -m agentrpg` and give the run command
 `--base-url http://127.0.0.1:8001`. Both processes must use the same database.
 
@@ -96,6 +102,16 @@ This case reuses campaign `afc2455b-ebfd-4c76-8589-177bb788a40d` and its origina
 runs. Read the campaign ledger or the observer's **Model costs** for current
 charges, reservations, and remaining allowance.
 
+The v2 scenarios keep each conflict but rewrite everything people read as real
+life: `after_the_verdict_v2.json`, `community_storm_exchange_v2.json`,
+`vehicle_conflict_v2_2.json`, and `vehicle_conflict_v2_15.json`. Regenerate them
+with `scripts/build_human_scenarios.py`. Each owner has a `voice` describing how
+they write. For new runs, model Actors use this voice at temperature 0.8, can stay
+silent when no new cue exists, and are rejected if they name backstage terms. The
+v1 files remain the frozen source of recorded runs. Without tool checklists,
+integration checks can fail because an assistant never acted; read that as a finding
+about the run, not as a simulator failure. Controls stay explicit tool tests.
+
 The verification also includes `scenarios/vehicle-control-15.json`. It gives each
 owner a different preferred taxi when the shared car remains unavailable. This
 checks concurrent owner chat and transactions with fewer allocation conflicts:
@@ -148,10 +164,14 @@ A run stores canonical scenario JSON and its content hash. Editing the source
 file changes a future run; it does not change a run already created. The runtime
 Director selects only declared branches. It cannot invent a new owner fact,
 rewrite a score rule, or make an assistant action succeed through narration.
+The declared-branch rule is for runs with no `clock` section. On a clocked run, a
+live Director model writes content and code applies typed, bounded effects. Prose
+still establishes no payment, booking or order ([Event clock](EVENT_CLOCK.md),
+rule R11).
 
 ## Decision windows and owner chat
 
-Each decision window has three phases:
+On a run with no `clock` section, each decision window has three phases:
 
 1. The Director tests eligible plot beats and prepares private Actor inputs.
    Actors run concurrently with other Actors. Accepted owner messages and
@@ -224,8 +244,9 @@ polling. When all participants are finished or explicitly waiting and no event,
 pending action, queued cue or future beat remains, the Director pauses with
 `result.reason=waiting_for_events`. This is a valid unresolved wait, not successful
 task completion or an infrastructure failure. Resume before injecting new mail,
-or queue a cue and resume through the existing control interface. The separate
-wall-clock scheduler is not implemented by this change.
+or queue a cue and resume through the existing control interface. A wall-clock
+scheduler is not implemented. Clocked runs schedule waits and wakes by story time
+([Event clock](EVENT_CLOCK.md), rule R8).
 
 ## World effects and recovery
 
@@ -236,6 +257,9 @@ extend the six board tools for Agents attached to an environment run. Identity
 and owner scope come from the credential, not model arguments. The run adapter
 also exposes internal mail, Resource search and fetch, delegated content changes,
 and market tools. The [API contract](API.md) lists their names and payloads.
+These are the internal names. Saved events and legacy runs keep them. New runs
+show assistants the natural names in `src/agentrpg/agent_surface.py`, for example
+`get_my_info` for `read_run_view` and `end_turn` for `finish_activation`.
 
 Reservations and cancellations are staged during a decision window. A pending
 receipt confirms submission only. Settlement checks consent, capacity, credits,
@@ -284,8 +308,9 @@ starting a separate run. Creating a new run does not resume the old one.
 
 ## Watch a run
 
-Open <http://127.0.0.1:8000/runs> and enter `ADMIN_TOKEN` from the ignored `.env`
-file. Select the run ID printed by the worker. The **Live updates** control
+Open <http://127.0.0.1:8000/runs> directly on the loopback server. No token or
+sign-in is needed. The [local access contract](API.md#local-console-access) gives
+the rule. Select the run ID printed by the worker. The **Live updates** control
 refreshes saved activity. You can filter by participant and event type.
 
 Use **Timeline** to follow cues and settlement. **Owner chat**, **Board**, and
@@ -387,14 +412,20 @@ Concordia is a design and code reference, not an installed runtime dependency.
 This version adds durable PostgreSQL events and exact transaction rules to those
 patterns. Transport uses a fixed time slot; commerce uses simulated item stock
 and credits. The environment also includes internal mail and owner Resource
-workspaces. It does not perform real purchases, email delivery, web browsing,
-calendar operations, or arbitrary real-world actions. Actors can request
+workspaces. It does not perform real purchases, real email delivery, real web
+browsing, calendar operations, or arbitrary real-world actions. Clocked runs add
+simulated sites and mail to people outside the run; both stay inside the
+simulation ([Event clock](EVENT_CLOCK.md)). Actors can request
 backstage clarification and typed effects; free-form text alone changes no state.
 
 The [extension contract](ENVIRONMENT_EXTENSIONS.md) defines permissions for the
 implemented Resource paths. The original dashed diagram links retain their
-visual directions. Adaptive intervention search and complete simulation-state
-forks remain outside this version. Automated contract checks cannot prove that
+visual directions. Adaptive intervention search remains outside this version.
+For a run with no `clock` section, the
+[Run console](RUN_CONSOLE.md#branch-before-a-selected-turn) can start a new path
+from a saved earlier turn: an isolated child run with the complete environment
+and Agent state of that boundary. Branching from a clocked run is not
+implemented. Automated contract checks cannot prove that
 arbitrary Actor prose contains no invented claim or indirect disclosure. Keep
 semantic review and human review separate from exact database checks.
 

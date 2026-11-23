@@ -133,7 +133,6 @@ class LocalTaskAssistant:
                 wait_for=["owner_message"],
                 text="Bob 已核实金额为 10 积分，但尚未收到您的付款授权。请确认是否支付。",
             )
-        # This result ends the activation. It must not silently complete an open task.
         return ActivationResult(status="finished")
 
 

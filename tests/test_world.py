@@ -240,7 +240,6 @@ async def test_release_can_enable_peer_reservation_in_same_window(make_world):
     )
     await grant(world, run_id, allowed_kinds=["cancel"])
     await grant(world, run_id, "owner-2")
-    # Arrival order has no effect: cancellation is the declared first phase.
     await world.submit(run_id, "owner-2", 0, uuid4(), "reserve", "car", 0)
     await world.submit(run_id, "owner-1", 0, uuid4(), "cancel", "car", 0)
     results = await world.settle(run_id, 0, 23)
@@ -548,7 +547,6 @@ async def test_world_requests_keep_normalized_payload_after_settlement(make_worl
             "expected_version": 0,
         },
     }
-    # Identical retries retain both the original input and the final receipt.
     assert (
         await world.set_consent(
             run_id, "owner-1", 20, ["car"], consent_id, allowed_kinds=["cancel", "reserve"]

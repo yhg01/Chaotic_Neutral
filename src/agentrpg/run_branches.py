@@ -419,7 +419,7 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
                     }
                 )
             elif table == "resource_journal":
-                # Remapped UUIDs change the canonical order. Sort again, so journal replay stays identical.
+                # Remapped UUIDs change the canonical order. Sort again for identical replay.
                 payload = record["payload"]
                 payload["resources"].sort(key=lambda item: item["id"])
                 payload["permissions"].sort(key=lambda item: item["owner_id"])

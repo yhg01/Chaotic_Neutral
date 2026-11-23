@@ -358,7 +358,7 @@ class ClockEngine:
             async with self.pool.connection() as conn:
                 durable = await next_event(conn, ctx.id)
             if gate.generation != generation:
-                # A process reported while the queue was read. Its event may sort first, so read again.
+                # A process reported during the read. Its event may sort first: read again.
                 continue
             parked = gate.head()
             use_parked = parked is not None and (
@@ -452,7 +452,7 @@ class ClockEngine:
             )
             processes = await rows(conn, "SELECT * FROM clock_processes WHERE run_id=%s", (ctx.id,))
             bars = {(p["owner_id"], p["kind"]): p["bar_s"] for p in processes}
-            # Resume the bar at the earliest unfinished call, or a later event could commit before it.
+            # Resume the bar at the earliest unfinished call, or a later event commits first.
             unfinished = await rows(
                 conn,
                 "SELECT owner_id,start_s FROM clock_actions "
@@ -1545,7 +1545,7 @@ class ClockEngine:
             ):
                 return
             if action is not None and not action["reachable"]:
-                # This wake's key is spent. Bump wait_id, or the next wake reuses the key and is not queued.
+                # This wake's key is spent. Bump wait_id, or the next wake is not queued.
                 await conn.execute(
                     "UPDATE clock_processes SET wait_id=wait_id+1 "
                     "WHERE run_id=%s AND owner_id=%s AND kind='actor'",

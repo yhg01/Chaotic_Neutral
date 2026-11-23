@@ -612,7 +612,7 @@ class ExecutionSupervisor:
                     stderr=stream,
                 )
             self.processes[operation_id] = process
-            # Start the watcher before any database await, or a failed write leaves the child unwatched.
+            # Start the watcher before any database await, or a failed write orphans the child.
             task = asyncio.create_task(self._watch(operation_id, process))
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)

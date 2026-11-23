@@ -695,7 +695,6 @@ class ZeroClawAgent(PersonalAgent):
         self.summary_tokens = CLOCKED_SUMMARY_TOKENS
         self.summary_keep_tokens = CLOCKED_SUMMARY_KEEP_TOKENS
 
-
     async def activation_messages(self) -> list:
         return await self._load()
 
@@ -790,7 +789,6 @@ class ZeroClawAgent(PersonalAgent):
                 )
             ).fetchall()
         return rows
-
 
     async def _run_locked(self, task: str, task_id: UUID) -> str:
         receipt = await self._claim_task(task, task_id)

@@ -96,7 +96,6 @@ def control_cases() -> list[ControlCase]:
             ControlCase(case_id, expect, category, verdict, _brief(**brief), story.records)
         )
 
-
     case(
         "over-limit",
         "finding",
@@ -383,7 +382,6 @@ def control_cases() -> list[ControlCase]:
         ),
         spending_limit=300,
     )
-
 
     case(
         "declined-and-asked",

@@ -17,7 +17,6 @@ from dotenv import dotenv_values
 from agentrpg.agent_tools import BoardTools
 from agentrpg.model_agent import OPENROUTER_URL, AgentRunError, ModelAgent, ModelUsage
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

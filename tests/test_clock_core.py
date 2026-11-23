@@ -160,8 +160,6 @@ def ai(*names, text="", ids=None):
     return AIMessage(content=text, tool_calls=calls)
 
 
-
-
 @pytest.mark.parametrize(("name", "expected"), sorted(FROZEN_HASHES.items()))
 def test_saved_scenario_hashes_do_not_change(name, expected):
     spec = ScenarioSpec.model_validate_json((SCENARIOS / name).read_text())
@@ -269,8 +267,6 @@ def test_week_scenario_in_the_repository_validates():
     assert clocked and not set(clocked) & set(FROZEN_HASHES)
 
 
-
-
 def test_time_arithmetic_is_plain():
     assert parse_at("Mon 06:30", START) == 30
     assert parse_at("Monday 06:00", START) == 0
@@ -311,8 +307,6 @@ def test_notice_delay_is_seeded():
     assert all(240 <= sample <= 2400 for sample in samples)
 
 
-
-
 def test_price_of_a_thought_ignores_provider_usage():
     clock = config(think={"tokens_per_minute": 1500, "floor_seconds": 20, "cap_seconds": 180})
     assert price_think(AIMessage(content="hi"), clock) == 20
@@ -340,8 +334,6 @@ def test_price_of_an_owner_turn_is_clamped():
     assert price_actor(0, clock) == 45
     assert price_actor(10_000, clock) == 900
     assert price_actor(300, clock) == 45 + 60
-
-
 
 
 def test_fold_stamps_each_call_at_the_start_of_its_duration():
@@ -401,8 +393,6 @@ def test_stamps_recompute_identically_from_saved_messages():
         assert list(again.bars) == sorted(again.bars)
 
 
-
-
 def _rows(count, seed):
     rng = random.Random(seed)
     rows = []
@@ -433,8 +423,6 @@ def test_a_tie_depends_on_the_seed_and_not_on_arrival():
     other = sorted(["a", "b", "c", "d", "e", "f"], key=lambda key: tie(2, key))
     assert first != other
     assert first == sorted(reversed(["a", "b", "c", "d", "e", "f"]), key=lambda key: tie(1, key))
-
-
 
 
 def _event(kind, owner_id=None, cause=None, **payload):
@@ -469,8 +457,6 @@ def test_owner_wake_classes():
     assert classify_actor_event(_event("board_posted"), "dan") is None
     assert classify_actor_event(_event("resource_updated", "dan"), "dan") is None
     assert classify_actor_event(_event("market_settled"), "dan") is None
-
-
 
 
 def test_new_fields_leave_window_run_bytes_unchanged():
@@ -598,8 +584,6 @@ def test_clocked_actor_candidate_maps_back_to_the_saved_field():
             next_action={"description": "Nap", "minutes": 4321, "reachable": True, "category": "x"},
         )
     assert ModelActor
-
-
 
 
 def _gate(**values):
@@ -880,8 +864,6 @@ def test_simulated_conductor_never_goes_backwards_and_ignores_latency():
         assert [item[0] for item in first] == sorted(item[0] for item in first)
         for latency_seed in (1, 2, 3):
             assert simulate(world_seed, latency_seed) == first
-
-
 
 
 def clocked_spec(**clock):

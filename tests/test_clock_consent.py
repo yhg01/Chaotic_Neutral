@@ -73,8 +73,6 @@ def actor_model(*answers):
     return GenericFakeChatModel(messages=iter([AIMessage(json.dumps(a)) for a in answers]))
 
 
-
-
 def test_only_a_clocked_day_with_things_to_book_shows_the_booking_field():
     schema = _candidate_schema(view()).model_json_schema()
     assert "booking_approval" in schema["properties"]
@@ -227,8 +225,6 @@ async def test_a_second_yes_to_the_same_booking_adds_no_money(app, pool, test_da
     assert account["consent_budget"] == 5 and account["consent_assets"] == ["car"]
 
 
-
-
 @pytest.mark.parametrize(
     "asked,text,found",
     [
@@ -265,8 +261,6 @@ async def test_a_yes_in_words_is_asked_about_once_and_the_next_answer_stands():
     output = await actor.respond(asked)
     assert output.text == "yes go ahead" and output.booking_approval is None
     assert len(actor.last_attempts) == 2
-
-
 
 
 @pytest.mark.parametrize(

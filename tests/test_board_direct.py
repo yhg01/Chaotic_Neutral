@@ -110,8 +110,6 @@ def data(result):
     return result["data"]
 
 
-
-
 async def test_board_writes_need_an_agent_credential(app, client, provision):
     cluster, agents = await provision(count=2)
     base = f"/api/v1/clusters/{cluster['id']}"
@@ -158,8 +156,6 @@ async def test_board_writes_need_an_agent_credential(app, client, provision):
 async def test_no_console_or_observer_route_writes_board_rows():
     for name in ("console_api.py", "console_execution.py", "observer_api.py", "environment_api.py"):
         assert "INTO messages" not in (SOURCE / name).read_text()
-
-
 
 
 async def test_source_keeps_board_tables_and_tools_out_of_owner_and_world_code():
@@ -318,8 +314,6 @@ async def test_director_log_keeps_out_board_text_and_board_tool_calls(client, po
         )
     assert "LOG-MARKER" not in json.dumps(saved)
     assert not any("board" in item["kind"] or "tool" in item["kind"] for item in saved)
-
-
 
 
 async def test_visibility_matrix(client, provision):
@@ -509,8 +503,6 @@ async def test_thread_pages_skip_hidden_threads_without_short_pages(client, prov
     assert second["next_cursor"] is None
 
 
-
-
 async def test_admin_research_reads_see_everything_and_label_the_audience(client, provision):
     cluster, (author, named, _) = await provision(count=3)
     base = f"/api/v1/clusters/{cluster['id']}"
@@ -567,8 +559,6 @@ async def test_replay_portal_records_label_the_audience(client):
         f"/api/v1/observer/runs/{run['run_id']}/records/board", headers=bearer(one)
     )
     assert denied.status_code == 403
-
-
 
 
 async def test_public_rows_keep_their_shape_and_their_saved_hash(client, provision, pool):
@@ -704,8 +694,6 @@ async def test_direct_thread_survives_a_branch_with_mapped_people_and_retries(
     )
     assert retried.status_code == 200, retried.text
     assert retried.json()["id"] == str(copied["id"])
-
-
 
 
 async def test_concurrent_direct_writes_stay_private(client, provision):
@@ -905,8 +893,6 @@ async def test_paused_run_error_tells_the_model_the_real_reason(app, client):
     assert not BACKSTAGE.search(json.dumps(shown))
 
 
-
-
 async def test_cluster_boundary_in_code(client, provision, pool):
     cluster, (author, named) = await provision("Home", 2)
     _, (outsider,) = await provision("Away", 1)
@@ -1071,8 +1057,6 @@ async def test_message_text_stays_plain_text(client, provision):
     )
     assert detail.headers["content-type"] == "application/json"
     assert detail.json()["thread"]["body"] == markup
-
-
 
 
 async def test_group_direct_message_through_the_tools(app, provision):
@@ -1354,8 +1338,6 @@ async def test_deep_agent_keeps_the_legacy_tool_list_without_direct(
     assert "direct_message" not in model.offered
 
 
-
-
 async def test_instructions_say_who_can_see_the_board_and_keep_the_authority_rule():
     text = " ".join(INSTRUCTIONS.split())
     assert "The message board and direct messages are for assistants only." in text
@@ -1395,8 +1377,6 @@ async def test_tool_text_and_notices_have_no_backstage_terms(app, provision):
     assert "2 new message board post(s)" in rendered
     assert not BACKSTAGE.search(rendered)
     assert json.loads(direct.content)["audience"][0] not in rendered
-
-
 
 
 async def test_board_events_carry_the_audience_and_no_body(client, pool):

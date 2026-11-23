@@ -99,8 +99,6 @@ def repeats(first, second, assistant="Understood."):
     return _repeats_owner(owner_view(("owner", first), ("assistant", assistant)), said(second))
 
 
-
-
 @pytest.mark.parametrize(
     ("first", "second"),
     [
@@ -362,16 +360,12 @@ async def test_mei_second_no_is_saved_and_a_chatty_repeat_is_marked(app, pool, t
     assert marked == [{"text": text, "repeats": text}]
 
 
-
-
 def test_owner_is_told_when_online_approval_applies():
     field = ClockedActorCandidate.model_fields["online_spend_approval"].description
     for words in ("specific request", "declined", "first one", "status replies"):
         assert words in field
     for words in ("just asked for a specific", "first message of the week", "status reply"):
         assert words in CLOCK_DAY
-
-
 
 
 def bearer(participant):
@@ -901,8 +895,6 @@ async def test_nothing_a_clocked_assistant_reads_holds_a_test_word(app, pool, te
     assert "Your booking of car did not go through" in seen
 
 
-
-
 @pytest.mark.parametrize(
     ("kind", "payload", "sentence"),
     [
@@ -1065,8 +1057,6 @@ async def test_clocked_send_mail_takes_a_name_and_a_window_session_does_not(app,
     )
 
 
-
-
 def clock_config():
     return ClockConfig.from_section(scenario().clock.model_dump(mode="json"), 7)
 
@@ -1127,8 +1117,6 @@ async def test_old_board_posts_have_varied_believable_past_times(app, pool, test
     ), listed
     first_prompt = next(m for m in models["dan"].all_seen[0] if m.type == "human")
     assert first_prompt.content.startswith("It's Monday 9 November, 06:0")
-
-
 
 
 @pytest.mark.parametrize(
@@ -1197,8 +1185,6 @@ def test_real_reversals_are_still_refused(text):
     assert _has_assistant_role_reversal(text, clocked=True)
     with pytest.raises(ActorContractError):
         validate_actor_output(owner_view(), said(text))
-
-
 
 
 def test_earlier_decisions_are_short_keep_decisions_and_stay_in_order():
@@ -1292,8 +1278,6 @@ async def test_owner_view_holds_no_paging_cursor(app, pool, test_database_url):
     assert len(inbox["items"]) == 12
     assert "next_cursor" not in inbox
     assert inbox["older_mail_not_shown"] is True
-
-
 
 
 async def seeded_run(pool, name):
@@ -1457,8 +1441,6 @@ async def test_a_week_of_searches_fits_under_the_new_site_limit(pool):
         result = await tools.execute("web_search", {"query": query}, f"s{index}")
         assert "No results" not in result["data"]["text"], query
     assert len(brain.calls) == len(needed) - 1
-
-
 
 
 def week(name):

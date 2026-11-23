@@ -15,7 +15,6 @@ from agentrpg.scenario_schema import ScenarioSpec
 ROOT = Path(__file__).resolve().parents[1]
 
 
-
 BILL_AMOUNT = 50
 BILL_DAN_OPENING = 11
 BILL_MEI_OPENING = 340
@@ -1349,10 +1348,6 @@ def agent_bill():
     }
     _bill_check_words(data)
     return data
-
-
-
-
 
 
 def _fl_t(block):
@@ -5433,8 +5428,6 @@ def write_five_lives_run_sheet():
     start = text.index(FL_DOC_START) + len(FL_DOC_START)
     end = text.index(FL_DOC_END)
     FL_DOC.write_text(text[:start] + "\n\n" + five_lives_run_sheet() + "\n" + text[end:])
-
-
 
 
 BUILDERS = {"agent_bill_week": agent_bill, "five_lives_week": five_lives}

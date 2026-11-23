@@ -97,7 +97,6 @@ class ClockGate:
         self.peak_calls_in_flight = 0
         self.successes = 0
 
-
     def register_tools(self, process: str, names: Collection[str]) -> None:
         """Name the world tools of one Agent. Everything else that it calls is free."""
         self._gated[process] = frozenset(names)
@@ -148,7 +147,6 @@ class ClockGate:
         for entry in state.entries.values():
             entry.finished.set()
         self._bump()
-
 
     def _fold(self, state: _Process, messages: Sequence):
         return fold_stamps(
@@ -314,7 +312,6 @@ class ClockGate:
     def think_slot(self) -> _ThinkSlot:
         """At most max_parallel_thinkers model calls run at one time."""
         return _ThinkSlot(self)
-
 
     def head(self) -> ParkedCall | None:
         """The lowest registered call, arrived or not."""

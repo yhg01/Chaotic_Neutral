@@ -216,8 +216,6 @@ def parse_url(url: str) -> tuple[str | None, str, dict]:
     return slug, path, query
 
 
-
-
 @dataclass(frozen=True)
 class Link:
     label: str
@@ -389,8 +387,6 @@ def not_found_page(url: str) -> Page:
         status=404,
         sections=[Section(lines=[f"{target} Check the address, or search the web for it."])],
     )
-
-
 
 
 def max_sites(run: dict) -> int:
@@ -854,8 +850,6 @@ async def finish_search_ask(conn, run_id, key, site_id=None):
         "UPDATE web_search_asks SET status=%s,site_id=%s WHERE run_id=%s AND query_key=%s",
         ("created" if site_id else "none", site_id, run_id, key),
     )
-
-
 
 
 def _money(amount) -> str:
@@ -1553,8 +1547,6 @@ async def open_url(conn, run_id, owner_id, url) -> Page:
     if site_id is not None:
         page = await build_page(conn, run_id, site_id, path, query, owner_id)
     return page if page is not None else not_found_page(url)
-
-
 
 
 class _Form(BaseModel):

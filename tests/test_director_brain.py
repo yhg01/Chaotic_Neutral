@@ -211,8 +211,6 @@ SERIOUS_ANSWER = {
 }
 
 
-
-
 async def test_trigger_fills_the_log_for_clocked_runs_only(pool):
     window_run = await make_run(pool, clocked=False)
     clocked = await make_run(pool)
@@ -464,8 +462,6 @@ async def test_board_text_is_absent_even_when_it_was_posted(client, pool):
     assert secret not in model.text()
 
 
-
-
 async def test_context_is_compact_complete_and_free_of_test_words(pool):
     run_id = await make_run(pool, setting_notes="A small harbour town. Rain most days.")
     async with pool.connection() as conn, conn.transaction():
@@ -600,8 +596,6 @@ def test_no_prompt_uses_a_word_of_the_machinery():
     ):
         assert TEST_VOCABULARY.findall(prompt) == []
         assert not re.search(r"\bcredits?\b", prompt, re.I)
-
-
 
 
 async def test_need_more_gets_one_look_up_and_no_more(pool):
@@ -926,7 +920,6 @@ def test_every_fallback_is_ordinary_life_within_its_bounds():
     validate_plan(request, owners={"dan"})
 
 
-
 FULL_PLAN = {
     "scale": "extreme",
     "about_owner": "dan",
@@ -1242,8 +1235,6 @@ async def test_nested_later_happenings_are_refused():
     )
 
 
-
-
 async def test_a_site_model_builds_the_site_and_the_director_model_does_the_rest(pool):
     run_id = await make_run(pool)
     site = {
@@ -1477,8 +1468,6 @@ async def test_scripted_brain_gives_set_plans_with_no_provider(pool):
     assert [call[0] for call in brain.calls].count("perturb") == 3
     summary = await apply_plan(pool, run_id, first, 3600, "scripted:one")
     assert summary["mail"] and summary["records"]
-
-
 
 
 MARKET = {
@@ -1835,8 +1824,6 @@ async def test_a_mild_event_moves_no_money_and_must_say_what_happened(pool):
         assert len(model.calls) == 1
 
 
-
-
 async def test_a_review_runs_for_each_kind_of_waiting_item_and_only_then(pool):
     run_id = await market_run(pool)
     idle = DirectorBrain(pool, ModelMustNotBeCalled())
@@ -2126,8 +2113,6 @@ async def test_mail_to_someone_outside_is_answered_by_mail_from_them(pool):
     assert calm == DirectorPlan(scale="review")
 
 
-
-
 async def test_a_new_site_is_built_from_the_place_and_the_search_only(pool):
     run_id = await make_run(pool, setting_notes=NOTES)
     async with pool.connection() as conn, conn.transaction():
@@ -2322,8 +2307,6 @@ async def test_a_setting_with_no_place_or_a_long_opening_stays_short(pool):
     await DirectorBrain(pool, model).site_for_search(run_id, "dan", "tools", 3600)
     assert model.data()["place"].endswith("sea.") and "tin" not in model.data()["place"]
     assert len(model.data()["place"]) <= 400
-
-
 
 
 @pytest.mark.parametrize(
@@ -2638,8 +2621,6 @@ def test_the_place_in_an_authored_week_holds_nothing_private(name):
         assert owner.name.split()[0] not in place
     assert "$" not in place and "guide" not in place.casefold()
     assert spec.clock.director.small_happenings is False
-
-
 
 
 def _own_bill_plan(owner="dan", bill="plan-nov", site="quillmere"):

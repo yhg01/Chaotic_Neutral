@@ -243,7 +243,6 @@ class ClockEngine:
         self._outage_since: float | None = None
         self._successes_seen = 0
 
-
     async def advance(self, run_id, max_sim_minutes: int | None = None) -> dict:
         """Run until the story moves max_sim_minutes on, or the run stops running."""
         run_id = UUID(str(run_id))
@@ -764,7 +763,6 @@ class ClockEngine:
             )
         return {item["call_id"] for item in saved}
 
-
     async def _undelivered(self, conn, ctx: _Run, recipient_kind: str, kinds, owner=None) -> list:
         return await rows(
             conn,
@@ -940,7 +938,6 @@ class ClockEngine:
         if action is None and process["until_s"] is not None:
             due.append(max(now_s, process["until_s"]))
         return min(due) if due else None
-
 
     async def _on_agent_wake(self, ctx: _Run, event: dict, now_s: int) -> None:
         owner = event["owner_id"]
@@ -1530,7 +1527,6 @@ class ClockEngine:
                 f"message:{message_id}",
                 owner,
             )
-
 
     async def _on_actor_wake(self, ctx: _Run, event: dict, now_s: int) -> None:
         owner = event["owner_id"]
@@ -2380,7 +2376,6 @@ class ClockEngine:
                     (ctx.id, owner),
                 )
 
-
     async def _ask_brain(self, make_call, ctx: _Run):
         """One decision with no transaction open. The story waits for the world's model.
 
@@ -2672,7 +2667,6 @@ class ClockEngine:
                         owner,
                     )
             await self._mark_done(ctx, event, conn)
-
 
     async def _settle(self, ctx: _Run, window: int) -> None:
         try:

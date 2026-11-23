@@ -92,8 +92,6 @@ def actors_for(owners, **turns):
     return {owner: ScriptedOwner(turns.get(owner, [])) for owner in owners}
 
 
-
-
 async def test_control_runs_to_the_horizon_with_story_order(app, test_database_url):
     run, trace, models, actors = await control.run_control(
         app, test_database_url, latency_seed=0, parallel=8, max_latency=0
@@ -138,8 +136,6 @@ async def test_one_thinker_at_a_time_is_respected(app, test_database_url):
     ):
         await engine.run(created["run_id"])
         assert engine.gate.peak_calls_in_flight == 1
-
-
 
 
 async def test_two_hour_errand_freezes_the_owner_until_it_ends(app, pool, test_database_url):
@@ -439,8 +435,6 @@ async def test_limit_rests_one_process_and_the_run_goes_on(app, pool, test_datab
     assert waiting == [{"content": "Two."}]
 
 
-
-
 async def test_stale_owner_effect_becomes_a_saved_rejection(app, pool, test_database_url):
     owners = ("dan",)
     data = scenario(owners, duration_minutes=240).model_dump(mode="json")
@@ -721,8 +715,6 @@ async def test_advance_stops_at_a_bound_and_resumes(app, pool, test_database_url
     assert control.trace_text(trace) == control.trace_text(baseline)
 
 
-
-
 @pytest.mark.parametrize(
     "kill_after", ["parked", "tool_committed"], ids=["while_parked", "after_tool_commit"]
 )
@@ -847,8 +839,6 @@ async def test_crash_after_all_tool_writes_and_before_the_next_checkpoint(
     assert "All done." in replies
     tools = await events(pool, created["run_id"], "assistant_tool_call")
     assert sorted(e["payload"]["tool"] for e in tools) == ["inspect_world", "read_run_view"]
-
-
 
 
 def _seed_with_outcome(key, level, outcome):
@@ -1163,8 +1153,6 @@ async def test_unpaid_assistant_bill_ends_the_assistant(app, pool, test_database
     assert all(job["start_s"] <= 3600 for job in jobs)
 
 
-
-
 FORBIDDEN = re.compile(
     r"\b(windows?|ticks?|beats?|cues?|directors?|actors?|scenarios?|simulat\w+)\b", re.I
 )
@@ -1339,8 +1327,6 @@ async def test_summary_threshold_keeps_model_input_near_the_target(app, test_dat
     assert len(humans) == 7
 
 
-
-
 def _run_clocked():
     path = Path(__file__).resolve().parents[1] / "scripts" / "run_clocked.py"
     spec = importlib.util.spec_from_file_location("run_clocked", path)
@@ -1399,8 +1385,6 @@ def test_run_script_refuses_a_scenario_without_a_clock(tmp_path):
     path = Path(__file__).resolve().parents[1] / "scenarios" / "vehicle-conflict-2.json"
     with pytest.raises(script.ScenarioRunError):
         script.load_scenario(path, None)
-
-
 
 
 async def test_pops_keep_rule_order(app, test_database_url):
@@ -1878,8 +1862,6 @@ def test_the_story_trace_masks_only_values_that_differ_between_runs_by_design():
     assert control.normalise(saved("hello", None)) != control.normalise(saved("hello", "abc="))
 
 
-
-
 async def _story_time(pool, run_id) -> int:
     found = await rows(pool, "SELECT sim_s FROM clock_state WHERE run_id=%s", UUID(str(run_id)))
     return found[0]["sim_s"]
@@ -2246,8 +2228,6 @@ async def test_director_provider_rejection_pauses_and_a_resume_answers(
     assert any("lights flicker" in view.cue for view in actors["dan"].views)
 
 
-
-
 async def test_api_blip_at_the_start_of_an_activation_retries_and_loses_nothing(
     app, pool, test_database_url
 ):
@@ -2356,8 +2336,6 @@ async def test_owner_failure_shows_a_cue_once_more_and_cannot_loop(app, pool, te
     assert sum("Dentist" in cue for cue in seen) == 2
     errors = await events(pool, created["run_id"], "simulator_error")
     assert [e["payload"]["reason"] for e in errors] == ["contract", "contract"]
-
-
 
 
 async def test_event_that_cannot_be_handled_is_recorded_and_the_run_passes_it(
@@ -2502,8 +2480,6 @@ async def test_nul_in_model_text_is_removed_before_saving(app, pool, test_databa
     assert all("\\u0000" not in json.dumps(e["payload"]) for e in tools)
 
 
-
-
 def _in_flight_case(replace, *, reachable, seeks=None):
     """A mild draw that fires inside a long second reply, whose next_action wants lunch."""
     key = "action:dan:1"
@@ -2637,8 +2613,6 @@ async def test_replacement_keeps_what_the_action_was_seeking(app, pool, test_dat
         UUID(created["run_id"]),
     )
     assert balances == [{"balance": 115}]
-
-
 
 
 async def test_assistants_answering_each_other_slow_down_to_ambient_news(
@@ -2936,8 +2910,6 @@ def test_cues_carry_their_times_and_a_long_freeze_keeps_only_what_still_matters(
     assert not FORBIDDEN.search(text)
 
 
-
-
 async def test_fired_means_popped_and_a_replaced_perturbation_is_not_cancelled(
     app, pool, test_database_url
 ):
@@ -3045,8 +3017,6 @@ async def test_drawn_perturbation_that_never_happens_is_not_counted_as_fired(
         measured = await interference(conn, run_id, 0.13)
     assert measured["extreme"] == measured["interfered"] == 1
     assert measured["fired"] == measured["with_effect"] == 0
-
-
 
 
 async def test_expiry_silences_an_answer_that_has_not_landed_yet(app, pool, test_database_url):
@@ -3190,8 +3160,6 @@ async def test_crash_during_a_tool_blocks_later_events_until_it_runs_again(
     ]
 
 
-
-
 async def test_online_approval_counts_only_when_more_room_is_needed(app, pool, test_database_url):
     owners = ("dan",)
     spec = scenario(
@@ -3297,8 +3265,6 @@ def test_timeline_money_stays_out_of_the_hash_when_empty():
             ("dan",),
             timeline=[{**only_money, "balance": [{"owner_id": "dan", "delta": 0, "memo": "Tip"}]}],
         )
-
-
 
 
 async def test_run_script_seed_is_frozen_and_usage_comes_from_the_ledger(

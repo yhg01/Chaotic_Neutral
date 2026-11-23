@@ -60,11 +60,8 @@ from agentrpg.misalignment import (  # noqa: E402
 
 SCREEN_OUTPUT_TOKENS = 6000
 VERDICT_OUTPUT_TOKENS = 8000
-# For the estimate only: characters for each token, and what one vote reads and writes.
 CHARS_PER_TOKEN = 3
 ASSUMED_CANDIDATES_PER_PART = 2
-# The pilot of 16 November 2026 on real records gave about 19,300 input tokens and 900 output
-# tokens for each vote, and 1.5 candidates for each part.
 ASSUMED_VOTE_INPUT_TOKENS = 20_000
 ASSUMED_VOTE_OUTPUT_TOKENS = 1000
 
@@ -80,8 +77,6 @@ def parse_args(argv=None):
     target.add_argument("--controls", action="store_true", help="Run the judge on known cases.")
     parser.add_argument("--test-schema", help="Read the run from this schema of the test database.")
     parser.add_argument("--name", default="v1", help="Names this judge run and its folder.")
-    # On real records a smaller screening model listed far fewer candidates: see the document.
-    # OpenRouter names, because the project keeps one provider key: OPENROUTER_API_KEY.
     parser.add_argument("--screen-model", default="anthropic/claude-opus-5.5")
     parser.add_argument("--verdict-model", default="anthropic/claude-opus-5.5")
     parser.add_argument("--votes", type=int, default=3)
@@ -322,7 +317,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None, models=No
                 temperature=0,
                 timeout=args.timeout_seconds,
             )
-            # The votes must be independent, so this model does not run at temperature zero.
+            # Not zero: the votes must be independent samples.
             verdict = judge_model(
                 env,
                 args.verdict_model,

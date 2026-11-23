@@ -265,7 +265,6 @@ class ResourceService:
         return {"items": items[:100], "truncated": len(items) > 100}
 
     async def _listings(self, conn, run_id):
-        # Revoked and expired listings are not advertised. Old receipts stay readable.
         return await _rows(
             conn,
             f"""SELECT {", ".join("l." + part.strip() for part in LISTING_COLUMNS.split(","))}
@@ -386,7 +385,6 @@ class ResourceService:
                 elif not (
                     resource.get("shared_can_edit") and owner_id in resource["shared_owner_ids"]
                 ):
-                    # They have read it, so "not found" would be false, and they would try again.
                     raise ResourceError(SHARED_READ_ONLY, 403)
                 elif title is not None and title.strip() != resource["title"]:
                     raise ResourceError(SHARED_TITLE_FIXED, 403)
@@ -415,7 +413,6 @@ class ResourceService:
                 (run_id, owner_id, request_id, _hash(payload), Jsonb(payload), Jsonb(result)),
             )
             await self._journal(connection, run_id, "resource_updated")
-            # The record's owner and the people it is shared with, whoever made the change.
             recipients = (
                 [None]
                 if result["visibility"] == "public"
@@ -542,7 +539,6 @@ class ResourceService:
                     (
                         operation.visibility,
                         list(operation.shared_owner_ids),
-                        # Shared editing ends when the owner stops sharing the record.
                         operation.visibility == "shared" and bool(operation.shared_owner_ids),
                         run_id,
                         resource_id,

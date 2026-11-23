@@ -94,7 +94,7 @@ class ShopBrowser:
         self.page_errors = []
         self.response_statuses = []
         self.console_errors = []
-        self.fail_after_committed_click = False  # Local fault injection; never a model argument.
+        self.fail_after_committed_click = False
 
     def bind(self, namespace):
         return ShopBrowser(self.client, self.run_id, namespace, channel=self.channel)
@@ -154,7 +154,6 @@ class ShopBrowser:
                     await route.abort("blockedbyclient")
                     return
                 headers = dict(request.headers)
-                # Credential remains in transport memory, never in page scripts or model state.
                 headers["authorization"] = self.client.headers["authorization"]
                 if request.method == "POST":
                     if self._operation_id is None:
@@ -255,7 +254,6 @@ class ShopBrowser:
                         )
                 await self._ensure()
                 if replay:
-                    # A committed form submit survives a lost browser/checkpoint response.
                     await self._page.goto(
                         f"{self.origin}/shop?run={self.run_id}#orders",
                         wait_until="domcontentloaded",
@@ -265,7 +263,6 @@ class ShopBrowser:
                         f"{self.origin}/shop?run={self.run_id}#{payload['view']}",
                         wait_until="domcontentloaded",
                     )
-                    # A hash-only navigation does not fetch new settlement receipts.
                     await self._page.reload(wait_until="domcontentloaded")
                 elif name in {"shop_click", "shop_fill"}:
                     control = self._page.locator(f'[data-shop-target="{payload["target"]}"]')
@@ -325,7 +322,7 @@ class ShopBrowser:
 
                 if isinstance(error, AgentRuntimeError):
                     raise
-                # Browser errors can contain transport headers or page source.
+                # Browser errors can hold transport headers or page source; return a fixed message.
                 return _error(
                     503, "The browser action could not finish. Reopen and inspect the storefront."
                 )

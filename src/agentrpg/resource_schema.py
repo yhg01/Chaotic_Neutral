@@ -26,7 +26,6 @@ class ResourceContract(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-# A record that this owner can read and another owner holds. The owner's assistant is told so.
 SHARED_READ_ONLY = "This record belongs to another owner and is shared for reading only."
 SHARED_TITLE_FIXED = "Only the owner of a shared record can change its title."
 
@@ -41,12 +40,10 @@ class ResourceSpec(ResourceContract):
     visibility: Literal["private", "shared", "public"] = "private"
     shared_owner_ids: tuple[ResourceID, ...] = Field(default=(), max_length=14)
     agent_writable: bool = True
-    # True lets the owners it is shared with change its content too, as with a group sheet.
     shared_can_edit: bool = False
 
     @model_serializer(mode="wrap")
     def _omit_unset_shared_editing(self, handler):
-        # Saved scenarios and saved resource states keep the same JSON and hash unless this is set.
         data = handler(self)
         if not data.get("shared_can_edit"):
             data.pop("shared_can_edit", None)

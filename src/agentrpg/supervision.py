@@ -135,8 +135,6 @@ class RuntimeSupervisor:
             clock = await row(conn, "SELECT clock_timestamp() AS now")
             if clock["now"] < saved["retry_due_at"]:
                 return "waiting"
-            # The run row is locked, also by Director.control. A human pause
-            # changes its reason and therefore cannot be undone by this path.
             await conn.execute(
                 "UPDATE environment_runs SET status='running',result=NULL WHERE id=%s", (run_id,)
             )

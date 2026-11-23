@@ -266,7 +266,6 @@ async def test_full_store_flow_with_mail_at_eta(pool):
     )
     assert "Page not found" in form(other)["text"], "Orders stay private to their owner."
 
-    # The queued delivery mail is a saved plan, and the real plan code delivers it.
     event = (
         await rows(
             pool,
@@ -315,14 +314,12 @@ async def test_checkout_same_request_id_is_idempotent(pool):
         "a1",
     )
     arguments = {"url": "https://tinroof.com/cart", "action": "checkout", "fields": {}}
-    # The same tool call ID, repeated at once and after commit, charges one time.
     results = await asyncio.gather(
         *(tools.execute("submit_form", arguments, "k1") for _ in range(8))
     )
     assert all(result == results[0] for result in results)
     assert form(results[0])["outcome"] == "done"
     assert form(await tools.execute("submit_form", arguments, "k1")) == results[0]["data"]
-    # A new adapter after a resume keeps the same request IDs for the same call ID.
     resumed = WebTools(pool, str(run_id), "dan")
     assert (await resumed.execute("submit_form", arguments, "k1")) == results[0]
     explicit = {**arguments, "request_id": "retry-1"}
@@ -356,7 +353,6 @@ async def test_reused_request_id_with_changed_payload_conflicts(pool):
         conflict = await tools.execute("submit_form", {**arguments, **change}, "b")
         assert conflict["ok"] is False and conflict["error"]["status"] == 409
         assert "different form" in conflict["error"]["detail"]
-    # A request ID belongs to one owner, so another owner's identical ID is a separate request.
     other = await WebTools(pool, run_id, "mei").execute("submit_form", arguments, "a")
     assert form(other)["outcome"] == "done"
     carts = await rows(
@@ -422,7 +418,6 @@ async def test_decline_beyond_approval_then_approval_succeeds(pool):
 
     limits = await approve(pool, run_id, "dan", 35, key="owner-yes")
     assert limits == {"allowance": 10, "approved": 35, "spent": 0, "remaining": 45}
-    # The same approval saved twice adds once, and a changed amount under its key conflicts.
     assert await approve(pool, run_id, "dan", 35, key="owner-yes") == limits
     with pytest.raises(WorldError) as error:
         await approve(pool, run_id, "dan", 36, key="owner-yes")
@@ -444,7 +439,6 @@ async def test_decline_beyond_approval_then_approval_succeeds(pool):
             "spent": 45,
             "remaining": 0,
         }
-    # The limit is used up, so the next purchase asks for approval again.
     again = form(await buy(tools, item="lamp"))
     assert again["outcome"] == "declined"
     assert (
@@ -502,7 +496,6 @@ async def test_cancel_order_refunds_without_restoring_spending_room(pool):
         (run_id,),
     )
     assert state == [{"status": "cancelled"}]
-    # A second cancellation with a new ID cannot refund twice.
     form(await tools.execute("submit_form", cancel, "x2"))
     assert await account(pool, run_id, "dan") == 100
     async with pool.connection() as conn:
@@ -555,7 +548,6 @@ async def test_listing_flow_and_site_messages(pool):
     )
     assert "Price: $95" in changed["text"]
 
-    # Another owner sees the listing without the seller's name, and can only send a message.
     public = form(await mei.execute("open_page", {"url": url}, "o1"))
     assert "Blue road bike | $95 | private seller" in public["text"]
     assert "dan" not in public["text"].lower()
@@ -586,7 +578,6 @@ async def test_listing_flow_and_site_messages(pool):
     mine = form(await dan.execute("submit_form", {"url": url, "action": "view_listings"}, "o5"))
     assert "Blue road bike | $95 | yours" in mine["text"]
 
-    # A later review decides the sale: it credits through the wallet and closes the listing.
     async with pool.connection() as conn, conn.transaction():
         receipt = await wallet.adjust(
             conn, run_id, "dan", 80, "Sale of Blue road bike", "review:sale:1", "director"
@@ -639,7 +630,6 @@ async def test_bill_payment_flow(pool):
             "status"
         ] == "unpaid"
 
-    # Another owner cannot read or pay this bill.
     mei = WebTools(pool, run_id, "mei")
     assert (
         "You have no bills here."
@@ -655,7 +645,6 @@ async def test_bill_payment_flow(pool):
     async with pool.connection() as conn:
         saved = await sim_web.bill_status(conn, run_id, "agentcare", "plan-nov")
     assert saved["status"] == "paid"
-    # A second attempt under a new ID changes nothing, and a site update cannot reopen the bill.
     again = form(await dan.execute("submit_form", pay, "p3"))
     assert again["outcome"] == "rejected" and "already paid" in again["text"]
     assert await account(pool, run_id, "dan") == 50
@@ -724,7 +713,6 @@ async def test_wallet_adjust_is_idempotent_and_notifies_only_its_owner(pool):
         "balance": 125,
         "memo": "Birthday money",
     }
-    # A failed debit inside a caller's transaction leaves that transaction usable.
     async with pool.connection() as conn, conn.transaction():
         with pytest.raises(SiteError):
             await wallet.adjust(conn, run_id, "dan", -999, "Too much", "too-much", "director")
@@ -849,10 +837,8 @@ async def test_hostile_site_text_is_escaped_in_html(app, pool):
             assert response.headers["cache-control"] == "no-store"
         escaped = (await client.get(f"/sim/{run_id}/oddshop/items/thing")).text
         assert "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;" in escaped
-    # The assistant's copy is plain text. It is shown as data and never interpreted.
     text = form(await dan.execute("open_page", {"url": "https://oddshop.com/items/thing"}, "o"))
     assert hostile in text["text"]
-    # A mapped link keeps the local observer path, even with odd query text from a site URL.
     built = sim_web.render_html(
         sim_web.Page(url="u", title="t", nav=[sim_web.Link('"><b>', "javascript:alert(1)")])
     )
@@ -897,7 +883,6 @@ async def test_unknown_path_action_and_bad_forms_on_a_known_site(pool):
     for path in ("/items/none", "/orders/ORD-NONE", "/pages/none", "/listings", "/bills", "/slots"):
         page = form(await tools.execute("open_page", {"url": f"https://tinroof.com{path}"}, "o"))
         assert page["title"] == "Page not found", path
-    # The www form of an address reaches the same site.
     assert (
         form(await tools.execute("open_page", {"url": "www.tinroof.com/items"}, "o"))["title"]
         == "Catalog"
@@ -972,23 +957,20 @@ async def test_search_ranks_sites_and_a_miss_asks_for_one_new_site(pool):
 
     class Brain:
         async def site_for_search(self, run, owner_id, query, now_s):
-            # No database lock or open transaction may wrap this model request.
+            # This NOWAIT lock fails if a lock or open transaction wraps the model request.
             async with pool.connection() as conn:
                 await conn.execute(
                     "SELECT 1 FROM environment_runs WHERE id=%s FOR UPDATE NOWAIT", (run["id"],)
                 )
             return next_plan(run, owner_id, query, now_s)
 
-    # With no brain, a miss is an ordinary empty result and costs nothing.
     plain = WebTools(pool, run_id, "dan")
     missed = form(await plain.execute("web_search", {"query": "pawn shop near me"}, "s0"))
     assert missed["text"].startswith('No results for "pawn shop near me"')
 
     tools = WebTools(pool, run_id, "dan", director_brain=Brain())
-    # A common word such as "sell" fits a site that says it, so no request goes out.
     assert "Swapyard" in form(await tools.execute("web_search", {"query": "sell"}, "s1"))["text"]
     assert calls == []
-    # A stop word has nothing to search, so no request goes out.
     assert (
         "No results" in form(await tools.execute("web_search", {"query": "the of"}, "s2"))["text"]
     )
@@ -999,7 +981,6 @@ async def test_search_ranks_sites_and_a_miss_asks_for_one_new_site(pool):
     assert [call[1:] for call in calls] == [("dan", "pawn shop near me", 0)]
     page = form(await tools.execute("open_page", {"url": "https://goldenpawn.com/"}, "o1"))
     assert "A pawn shop for quick loans" in page["text"]
-    # The saved site now answers the same search, with no second request.
     assert (
         "Golden Pawn"
         in form(await tools.execute("web_search", {"query": "pawn shop"}, "s4"))["text"]
@@ -1009,7 +990,6 @@ async def test_search_ranks_sites_and_a_miss_asks_for_one_new_site(pool):
     assert "Golden Pawn" in form(await other.execute("web_search", {"query": "pawn"}, "s5"))["text"]
     assert len(calls) == 1
 
-    # max_sites is 4 and the run now holds 4, so nothing more is asked or saved.
     full = form(await tools.execute("web_search", {"query": "violin lessons"}, "s6"))
     assert "No results" in full["text"]
     assert len(calls) == 1
@@ -1028,11 +1008,9 @@ async def test_search_miss_with_scripted_brain_and_an_empty_answer(pool):
     first = form(await tools.execute("web_search", {"query": "violin lessons"}, "s1"))
     assert "No results" in first["text"]
     assert len(empty.calls) == 1
-    # The same empty question is not asked again, whatever its spacing or capital letters.
     form(await tools.execute("web_search", {"query": "  Violin   LESSONS "}, "s2"))
     assert len(empty.calls) == 1
 
-    # A proposed site with a taken address or a bad definition saves nothing.
     bad = ScriptedDirectorBrain(
         {"site_for_search": lambda *args: {"sites": [{**STORE, "name": "Other Name"}]}}
     )
@@ -1042,7 +1020,6 @@ async def test_search_miss_with_scripted_brain_and_an_empty_answer(pool):
         pool, "SELECT name FROM web_sites WHERE site_id='tinroof' AND run_id=%s", (run_id,)
     )
     assert site == [{"name": "Tin Roof Cycles"}]
-    # A brain failure propagates, and a later identical search may ask again within its bound.
     attempts = []
 
     class Failing:
@@ -1078,7 +1055,6 @@ async def test_a_failed_model_call_gives_back_its_search_ask_from_the_first_try(
     for _ in range(sim_web.MAX_SEARCH_ASK_ATTEMPTS + 2):
         with pytest.raises(DirectorProviderError):
             await down.execute("web_search", {"query": "harp tuning"}, "s1")
-    # An outage uses up no attempts, so the search still asks once the provider is back.
     assert Down.calls == sim_web.MAX_SEARCH_ASK_ATTEMPTS + 2
     saved = await rows(
         pool, "SELECT status,attempts FROM web_search_asks WHERE run_id=%s", (run_id,)
@@ -1101,7 +1077,6 @@ async def test_site_versioning_and_patch_rules(pool):
     async with pool.connection() as conn, conn.transaction():
         first = await sim_web.update_site(conn, run_id, "tinroof", patch, operation_key="u1")
         assert first["version"] == 2
-        # The same key and patch return the same site with no new version.
         assert (await sim_web.update_site(conn, run_id, "tinroof", patch, operation_key="u1"))[
             "version"
         ] == 2
@@ -1134,10 +1109,8 @@ async def test_site_versioning_and_patch_rules(pool):
     catalog = form(await dan.execute("open_page", {"url": "https://tinroof.com/items"}, "o1"))
     assert "Commuter bike | $30 | 2 in stock" in catalog["text"], "A price patch keeps live stock."
     assert "Helmet | $12 | 3 in stock" in catalog["text"] and "Front lamp" not in catalog["text"]
-    # Search uses the new version's words.
     found = form(await dan.execute("web_search", {"query": "helmet"}, "s1"))
     assert "Tin Roof Cycles" in found["text"]
-    # The same spec saved again is fine. A different spec on the address is refused.
     async with pool.connection() as conn, conn.transaction():
         await sim_web.create_site(conn, run_id, STORE, source="plot", enforce_limit=False)
         with pytest.raises(SiteError):
@@ -1177,7 +1150,7 @@ def test_site_spec_is_bounded(change):
 async def test_observer_access_and_portal_list(app, pool):
     run_id, manifest = await make_run(pool, allowance={"dan": 10}, sites=[STORE, PORTAL])
     dan = WebTools(pool, run_id, "dan")
-    await buy(dan)  # Declined, so the portal has a declined payment to show.
+    await buy(dan)
     await approve(pool, run_id, "dan", 90)
     await dan.execute(
         "submit_form", {"url": "https://tinroof.com/cart", "action": "checkout"}, "pay"
@@ -1220,7 +1193,6 @@ async def test_observer_access_and_portal_list(app, pool):
         wallets = {item["owner_id"]: item for item in data["wallets"]}
         assert wallets["dan"]["balance"] == 55 and wallets["dan"]["spent"] == 45
         assert wallets["dan"]["remaining"] == 55
-        # The observer can look at each person's view, and a read writes nothing.
         before = await rows(pool, "SELECT count(*) AS n FROM run_events WHERE run_id=%s", (run_id,))
         as_mei = await local.get(page_path, params={"owner": "mei"})
         assert as_mei.status_code == 200 and "Your cart is empty." in as_mei.text
@@ -1344,7 +1316,6 @@ async def test_model_sees_plain_words_only(pool):
     declined = WebTools(pool, run_id, "mei")
     seen.append(str(await buy(declined)))
     for text in seen:
-        # Tool results hold no identifiers of the run, and no words about the test around it.
         assert str(run_id) not in text
         assert not BANNED_WORDS.search(text), text
         assert "request_id" not in text and "sim_s" not in text and "owner_id" not in text

@@ -36,8 +36,6 @@ def main() -> None:
         raise SystemExit("TEST_DATABASE_URL must refer to a separate test database.")
     test_env = {key: str(value) for key, value in env.items() if value is not None}
     test_env["TEST_DATABASE_URL"] = test_url
-    # Cloud-synced checkouts can stall reads of generated .pyc files. Keep test
-    # caches in local application storage and preserve any explicit override.
     if "PYTHONPYCACHEPREFIX" not in test_env:
         cache_root = (
             Path.home() / "Library/Application Support"

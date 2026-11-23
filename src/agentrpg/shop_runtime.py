@@ -352,8 +352,6 @@ async def run_shop(
                 await director.control(run_id, "pause")
                 stop_reason = "invocation_window_limit"
                 break
-            # PostgreSQL time is the durable deadline. Recreating a process must
-            # not reset the wait, poll a model or advance logical time early.
             if interval and not await wait_for_shop_window(pool, run_id, interval):
                 break
             previous_window = run["current_window"]
@@ -380,8 +378,6 @@ async def run_shop(
             if fault and supervisor:
                 fault_consumed = True
                 pending_fault = True
-                # The ordinary durable deadline handles this classified fault.
-                # Do not use the legacy immediate fault-injection recovery.
                 continue
             if fault or periodic:
                 if not api_key:

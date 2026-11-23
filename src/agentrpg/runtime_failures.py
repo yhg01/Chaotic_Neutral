@@ -7,8 +7,6 @@ from psycopg import OperationalError
 from psycopg.errors import DeadlockDetected, SerializationFailure
 from pydantic import ValidationError
 
-# On a clocked run these wait for the service to come back, with the same IDs, while story
-# time holds. One request or one task did nothing wrong, so none of them ends an activation.
 HOLDING_KINDS = frozenset(
     {
         "provider_transient",
@@ -19,10 +17,7 @@ HOLDING_KINDS = frozenset(
         "session_busy",
     }
 )
-# The account or key is refused. No retry can help until a person acts, so the run pauses.
 PAUSING_KINDS = frozenset({"provider_rejected"})
-# The provider refused this one request or returned nothing usable. Another request can still
-# work, so this one is bounded, but a run of them still counts as an outage.
 OUTAGE_KINDS = HOLDING_KINDS | {"provider_request_refused"}
 
 
@@ -51,14 +46,13 @@ def failure_detail(error: Exception) -> str:
 
     if detail := getattr(error, "detail", None):
         return str(detail)[:300]
-    # Both hold fixed sentences and a status code, never model or provider text.
+    # Only these two: they hold fixed sentences and a status code, never model or provider text.
     if isinstance(error, (AgentRuntimeError, ModelGenerationError)):
         return str(error)[:300]
     return type(error).__name__
 
 
 def classify_failure(error: Exception) -> Failure:
-    # Import at use time: Actor and Agent adapters do not depend on the conductor.
     from agentrpg.actor import ActorContractError, ModelGenerationError
     from agentrpg.agent_model import ProviderCallError
     from agentrpg.budget import BudgetError
@@ -94,5 +88,4 @@ def classify_failure(error: Exception) -> Failure:
         return Failure("transport_transient", True)
     if isinstance(error, (OperationalError, DeadlockDetected, SerializationFailure)):
         return Failure("database_transient", True)
-    # Do not infer retryability from an exception message, class name, or model text.
     return Failure("unknown")

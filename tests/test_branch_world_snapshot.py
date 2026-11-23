@@ -33,7 +33,6 @@ def branch_path(manifest, suffix="branches"):
 
 
 async def make_environment(pool, root, count=2):
-    # Reuse the configured campaign fixture, then create a frozen resource plot.
     configured = await create_run(pool, root, count)
     spec = vehicle_scenario(count).model_copy(
         update={
@@ -395,8 +394,6 @@ async def test_branch_resource_journal_replay_keeps_canonical_order_after_id_map
     requests = [uuid4(), uuid4()]
     labels = [f"document:owner-1:{request}" for request in requests]
     old_ids = [str(uuid5(run_id, label)) for label in labels]
-    # Select a branch namespace that reverses the two document IDs. This makes
-    # the ordering regression deterministic instead of dependent on random IDs.
     for _ in range(100):
         branch_request = uuid4()
         child_id = uuid5(run_id, f"branch:{branch_request}")

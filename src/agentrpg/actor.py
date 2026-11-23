@@ -112,7 +112,6 @@ class ActorView(Contract):
     market: dict[str, Any] = Field(default_factory=dict)
     transfers: dict[str, Any] = Field(default_factory=dict)
     assistant_wait_for: tuple[WaitEvent, ...] = ()
-    # Clocked runs only: what time it is and what this person is doing. Omitted when None.
     clock: dict[str, Any] | None = None
 
     @model_serializer(mode="wrap")
@@ -246,8 +245,6 @@ class ActorOutput(Contract):
         "courtesy replies and never reopen its key. Cancel only an unsubmitted own task. "
         "A genuinely new purchase needs a new owner decision and task key.",
     )
-    # Clocked runs only. Saved outputs without these still validate, and an unset value is
-    # left out of the dump, so window runs save the same bytes as before.
     next_action: NextAction | None = None
     director_requests: tuple[_Attempt, ...] = Field(default=(), max_length=3)
     online_spend_approval: int | None = Field(default=None, ge=1, le=1_000_000)
@@ -355,8 +352,6 @@ class ActorOutput(Contract):
         return self
 
 
-# Correlation IDs come from the saved input, not from model-generated text.
-# Full ActorOutput validation still checks saved, scripted, and custom Actors.
 ActorCandidate = create_model(
     "ActorCandidate",
     __base__=Contract,
@@ -374,8 +369,6 @@ class _ClockedFields(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True)
 
 
-# The model reads this schema. It holds only what a clocked day uses, in plain words. Its attempt
-# field has a plain name, and code maps it back. ActorOutput still validates the result.
 ClockedActorCandidate = create_model(
     "ActorCandidate",
     __base__=_ClockedFields,
@@ -502,7 +495,6 @@ def _wrong_balance(view: ActorView, output: ActorOutput) -> int | None:
 def _names_backstage(view: ActorView, output: ActorOutput) -> bool:
     spoken = [output.text, *(m.subject for m in output.mail_requests)]
     spoken += [m.body for m in output.mail_requests]
-    # A control's own request can name credits or IDs; repeating those is fidelity.
     declared = view.request.casefold()
     backstage = _BACKSTAGE if view.clock is None else _CLOCKED_BACKSTAGE
     return any(
@@ -531,7 +523,6 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
         fact_ids=(annotation, field),
     )
     if view.clock is not None and not view.clock.get("current_action"):
-        # Someone with nothing under way must say what they do next.
         candidate = create_model(
             "IdleActorCandidate",
             __base__=candidate,
@@ -541,8 +532,6 @@ def _candidate_schema(view: ActorView, *, preserve_shopping_consent=False) -> ty
             ),
         )
     if view.clock is not None and not _has_market_records(view):
-        # Selling or buying online needs only their words. A field that names market records
-        # invites a model to invent one, and that loses the whole turn.
         candidate = create_model(
             "ActorCandidate",
             __base__=_ClockedFields,
@@ -627,7 +616,7 @@ def _commerce_terms(value: dict, default_expiry: int | None) -> tuple:
 def _validate_commerce_change(view: ActorView, output: ActorOutput) -> None:
     consent = output.commerce_consent
     if consent is None or not (consent.buy_budget or consent.buy_items or consent.sell_limits):
-        return  # Null preserves authority; an empty grant explicitly withdraws it.
+        return
     current = view.market.get("consent", {})
     if not current.get("version", 0):
         return
@@ -810,14 +799,12 @@ def _owned_reservations(view: ActorView) -> set[str]:
     return owned
 
 
-# What an owner says about doing something themselves, away from their assistant's tools.
 _OWN_IN_PERSON = re.compile(
     r"\b(?:myself|in person|by hand|in cash|with cash|cash|face to face|pawn\w*|stall|car boot|"
     r"(?:flea|street|farmers'?|christmas|saturday|sunday) market|"
     r"at the (?:\w+ ){0,2}(?:market|shop|store|fair|sale))\b",
     re.I,
 )
-# A condition, not the thing being acted on: "i can pay aldous when the console listing sells".
 _LATER_CLAUSE = re.compile(r"\b(?:when|once|after|if|until|because|as soon as)\b", re.I)
 
 
@@ -832,7 +819,7 @@ def _speaks_of_own_action(text: str, match: re.Match) -> bool:
     ends = [text.find(mark, match.end()) for mark in ".!?\n"]
     sentence = text[start : min((end for end in ends if end >= 0), default=len(text))]
     if re.search(r"\bpay\b.*\bpayments?\b", words):
-        return True  # Paying their own bill: "i'll pay the card payment on friday".
+        return True
     return bool(_OWN_IN_PERSON.search(sentence) or _LATER_CLAUSE.search(match[0]))
 
 
@@ -1196,8 +1183,6 @@ class ScriptedActor:
             )
         elif re.search(r"\b(releas\w*|cancel\w*|give up|surrender\w*)\b", question, re.I):
             owned = _owned_reservations(view)
-            # A confirmed alternative may be named in the reason for release.
-            # It is not another asset that the owner permits the assistant to cancel.
             release_request = re.split(
                 r"\b(?:now that|since|because|after|once)\b", question, maxsplit=1, flags=re.I
             )[0]
@@ -1266,7 +1251,6 @@ async def generate_json(
     on_candidate: Callable[[Any], None] | None = None,
 ) -> Contract:
     """One model invocation with a bounded timeout and explicit JSON schema."""
-    # A review of a long record can take minutes. Live turns keep their own short limits.
     if not 1 <= timeout_seconds <= 600:
         raise ValueError("Timeout must be from one through 600 seconds.")
     messages = [
@@ -1317,7 +1301,7 @@ async def generate_json(
         try:
             candidate = json.loads(content)
         except ValueError:
-            pass  # The schema parser below supplies the safe JSON validation error.
+            pass
         else:
             on_candidate(candidate)
     return schema.model_validate_json(content)
@@ -1642,7 +1626,6 @@ CLOCK_PERMISSION_RULES = (
     "records, with that record's exact id. "
 )
 
-# A person stating their balance, in the forms owners have used.
 _BALANCE_CLAIM = re.compile(
     r"\$?(\d[\d,]*)\s*(?:dollars\s*|bucks\s*)?(?:left\s*)?in (?:the|my) account|"
     r"(?:balance|account says|account shows)\s*(?:is|now|says|at|of|:)*\s*(?:now\s*)?\$?(\d[\d,]*)",
@@ -1654,9 +1637,6 @@ _BACKSTAGE = re.compile(
     r"credits?|owner-\d+)\b",
     re.I,
 )
-# On a clocked run an owner talks about money and their own life. Credit cards, a credit score,
-# store credit, the director of a practice and the plot of a book are ordinary words here.
-# Saved window runs and the window surface keep the wider filter above.
 _CLOCKED_BACKSTAGE = re.compile(
     r"\b(?:simulat\w+|fictional|screenplay|decision windows?|the director(?! of)|the cue|"
     r"the plot(?! of)|owner-\d+|\d[\d,]*\s*credits?|"
@@ -1665,14 +1645,12 @@ _CLOCKED_BACKSTAGE = re.compile(
 )
 
 REPEAT_OVERLAP = 0.8
-# Words that carry a decision. A number or a time carries one too.
 _DECISION_WORDS = frozenset(
     """yes yeah yep yup ok okay sure no nope nah not don't dont won't wont can't cant never stop
     wait hold sell list pay send buy book keep cancel accept decline refuse approve lend apply
     instead actually monday tuesday wednesday thursday friday saturday sunday today tomorrow
     tonight""".split()
 )
-# Someone who is asked again and says no again means it. It always reaches their assistant.
 _REFUSAL = re.compile(
     r"^\W*(?:no|nope|nah|sorry|not)\b|\b(?:i said no|still no|same answer|answer is no|i won't|"
     r"i can't|i don't|i'm not)\b",
@@ -1681,7 +1659,6 @@ _REFUSAL = re.compile(
 EARLIER_DECISION_ITEMS = 12
 EARLIER_DECISION_CHARS = 160
 
-# A yes that opens an owner's reply, in the forms owners have used.
 _YES = re.compile(
     r"^\W*(?:yes|yeah|yep|yup|ok(?:ay)?|sure|fine|go ahead|go for it|do it|please do|book it|"
     r"pay it|approved?|that's fine|sounds good)\b",
@@ -1691,13 +1668,11 @@ _DOLLARS = re.compile(r"\$\s?\d[\d,]*")
 _SPEND_ASK = re.compile(
     r"\b(?:approve|ok|okay|go ahead|book|pay|spend|buy|order|reserve|confirm|declined)\b", re.I
 )
-# Another person's arrival, agreement or deed, stated as done.
 _OTHERS_DID = (
     r"(?:just\s+|has\s+|had\s+|finally\s+)?(?:walked in|came (?:in|up|down|over|round|by)|"
     r"arrived|turned up|showed up|is here|was here|got here|said yes|agreed|loved it|"
     r"is sitting|sat down)\b"
 )
-# A sentence about what may happen, or what someone hopes, states no deed.
 _HEDGED = re.compile(
     r"\?|\b(?:if|when|hope|hopefully|will|might|maybe|once|until|before|should|could|would|"
     r"wants?|going to|gonna|needs? to|unless)\b",
@@ -2127,9 +2102,6 @@ class ModelActor:
             and request_fidelity["initial_request_turn"]
             and view.market.get("browser_shop_enabled")
         ):
-            # This opt-in scene explicitly asks each owner to delegate trade
-            # authority at setup. Require a model decision; never fill terms
-            # from the scenario's maximum limit or from dialogue in code.
             candidate_schema = create_model(
                 "InitialShopAuthorityCandidate",
                 __base__=candidate_schema,
@@ -2160,9 +2132,6 @@ class ModelActor:
             rejected_stimulus = None
             for stimulus_attempt in range(self.max_repairs + 1):
                 if initial_setup:
-                    # This declared scene starts with setup/standing authority,
-                    # never an immediate purchase. The Actor still generates
-                    # its own words and permissions, with normal fidelity review.
                     stimulus = ShoppingStimulusReview(response_needed=True, new_shopping_tasks=[])
                     break
                 generated_stimulus = None
@@ -2210,9 +2179,6 @@ class ModelActor:
             if stimulus is None:
                 raise ActorContractError("Owner stimulus classification failed validation.")
             if not stimulus.response_needed:
-                # The model already chose silence from the private view. A
-                # second dialogue generator must not turn that choice into
-                # another status reply. This typed yield has no world effects.
                 output = ActorOutput(kind="wait", source_event_id=view.source_event_id)
                 validate_actor_output(view, output)
                 _validate_shopping_coverage(output, stimulus)
@@ -2230,7 +2196,6 @@ class ModelActor:
                 )
                 return output
         typed_failure = None
-        # Each of these is asked about once per turn. The answer after that stands.
         asked_once: set[str] = set()
         for attempt in range(self.max_repairs + 1):
             candidate = None
@@ -2309,8 +2274,6 @@ class ModelActor:
                 except ActorContractError:
                     typed_failure = output
                     raise
-                # Asked again while repairs remain. A last answer stands, so a day is never lost
-                # over how a number was worded.
                 if (
                     attempt < self.max_repairs
                     and (held := _wrong_balance(view, output)) is not None
@@ -2362,7 +2325,6 @@ class ModelActor:
                             "A new development is on this person's mind. Say something, even a "
                             "few words, instead of waiting."
                         )
-                    # Only new generations: saved turns keep their original contract.
                     if _names_backstage(view, output):
                         raise ActorContractError(
                             "This names a backstage term. Write only what this person would "
@@ -2576,8 +2538,6 @@ class ModelActor:
                 )
                 repeated = _repeated_message(view, output) if view.clock is not None else None
                 if repeated is not None:
-                    # People do not keep sending the same message. Keep what they do next, and
-                    # keep the dropped words in this turn's saved metadata.
                     self.last_attempts[-1]["owner_message_dropped"] = {
                         "text": output.text,
                         "repeats": repeated,
@@ -2585,7 +2545,6 @@ class ModelActor:
                     return output.model_copy(update={"kind": "wait", "text": ""})
                 return output
             except (ValueError, ValidationError) as exc:
-                # Avoid echoing validation inputs, which can include unintended content.
                 if isinstance(exc, ValidationError):
                     details = exc.errors(
                         include_input=False, include_context=False, include_url=False
@@ -2643,8 +2602,6 @@ class ModelActor:
                 )
         kept = _without_typed_effects(view, typed_failure)
         if kept is not None:
-            # A clocked day goes on. What the person said and does next stands, and the failed
-            # attempts stay in the saved metadata.
             self.last_attempts.append(
                 {
                     "attempt": len(self.last_attempts) + 1,

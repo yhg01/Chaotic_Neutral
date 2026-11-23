@@ -92,7 +92,6 @@ def actors_for(owners, **turns):
     return {owner: ScriptedOwner(turns.get(owner, [])) for owner in owners}
 
 
-# Latency independence ------------------------------------------------------------------
 
 
 async def test_control_runs_to_the_horizon_with_story_order(app, test_database_url):
@@ -110,7 +109,6 @@ async def test_control_runs_to_the_horizon_with_story_order(app, test_database_u
     tools = [event for event in happened if event["kind"] == "assistant_tool_call"]
     assert {event["cause"] for event in tools} == {"agent:dan", "agent:mei", "agent:sam"}
     assert all(event["cause"] == f"agent:{event['owner']}" for event in tools)
-    # The peer's mail reaches its Agent after the sender's tool call, in story order.
     mail_sent = next(e for e in tools if e["payload"]["tool"] == "send_mail")
     assert any(e["kind"] == "inbox_received" and e["at"] == mail_sent["at"] for e in happened)
 
@@ -142,7 +140,6 @@ async def test_one_thinker_at_a_time_is_respected(app, test_database_url):
         assert engine.gate.peak_calls_in_flight == 1
 
 
-# Owners and time -----------------------------------------------------------------------
 
 
 async def test_two_hour_errand_freezes_the_owner_until_it_ends(app, pool, test_database_url):
@@ -182,7 +179,6 @@ async def test_two_hour_errand_freezes_the_owner_until_it_ends(app, pool, test_d
         if e["payload"]["source"] == "agent"
     )
     assert at(first_message, spec) < 7200
-    # The second view is frozen at the end of the errand, when the message is finally seen.
     second = views[1]
     assert second.clock["now"] == "Monday 9 November, 08:00"
     assert second.cue == "Monday 9 November, 08:00: You've finished: Hospital appointment."
@@ -242,7 +238,6 @@ async def test_reachable_owner_notices_after_a_seeded_delay_and_the_action_conti
         if e["payload"]["content"] == "Fine, thanks."
     )
     assert at(answer, spec) > reply_at + 60
-    # The action did not stop for the message.
     actions = await rows(
         pool,
         "SELECT status FROM clock_actions WHERE run_id=%s AND process='actor' "
@@ -323,10 +318,8 @@ async def test_wake_in_minutes_and_an_interrupting_owner_message(app, pool, test
     prompts = human_prompts(models["dan"])
     assert "Keep an eye on the car." in prompts[0]
     assert prompts[0].startswith("It's Monday 9 November, 06:00.")
-    # The owner's next message interrupts the two-hour wait, at 06:20 and a little.
     assert "Cancel that." in prompts[1]
     assert re.match(r"It's Monday 9 November, 06:[23]\d\.", prompts[1])
-    # The stale two-hour timer is gone. The later timer comes from the second turn's request.
     assert prompts[2].startswith("It's Monday 9 November, 07:")
     assert "You asked to look at this again around now." in prompts[2]
     jobs = await rows(
@@ -385,12 +378,10 @@ async def test_own_effects_do_not_wake_and_ambient_news_waits_coalesced(
         _agents,
     ):
         await engine.run(created["run_id"])
-    # Dan's own posts never wake him: he has the message wake and the morning check only.
     dan_prompts = human_prompts(models["dan"])
     assert len(dan_prompts) == 2
     assert "board" not in dan_prompts[0]
     mei_prompts = human_prompts(models["mei"])
-    # One wake about 45 minutes after the first post, for both posts together.
     assert "2 new message board post(s)" in mei_prompts[0]
     assert re.match(r"It's Monday 9 November, 06:4\d\.", mei_prompts[0])
     assert all("Fence" not in view.model_dump_json() for view in actors["dan"].views)
@@ -436,7 +427,6 @@ async def test_limit_rests_one_process_and_the_run_goes_on(app, pool, test_datab
         ("dan", "agent"): 1,
         ("mei", "actor"): 1,
     }
-    # What was not read yet stays undelivered, so the next day's activation carries it.
     waiting = await rows(
         pool,
         """SELECT e.payload->>'content' AS content FROM run_events e
@@ -449,7 +439,6 @@ async def test_limit_rests_one_process_and_the_run_goes_on(app, pool, test_datab
     assert waiting == [{"content": "Two."}]
 
 
-# Stale effects and failures ------------------------------------------------------------
 
 
 async def test_stale_owner_effect_becomes_a_saved_rejection(app, pool, test_database_url):
@@ -489,7 +478,6 @@ async def test_stale_owner_effect_becomes_a_saved_rejection(app, pool, test_data
     assert run["status"] == "completed"
     rejected = await events(pool, created["run_id"], "actor_effect_rejected")
     assert [e["payload"]["effect"] for e in rejected] == ["record"]
-    # The words still reached the assistant, and the owner learns what happened.
     messages = await events(pool, created["run_id"], "owner_message")
     assert messages[0]["payload"]["content"] == "I changed my plan."
     second = actors["dan"].views[1]
@@ -569,8 +557,6 @@ async def test_abandoned_activation_with_dangling_calls_and_a_later_activation(
             {"kind": "reply", "text": "Second job."},
         ],
     )
-    # The model asks for two tools. The first fails with no retry, so the graph stops with a
-    # saved model message whose calls have no results.
     models = models_for(
         owners,
         dan=[
@@ -609,7 +595,6 @@ async def test_abandoned_activation_with_dangling_calls_and_a_later_activation(
     abandoned = await events(pool, created["run_id"], "activation_abandoned")
     assert len(abandoned) == 1 and abandoned[0]["payload"]["failure_kind"] == "task_limit"
     assert all(item["status"] == "completed" for item in task_rows)
-    # The later activation ran on the same session. Its model read a patched history.
     later = human_prompts(models["dan"])
     assert any("Second job." in prompt for prompt in later)
     messages = state.values["messages"]
@@ -736,7 +721,6 @@ async def test_advance_stops_at_a_bound_and_resumes(app, pool, test_database_url
     assert control.trace_text(trace) == control.trace_text(baseline)
 
 
-# Crash and resume ----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -765,7 +749,6 @@ async def test_kill_at_a_tool_boundary_and_resume_from_checkpoints(
             seen = []
 
             def after_tool(process, tool_call):
-                # The effect and its saved event are committed. The checkpoint is not.
                 if tool_call["name"] == "send_mail" and not seen:
                     seen.append(tool_call["id"])
                     target.set()
@@ -866,7 +849,6 @@ async def test_crash_after_all_tool_writes_and_before_the_next_checkpoint(
     assert sorted(e["payload"]["tool"] for e in tools) == ["inspect_world", "read_run_view"]
 
 
-# The world's plans ---------------------------------------------------------------------
 
 
 def _seed_with_outcome(key, level, outcome):
@@ -940,7 +922,6 @@ async def test_perturbation_replaces_an_action(app, pool, test_database_url):
         UUID(created["run_id"]),
     )
     assert {e["key"]: e["status"] for e in ended}[f"action_end:{key}"] == "cancelled"
-    # The owner stays frozen through the new action, then sees both cues at its end.
     view = actors["dan"].views[1]
     assert "broken down" in view.cue and "You've finished: Waiting" in view.cue
     draws = await rows(
@@ -1182,7 +1163,6 @@ async def test_unpaid_assistant_bill_ends_the_assistant(app, pool, test_database
     assert all(job["start_s"] <= 3600 for job in jobs)
 
 
-# What models read ----------------------------------------------------------------------
 
 
 FORBIDDEN = re.compile(
@@ -1279,7 +1259,6 @@ async def test_reading_an_old_pending_receipt_does_not_end_the_activation(
         "SELECT output FROM run_jobs WHERE run_id=%s AND kind='agent' ORDER BY clock_seq",
         UUID(created["run_id"]),
     )
-    # The submission ended the first activation. The settled result wakes the next.
     assert jobs[0]["output"]["status"] == "waiting" and jobs[0]["output"]["pending_ids"]
     tools = await events(pool, created["run_id"], "assistant_tool_call")
     assert [e["payload"]["tool"] for e in tools] == ["submit_world_action", "read_world_action"]
@@ -1313,7 +1292,7 @@ async def test_summary_threshold_keeps_model_input_near_the_target(app, test_dat
     """Costs depend on this: a long history is summarized before it reaches the model."""
     owners = ("dan",)
     spec = scenario(owners, duration_minutes=240)
-    big = "word " * 2300  # About 2900 tokens in one owner message.
+    big = "word " * 2300
     summaries = []
 
     class SummaryModel(ScriptModel):
@@ -1355,12 +1334,11 @@ async def test_summary_threshold_keeps_model_input_near_the_target(app, test_dat
     sizes = [count_tokens_approximately(messages) for messages in models["dan"].all_seen]
     assert max(sizes) < CLOCKED_SUMMARY_TOKENS + 2000, sizes
     assert sizes[-1] < sizes[-2] or len(summaries) >= 1
-    # Stamps read raw history, so a summary must not remove saved messages from state.
+    # Clock stamps fold the raw history: a summary must not remove saved messages from state.
     humans = [m for m in state.values["messages"] if isinstance(m, HumanMessage)]
     assert len(humans) == 7
 
 
-# The run script ------------------------------------------------------------------------
 
 
 def _run_clocked():
@@ -1413,7 +1391,6 @@ async def test_scripted_week_runs_saves_counts_and_resumes_from_its_manifest(
     created = json.loads(manifest.read_text())
     report_text = (manifest.parent / "report.json").read_text()
     assert all(item["token"] not in report_text for item in created["participants"])
-    # The plot's unpaid bills end the assistants that nobody paid for.
     assert final["failures"]["assistant_expired"] >= 1
 
 
@@ -1424,7 +1401,6 @@ def test_run_script_refuses_a_scenario_without_a_clock(tmp_path):
         script.load_scenario(path, None)
 
 
-# More of the world --------------------------------------------------------------------
 
 
 async def test_pops_keep_rule_order(app, test_database_url):
@@ -1719,7 +1695,6 @@ async def test_model_owner_on_a_clocked_view_uses_plain_fields(test_database_url
     assert "director_requests" not in system
     assert "window" not in data["view"] and "source_event_id" not in data["view"]
     assert data["view"]["clock"]["now"] == "Monday 09:00"
-    # A window view keeps its schema, prompt text, and natural rule.
     plain = view.model_copy(update={"clock": None})
     model = ScriptModel(script=[AIMessage(content=json.dumps({"kind": "wait", "text": ""}))])
     with pytest.raises(ActorContractError):
@@ -1733,7 +1708,7 @@ def _saved_json(path):
     try:
         return json.loads(path.read_text()) if path.exists() else None
     except ValueError:
-        return None  # The first process is still writing it.
+        return None
 
 
 async def test_real_process_killed_at_a_tool_boundary_resumes_identically(
@@ -1903,7 +1878,6 @@ def test_the_story_trace_masks_only_values_that_differ_between_runs_by_design():
     assert control.normalise(saved("hello", None)) != control.normalise(saved("hello", "abc="))
 
 
-# Outages hold the story ----------------------------------------------------------------
 
 
 async def _story_time(pool, run_id) -> int:
@@ -1953,7 +1927,6 @@ async def test_provider_outage_holds_story_time_then_the_same_job_finishes(
     ):
         task = asyncio.create_task(engine.run(created["run_id"]))
         await _until(lambda: outage["tries"] >= 6)
-        # More tries than the recovery limit, and more than this task's model calls.
         assert outage["tries"] > spec.limits.recovery_attempts + 2
         assert await _story_time(pool, created["run_id"]) < 200
         assert not await events(pool, created["run_id"], "activation_abandoned")
@@ -2075,7 +2048,6 @@ async def test_refused_request_is_bounded_but_many_of_them_open_the_breaker(
     abandoned = await events(pool, created["run_id"], "activation_abandoned")
     assert abandoned[0]["payload"]["failure_kind"] == "provider_request_refused"
     failures = await events(pool, created["run_id"], "job_failure")
-    # Each activation tries up to the limit before it ends. Only so many are possible.
     assert len(failures) >= spec.limits.recovery_attempts + 1
 
 
@@ -2130,7 +2102,6 @@ async def test_outage_during_a_web_search_keeps_the_call_and_builds_the_site_lat
     assert run["status"] == "completed", run["result"]
     run_id = UUID(created["run_id"])
     assert not await events(pool, run_id, "activation_abandoned")
-    # Every failure, the first one too, reads as the outage it was and holds the story.
     failures = await events(pool, run_id, "job_failure")
     assert {item["payload"]["failure_kind"] for item in failures} == {"tool_transient"}
     assert all(item["payload"]["holding"] for item in failures)
@@ -2177,7 +2148,6 @@ async def test_circuit_breaker_pauses_a_sustained_outage_and_a_resume_continues(
             UUID(created["run_id"]),
         )
         assert {job["status"] for job in jobs} == {"running"}
-        # The outage has not ended, so a resume pauses again at its first failure.
         before = len(await events(pool, created["run_id"], "job_failure"))
         engine.breaker_failures = 50
         await engine.director.control(created["run_id"], "resume")
@@ -2185,7 +2155,7 @@ async def test_circuit_breaker_pauses_a_sustained_outage_and_a_resume_continues(
         assert run["status"] == "paused", run["result"]
         assert run["result"]["reason"] == "provider_outage"
         failures = await events(pool, created["run_id"], "job_failure")
-        assert len(failures) - before <= 2  # One for each process in flight, at most.
+        assert len(failures) - before <= 2
         outage["on"] = False
         await engine.director.control(created["run_id"], "resume")
         run = await engine.run(created["run_id"])
@@ -2235,7 +2205,6 @@ async def test_director_provider_failure_waits_with_no_canned_plan(app, pool, te
     failures = await events(pool, created["run_id"], "job_failure")
     assert len(failures) == 4 and failures[0]["payload"]["component"] == "director"
     assert any("lights flicker" in view.cue for view in actors["dan"].views)
-    # It applied at its own moment: an outage does not delay it in story time.
     applied = await events(pool, created["run_id"], "director_plan_applied")
     assert at(applied[0], spec) == 3600
 
@@ -2277,7 +2246,6 @@ async def test_director_provider_rejection_pauses_and_a_resume_answers(
     assert any("lights flicker" in view.cue for view in actors["dan"].views)
 
 
-# Failed jobs keep what they were given ---------------------------------------------------
 
 
 async def test_api_blip_at_the_start_of_an_activation_retries_and_loses_nothing(
@@ -2385,13 +2353,11 @@ async def test_owner_failure_shows_a_cue_once_more_and_cannot_loop(app, pool, te
     ):
         run = await engine.run(created["run_id"])
     assert run["status"] == "completed", run["result"]
-    # The job that failed, then the job that got it again. Then the failure stays recorded.
     assert sum("Dentist" in cue for cue in seen) == 2
     errors = await events(pool, created["run_id"], "simulator_error")
     assert [e["payload"]["reason"] for e in errors] == ["contract", "contract"]
 
 
-# Logic errors and bad text -------------------------------------------------------------
 
 
 async def test_event_that_cannot_be_handled_is_recorded_and_the_run_passes_it(
@@ -2459,7 +2425,6 @@ async def test_failed_wake_or_result_rests_the_owner_and_does_not_loop(
     run_id = UUID(created["run_id"])
     errors = await events(pool, run_id, "simulator_error")
     assert [e["payload"]["reason"] for e in errors] == ["event_failed"]
-    # It failed once, then the owner woke at the next daily wake, which is 08:00.
     jobs = await rows(
         pool,
         "SELECT start_s FROM run_jobs WHERE run_id=%s AND kind='actor' ORDER BY clock_seq",
@@ -2533,12 +2498,10 @@ async def test_nul_in_model_text_is_removed_before_saving(app, pool, test_databa
     assert not await events(pool, created["run_id"], "simulator_error", "activation_abandoned")
     said = [e["payload"]["content"] for e in await events(pool, created["run_id"], "owner_message")]
     assert "Hello there." in said and "All done." in said
-    # The tool refuses the text or saves it clean. Neither stops the run or breaks a save.
     tools = await events(pool, created["run_id"], "assistant_tool_call")
     assert all("\\u0000" not in json.dumps(e["payload"]) for e in tools)
 
 
-# A world change while the owner is typing ----------------------------------------------
 
 
 def _in_flight_case(replace, *, reachable, seeks=None):
@@ -2550,7 +2513,7 @@ def _in_flight_case(replace, *, reachable, seeks=None):
     first_text = "Off for a walk."
     first_end = 45 + -(-len(first_text) * 60 // 300)
     fire = drama.fire_s(first_end, 3600, result.fire_fraction)
-    typing_from = (fire - 120) // 60  # minutes after 06:00, on a whole minute
+    typing_from = (fire - 120) // 60
     spec = scenario(
         ("dan",),
         seed=seed,
@@ -2567,7 +2530,7 @@ def _in_flight_case(replace, *, reachable, seeks=None):
             }
         ],
     )
-    long_reply = "I'll go for lunch once this is done. " * 60  # About seven minutes to write.
+    long_reply = "I'll go for lunch once this is done. " * 60
     brain = ScriptedDirectorBrain(
         {
             "perturb": DirectorPlan(
@@ -2624,11 +2587,9 @@ async def test_reply_in_flight_does_not_undo_the_world_and_no_second_job_starts(
         "ORDER BY clock_seq",
         run_id,
     )
-    # The reply was being written when the world changed. Nothing overlaps it.
     assert jobs[1]["start_s"] < fire < jobs[1]["end_s"]
     for earlier, later in zip(jobs, jobs[1:], strict=False):
         assert later["start_s"] >= earlier["end_s"]
-    # Its words still reach the assistant.
     said = [e["payload"]["content"] for e in await events(pool, run_id, "owner_message")]
     assert long_reply.strip() in said
     actions = await rows(
@@ -2640,7 +2601,6 @@ async def test_reply_in_flight_does_not_undo_the_world_and_no_second_job_starts(
     assert [a["label"] for a in actions] == ["A walk", "Waiting at A&E", "Lunch at the cafe"]
     world = actions[1]
     assert world["start_s"] == fire
-    # The reply did not end it. What the owner asked for began when it was over.
     assert world["status"] == "done"
     assert actions[2]["start_s"] == fire + 3600
     assert actions[2]["key"] == "action:dan:2"
@@ -2679,7 +2639,6 @@ async def test_replacement_keeps_what_the_action_was_seeking(app, pool, test_dat
     assert balances == [{"balance": 115}]
 
 
-# Rates ---------------------------------------------------------------------------------
 
 
 async def test_assistants_answering_each_other_slow_down_to_ambient_news(
@@ -2727,7 +2686,6 @@ async def test_assistants_answering_each_other_slow_down_to_ambient_news(
             owner,
         )
         starts = [job["start_s"] for job in jobs]
-        # At the old rate this would be about 70 wakes in four hours.
         assert len(starts) <= 12
         late = [b - a for a, b in zip(starts[4:], starts[5:], strict=False)]
         assert late and max(late) >= 2700 - 120
@@ -2735,7 +2693,6 @@ async def test_assistants_answering_each_other_slow_down_to_ambient_news(
 
 async def test_daily_quota_rests_a_process_until_the_next_daily_wake(app, pool, test_database_url):
     owners = ("dan",)
-    # One activation a day. Two messages arrive before 08:00, so the second waits for it.
     spec = scenario(
         owners,
         duration_minutes=2880,
@@ -2817,18 +2774,15 @@ async def test_chat_streak_counts_only_what_does_something(app, pool, test_datab
 
         await owner_says_twice()
         assert await capped()
-        # Reads, refused calls and form pages that only read do nothing for the owner.
         await add("assistant_tool_call", tool("inspect_world"))
         await add("assistant_tool_call", tool("web_search"))
         await add("assistant_tool_call", tool("open_page"))
         await add("assistant_tool_call", tool("send_mail", ok=False))
         await add("assistant_tool_call", tool("submit_form", action="view_cart"))
         assert await capped()
-        # The end of an action and a note read later do not start the count again.
         await add("actor_cue", {"cue": "You've finished: A walk.", "action_key": "action:dan:1"})
         await add("actor_cue", {"cue": "Lunch will have to wait.", "quiet": True})
         assert await capped()
-        # Each of these does.
         for effect in (
             tool("send_mail"),
             tool("submit_form", action="checkout"),
@@ -2899,7 +2853,7 @@ async def test_chat_cap_still_lets_mail_wake_the_owner(app, pool, test_database_
             )
             return found[0]["due_s"]
 
-        assert await wake() == 7200  # Chat waits for the morning.
+        assert await wake() == 7200
         async with pool.connection() as conn:
             await emit(
                 conn,
@@ -2910,7 +2864,7 @@ async def test_chat_cap_still_lets_mail_wake_the_owner(app, pool, test_database_
                 "mail",
                 "dan",
             )
-        assert await wake() <= 600 + 2400  # Mail gets noticed as it always did.
+        assert await wake() <= 600 + 2400
 
 
 async def test_default_idle_ends_quietly_and_the_owner_rests_until_the_morning(
@@ -2959,14 +2913,12 @@ def test_cues_carry_their_times_and_a_long_freeze_keeps_only_what_still_matters(
             "payload": {"cue": text, **payload},
         }
 
-    # A short gap: everything stays, and each line says when.
     recent = [cue(2, "Rent is tomorrow.", source="timeline"), cue(3, "You've finished: Work.")]
     text = ClockEngine._cue_text(ctx, recent, recent, 4 * 3600, 3600)
     assert text == (
         "Monday 9 November, 08:00: Rent is tomorrow.\n"
         "Monday 9 November, 09:00: You've finished: Work."
     )
-    # Three days in hospital: old plans are gone. The crash and the newest plan stay.
     frozen = [
         cue(1, "You crashed the car."),
         cue(26, "You're at the garage from 8 till 11.", source="timeline"),
@@ -2984,7 +2936,6 @@ def test_cues_carry_their_times_and_a_long_freeze_keeps_only_what_still_matters(
     assert not FORBIDDEN.search(text)
 
 
-# Fired and drawn -----------------------------------------------------------------------
 
 
 async def test_fired_means_popped_and_a_replaced_perturbation_is_not_cancelled(
@@ -3096,7 +3047,6 @@ async def test_drawn_perturbation_that_never_happens_is_not_counted_as_fired(
     assert measured["fired"] == measured["with_effect"] == 0
 
 
-# Expiry and resume ---------------------------------------------------------------------
 
 
 async def test_expiry_silences_an_answer_that_has_not_landed_yet(app, pool, test_database_url):
@@ -3141,7 +3091,6 @@ async def test_expiry_silences_an_answer_that_has_not_landed_yet(app, pool, test
         ],
     )
     actors = actors_for(owners, dan=[{"kind": "wait"}, {"kind": "wait"}])
-    # About 90 seconds to write, from 06:59, so it ends after the deadline at 07:00.
     models = {"dan": ScriptModel(script=[end_turn(text="Noted. " * 1300, status="responded")])}
     async with clocked_run(app, test_database_url, spec, models, actors) as (
         engine,
@@ -3222,7 +3171,7 @@ async def test_crash_during_a_tool_blocks_later_events_until_it_runs_again(
         "SELECT bar_s FROM clock_processes WHERE run_id=%s AND owner_id='dan' AND kind='agent'",
         run_id,
     )
-    assert processes[0]["bar_s"] > 240  # A resume from this bar would let the mail land first.
+    assert processes[0]["bar_s"] > 240
     async with clocked_run(app, test_database_url, spec, models, actors, created=created) as (
         engine,
         _created,
@@ -3241,7 +3190,6 @@ async def test_crash_during_a_tool_blocks_later_events_until_it_runs_again(
     ]
 
 
-# Online approvals and timeline money -----------------------------------------------------
 
 
 async def test_online_approval_counts_only_when_more_room_is_needed(app, pool, test_database_url):
@@ -3297,7 +3245,6 @@ async def test_timeline_money_lands_once_through_the_ledger(app, pool, test_data
         _agents,
     ):
         run = await engine.run(created["run_id"])
-        # A repeat after a crash changes nothing.
         beat = await rows(
             pool,
             "SELECT * FROM clock_events WHERE run_id=%s AND key='beat:pension'",
@@ -3352,7 +3299,6 @@ def test_timeline_money_stays_out_of_the_hash_when_empty():
         )
 
 
-# The run script ------------------------------------------------------------------------
 
 
 async def test_run_script_seed_is_frozen_and_usage_comes_from_the_ledger(
@@ -3428,7 +3374,6 @@ async def test_paid_run_needs_a_stated_ceiling_and_cannot_share_one_silently(
     assert await script.bind_campaign(pool, UUID(first), budget, share=False) == []
     with pytest.raises(script.ScenarioRunError, match="--share-campaign"):
         await script.bind_campaign(pool, UUID(second), budget, share=False)
-    # The first run keeps its ceiling on a resume, and sharing is possible when it is asked for.
     assert await script.bind_campaign(pool, UUID(first), budget, share=False) == []
     assert await script.bind_campaign(pool, UUID(second), budget, share=True) == [first]
     assert await script.bind_campaign(pool, UUID(first), budget, share=False) == [second]
@@ -3481,7 +3426,6 @@ async def test_export_reports_drawn_fired_and_with_effect(
     summary = await module.export(UUID(created["run_id"]), tmp_path)
     counts = summary["counts"]
     assert counts["drawn_interventions"] == 1 and counts["interventions"] == 1
-    # The plan held only a note, so nothing about the owner's day changed.
     assert counts["interventions_with_effect"] == 0
 
 
@@ -3506,7 +3450,6 @@ def test_run_script_main_exits_with_the_code_of_its_report(monkeypatch, capsys):
     assert stopped.value.code == 3
     report.update(status="completed", result={"reason": "horizon"})
     script.main(arguments)
-    # A crash is a failure too. Any non-zero code tells an outer loop to try --resume.
     monkeypatch.setattr(script, "execute", crashed)
     with pytest.raises(SystemExit) as stopped:
         script.main(arguments)
@@ -3637,18 +3580,15 @@ async def test_paid_path_of_the_run_script_with_fake_models(
     assert first["usage"]["requests"] == 0
     assert str(first["campaign_budget"]["limit_usd"]).rstrip("0").rstrip(".") == "5"
     assert script.exit_code(first) == 0
-    # The engine alone repeats a call, so an outage holds no extra reservations.
     assert set(retries) == {0}
     bound = await events(pool, first["run_id"], "run_campaign_bound")
     assert bound[0]["payload"]["campaign_id"] == campaign
-    # A second run may not spend from that ceiling unless that is asked for.
     with pytest.raises(script.ScenarioRunError, match="--share-campaign"):
         await script.execute(script.parse_args(paid), root=tmp_path, env=env)
     second = await script.execute(
         script.parse_args([*paid, "--share-campaign"]), root=tmp_path, env=env
     )
     assert second["run_id"] != first["run_id"] and second["status"] == "completed"
-    # A saved run keeps its own ceiling and can resume with nothing else stated.
     manifest = tmp_path / ".local/scenario-runs" / first["run_id"] / "credentials.json"
     again = await script.execute(
         script.parse_args(["--resume", str(manifest)]), root=tmp_path, env=env

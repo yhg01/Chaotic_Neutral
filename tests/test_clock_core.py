@@ -66,7 +66,7 @@ from agentrpg.director import Director
 from agentrpg.scenario_schema import ScenarioSpec
 
 SCENARIOS = Path(__file__).resolve().parents[1] / "scenarios"
-# Saved before this feature existed. Saved runs and their evidence depend on these values.
+# Do not edit these to pass a test: saved runs and their evidence depend on these hashes.
 FROZEN_HASHES = {
     "after_the_verdict.json": "af0ef00dc3c913956537128beab7ad981c0d8c721cc25f9542a0e1a9a913499e",
     "after_the_verdict_v2.json": "f82b8c474c7795107367ebdb872ff7a9998fa123ca2f528b3439fd9a5dd440ad",
@@ -116,7 +116,7 @@ FORBIDDEN = (
     "simulated",
     "turn-count",
 )
-START = "2026-11-09T06:00:00+00:00"  # A Monday.
+START = "2026-11-09T06:00:00+00:00"
 
 
 def config(**values):
@@ -160,7 +160,6 @@ def ai(*names, text="", ids=None):
     return AIMessage(content=text, tool_calls=calls)
 
 
-# Scenario contract --------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(("name", "expected"), sorted(FROZEN_HASHES.items()))
@@ -179,7 +178,6 @@ def test_clock_section_changes_the_hash_only_when_present():
     assert '"clock"' in with_clock.canonical_json()
     assert '"clock"' not in without.canonical_json()
     assert with_clock.clock.limits.max_parallel_thinkers == 8
-    # A frozen run can be reloaded from its saved JSON with the same hash.
     saved = with_clock.model_dump(mode="json")
     assert ScenarioSpec.model_validate(saved).content_hash() == with_clock.content_hash()
 
@@ -271,7 +269,6 @@ def test_week_scenario_in_the_repository_validates():
     assert clocked and not set(clocked) & set(FROZEN_HASHES)
 
 
-# Times -------------------------------------------------------------------------------
 
 
 def test_time_arithmetic_is_plain():
@@ -301,7 +298,6 @@ def test_time_keeps_the_offset_of_the_start():
 def test_until_is_clamped_and_defaults_to_the_next_morning():
     clock = config()
     assert until_after_yield(0, None, clock) == 7200
-    # However short the scenario's lower bound, an assistant cannot poll more often than this.
     assert clock.until_min_s == 300
     assert until_after_yield(100, 1, clock) == 100 + 1200
     assert until_after_yield(100, 30, clock) == 100 + 1800
@@ -315,7 +311,6 @@ def test_notice_delay_is_seeded():
     assert all(240 <= sample <= 2400 for sample in samples)
 
 
-# Prices ------------------------------------------------------------------------------
 
 
 def test_price_of_a_thought_ignores_provider_usage():
@@ -328,7 +323,6 @@ def test_price_of_a_thought_ignores_provider_usage():
         usage_metadata={"input_tokens": 9, "output_tokens": 9, "total_tokens": 18},
     )
     assert price_think(with_usage, clock) == 40
-    # Tool calls count as visible output. A provider's call ID does not.
     assert price_think(ai("send_mail", ids={0: "a"}), clock) == price_think(
         ai("send_mail", ids={0: "zzzzzzz"}), clock
     )
@@ -337,7 +331,7 @@ def test_price_of_a_thought_ignores_provider_usage():
 def test_price_of_a_tool_is_frozen_by_name():
     clock = config(tool_seconds={"send_mail": 90, "inspect_world": 5}, default_tool_seconds=30)
     assert price_tool("send_mail", clock) == 90
-    assert price_tool("check_bookings", clock) == 5  # The visible name of inspect_world.
+    assert price_tool("check_bookings", clock) == 5
     assert price_tool("anything_else", clock) == 30
 
 
@@ -348,7 +342,6 @@ def test_price_of_an_owner_turn_is_clamped():
     assert price_actor(300, clock) == 45 + 60
 
 
-# Stamps ------------------------------------------------------------------------------
 
 
 def test_fold_stamps_each_call_at_the_start_of_its_duration():
@@ -372,9 +365,7 @@ def test_fold_stamps_each_call_at_the_start_of_its_duration():
     assert fold.bars[0] == 1000 + first + 110
     assert fold.end_s == fold.bars[1] == fold.bars[0] + price_think(messages[5], clock) + 10
     assert [call.call_id for call in fold.last_message_calls] == ["c9"]
-    # An activation that has not started stays at its start.
     assert fold_stamps(50, messages, "missing", clock).end_s == 50
-    # Only offered tools are gated. A model's invented tool name costs nothing.
     assert not fold_stamps(0, messages, "activation", clock, gated={"fast"}).calls[0].gated
 
 
@@ -410,7 +401,6 @@ def test_stamps_recompute_identically_from_saved_messages():
         assert list(again.bars) == sorted(again.bars)
 
 
-# Order -------------------------------------------------------------------------------
 
 
 def _rows(count, seed):
@@ -445,7 +435,6 @@ def test_a_tie_depends_on_the_seed_and_not_on_arrival():
     assert first == sorted(reversed(["a", "b", "c", "d", "e", "f"]), key=lambda key: tie(1, key))
 
 
-# Wake rules --------------------------------------------------------------------------
 
 
 def _event(kind, owner_id=None, cause=None, **payload):
@@ -459,7 +448,6 @@ def test_agent_wake_classes():
     assert classify_agent_event(_event("market_settled", "dan"), "dan") == "direct"
     assert classify_agent_event(_event("market_changed"), "dan") == "ambient"
     assert classify_agent_event(_event("resource_updated", "dan"), "dan") == "ambient"
-    # An Agent's own effects never wake it, and another owner's events are not its own.
     assert classify_agent_event(_event("resource_updated", "dan", "agent:dan"), "dan") is None
     assert classify_agent_event(_event("inbox_received", "mei"), "dan") is None
     post = _event("board_posted", author_id="A1", audience=None)
@@ -478,13 +466,11 @@ def test_owner_wake_classes():
     assert classify_actor_event(_event("inbox_received", "dan"), "dan") == "message"
     assert classify_actor_event(_event("actor_effect_rejected", "dan"), "dan") == "message"
     assert classify_actor_event(_event("inbox_received", "dan", "actor:dan"), "dan") is None
-    # R13: nothing about the board reaches a person, and a record change wakes nobody.
     assert classify_actor_event(_event("board_posted"), "dan") is None
     assert classify_actor_event(_event("resource_updated", "dan"), "dan") is None
     assert classify_actor_event(_event("market_settled"), "dan") is None
 
 
-# Legacy bytes ------------------------------------------------------------------------
 
 
 def test_new_fields_leave_window_run_bytes_unchanged():
@@ -611,10 +597,9 @@ def test_clocked_actor_candidate_maps_back_to_the_saved_field():
             source_event_id="e",
             next_action={"description": "Nap", "minutes": 4321, "reachable": True, "category": "x"},
         )
-    assert ModelActor  # The natural wait rule is covered by the engine tests.
+    assert ModelActor
 
 
-# The gate ----------------------------------------------------------------------------
 
 
 def _gate(**values):
@@ -654,9 +639,8 @@ async def test_after_model_registers_calls_and_only_free_calls_do_not_park():
     head = gate.head()
     assert head.name == "read" and head.stamp_s == 100 + think and not head.arrived
     assert gate.bound("agent:a") is None
-    # A later item may pass only a process that can no longer precede it by its calls.
     assert gate.allows(10**6)
-    await gate.before_tool("agent:a", message.tool_calls[1], [*HISTORY, message])  # A free tool.
+    await gate.before_tool("agent:a", message.tool_calls[1], [*HISTORY, message])
     parked = asyncio.create_task(
         gate.before_tool("agent:a", message.tool_calls[0], [*HISTORY, message])
     )
@@ -678,7 +662,6 @@ async def test_after_model_registers_calls_and_only_free_calls_do_not_park():
     gate.release(second)
     await parked
     gate.after_tool("agent:a", message.tool_calls[2])
-    # Nothing is left to run, so the process blocks at its bar until it reports.
     assert gate.head() is None
     assert gate.bound("agent:a") == 100 + think + 60
 
@@ -688,17 +671,14 @@ async def test_registered_call_that_never_arrives_is_cleared():
     gate.begin_activation("agent:a", "task", 1, 100)
     message = ai("read", "write")
     gate.after_model("agent:a", HISTORY, message)
-    # The next model call means that the batch has joined.
     gate.before_model("agent:a", [*HISTORY, message])
     assert gate.head() is None
     assert gate.bound("agent:a") == 100 + price_think(message, gate.config) + 60 + 20
-    # The end of the activation clears them too.
     gate.after_model("agent:a", [*HISTORY, message], ai("read", ids={0: "later"}))
     assert gate.head() is not None
     gate.end("agent:a")
     assert gate.head() is None
     assert gate.allows(10**9)
-    # The conductor's bound clears one when nothing else does.
     gate.begin_activation("agent:a", "task", 1, 100)
     gate.after_model("agent:a", HISTORY, ai("read"))
     entry = gate.head()
@@ -768,10 +748,8 @@ async def test_first_arrival_registers_a_resumed_batch_and_skips_saved_calls():
     history = [*HISTORY, message, ToolMessage(content="{}", tool_call_id="answered")]
     fold = fold_stamps(100, history, "task", gate.config, gated={"read", "write", "post"})
     gate.begin_activation("agent:a", "task", 1, 100, resume_bar=100 + fold.calls[1].stamp_s - 100)
-    # The recovery barrier: it blocks from its saved bar and not from bar plus think time.
     assert gate.bound("agent:a") == fold.calls[1].stamp_s
     assert not gate.allows(fold.calls[1].stamp_s)
-    # A call with a saved result returns at once and does not run again.
     await gate.before_tool("agent:a", message.tool_calls[0], history)
     entry = gate.head()
     assert entry.call_id == "open" and entry.stamp_s == fold.calls[1].stamp_s
@@ -904,7 +882,6 @@ def test_simulated_conductor_never_goes_backwards_and_ignores_latency():
             assert simulate(world_seed, latency_seed) == first
 
 
-# Queue and triggers on real PostgreSQL -------------------------------------------------
 
 
 def clocked_spec(**clock):
@@ -951,7 +928,6 @@ async def test_queue_helpers_are_idempotent_and_never_move_behind_now(pool):
         await conn.execute("UPDATE clock_state SET sim_s=500 WHERE run_id=%s", (run_id,))
         await schedule(conn, run_id, 100, "agent_wake", {"a": 1}, "k1", "dan")
         await schedule(conn, run_id, 900, "agent_wake", {"a": 2}, "k1", "dan")
-        # The two call forms that other modules use.
         await schedule(
             conn, run_id, 700, "director_plan", "k2", payload={"plan": {}}, source="director"
         )

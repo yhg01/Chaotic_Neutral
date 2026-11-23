@@ -22,8 +22,6 @@ def validation_scenario(case):
     if case == "insufficient":
         data["description"] = "Alice owes Bob ten credits but has only five available."
         data["world"]["balances"]["alice"] = 5
-        # The existing schema binds the permission ceiling to initial funds.
-        # Keep that rule; do not create an impossible ten-credit grant.
         alice["max_spend"] = 5
         alice["request"] = (
             "昨天 Bob 替我垫付了 10 积分午饭钱，我想还给他，但账户可能不够。"

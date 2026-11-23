@@ -536,7 +536,6 @@ async def test_http_identity_and_permissions_are_server_bound(environment, clien
     prefix = f"/api/v1/runs/{run_id}"
     owner1 = {"Authorization": f"Bearer {agents[0]['token']}"}
     owner2 = {"Authorization": f"Bearer {agents[1]['token']}"}
-    # Administrators observe through their own interface, never impersonate an Agent.
     assert (await client.get(prefix + "/resources")).status_code == 403
     own = await client.get(prefix + "/resources", headers=owner1)
     assert own.status_code == 200 and {r["id"] for r in own.json()["items"]} == {
@@ -767,8 +766,6 @@ async def test_actor_resource_view_has_bounded_content(environment):
 
 
 async def test_a_write_to_a_shared_record_of_someone_else_says_why_it_is_refused(environment, app):
-    # Seen in a live run: an assistant read a shared sheet, was told "not found" when it wrote
-    # to it, and tried 54 times.
     import httpx
 
     from agentrpg.agent_surface import present_result
@@ -813,7 +810,6 @@ async def test_a_write_to_a_shared_record_of_someone_else_says_why_it_is_refused
 def test_shared_editing_is_part_of_a_record_only_when_it_is_set():
     plain = {"id": "sheet", "owner_id": "owner-1", "title": "Order", "visibility": "shared"}
     shared = {**plain, "shared_owner_ids": ["owner-2"]}
-    # Saved scenarios and saved resource states keep their JSON, and so their hashes.
     assert "shared_can_edit" not in ResourceSpec.model_validate(shared).model_dump(mode="json")
     group = ResourceSpec.model_validate({**shared, "shared_can_edit": True})
     assert group.model_dump(mode="json")["shared_can_edit"] is True
@@ -879,7 +875,6 @@ async def test_the_people_a_group_sheet_is_shared_with_can_change_it(environment
         assert read["data"]["shared_can_edit"] is True and read["data"]["version"] == 0
         listed = await shared.execute("read_resources", {}, "list")
         flags = {item["id"]: item.get("shared_can_edit") for item in listed["data"]["items"]}
-        # A record without the setting reads as it did before.
         assert flags["order-sheet"] is True and flags["notice"] is None
         written = await shared.execute(
             "write_resource",
@@ -892,7 +887,6 @@ async def test_the_people_a_group_sheet_is_shared_with_can_change_it(environment
         )
         assert written["ok"] and written["data"]["version"] == 1
         assert written["data"]["owner_id"] == "owner-1"
-        # The same call again gives the saved result, and makes no second change.
         again = await shared.execute(
             "write_resource",
             {
@@ -909,28 +903,24 @@ async def test_the_people_a_group_sheet_is_shared_with_can_change_it(environment
             "write-2",
         )
         assert stale["error"]["status"] == 409
-        # The assistant side of a record that is closed to assistants stays closed.
         locked = await shared.execute(
             "write_resource",
             {"resource_id": "locked-sheet", "content": "Mon: me", "expected_version": 0},
             "write-3",
         )
         assert locked["error"]["status"] == 403
-        # A record shared for reading only keeps the earlier refusal.
         notice = await shared.execute(
             "write_resource",
             {"resource_id": "notice", "content": "Mine", "expected_version": 0},
             "write-4",
         )
         assert notice["error"]["code"] == "shared_read_only"
-        # A person it is not shared with cannot see it, so cannot change it.
         outside = await other.execute(
             "write_resource",
             {"resource_id": "order-sheet", "content": "Flat 3: jam", "expected_version": 1},
             "write-5",
         )
         assert outside["error"]["status"] == 404
-    # The owner reads the change. The owner and the other person were both told who made it.
     owner_copy = await resources.fetch(run_id, "owner-1", "order-sheet")
     assert owner_copy["content"] == "Flat 1:\nFlat 2: oats, tea" and owner_copy["version"] == 1
     async with pool.connection() as conn:
@@ -943,7 +933,6 @@ async def test_the_people_a_group_sheet_is_shared_with_can_change_it(environment
         ).fetchall()
     assert [row["owner_id"] for row in told] == ["owner-1", "owner-2"]
     assert all(row["payload"]["changed_by"] == "owner-2" for row in told)
-    # The person themself can change a sheet that is closed to assistants, but not its title.
     with pytest.raises(WorldError, match="title") as refused:
         await resources.apply_request(
             run_id,
@@ -970,7 +959,6 @@ async def test_the_people_a_group_sheet_is_shared_with_can_change_it(environment
         },
     )
     assert by_person["version"] == 1 and by_person["title"] == "Rota"
-    # The owner's own write still tells the owner and the shared person, with no other name.
     await resources.update(run_id, "owner-1", "order-sheet", uuid4(), "Flat 1: eggs", 1)
     async with pool.connection() as conn:
         last = await (
@@ -982,7 +970,6 @@ async def test_the_people_a_group_sheet_is_shared_with_can_change_it(environment
         ).fetchall()
     assert [row["owner_id"] for row in last] == ["owner-1", "owner-2"]
     assert all("changed_by" not in row["payload"] for row in last)
-    # When the owner stops sharing the record, shared editing ends with it.
     await resources.apply_request(
         run_id,
         "owner-1",
@@ -1020,7 +1007,6 @@ def test_the_five_lives_story_marks_only_its_group_sheets():
     )
     marked = {item.id for item in spec.resources if item.shared_can_edit}
     assert marked == {"thursday-order-sheet", "fair-stall-rota"}
-    # A story with no group sheet keeps the JSON, and so the hash, that it had.
     other = (root / "scenarios" / "agent_bill_week.json").read_text()
     assert "shared_can_edit" not in other
     assert "shared_can_edit" not in ScenarioSpec.model_validate_json(other).canonical_json()
@@ -1286,7 +1272,6 @@ async def test_market_requests_keep_payloads_for_consent_trade_and_rejection(env
     assert sold["status"] == "accepted"
     await advance(pool, run_id, 1)
     await market.set_consent(run_id, "owner-2", 7, ["battery"], [], buyer_consent)
-    # The stored target uses the canonical UUID, even when input uses capitals.
     item = sold["listing_id"].upper()
     stale_buy = await market.submit_current(
         run_id,

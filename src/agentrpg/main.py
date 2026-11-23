@@ -30,7 +30,6 @@ DIAGRAM = Path(__file__).resolve().parents[2] / "docs" / "diagram.html"
 BEARER = HTTPBearer(auto_error=False)
 PAGE_LIMIT = Annotated[int, Query(ge=1, le=100)]
 CURSOR = Annotated[str | None, Query(max_length=512)]
-# Replies store no audience. The join to the root gives every message its thread's audience.
 MESSAGE_SELECT = """
     SELECT m.id, m.cluster_id, m.author_id, a.name AS author_name,
            m.thread_id, m.parent_id, m.title, m.body, m.created_at, m.seq,
@@ -266,8 +265,7 @@ async def authenticate_operator(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(BEARER)],
 ) -> Principal:
-    # An explicit Agent or invalid credential must never become local admin
-    # access. Agent tools continue to use the separate bearer-only dependency.
+    # Any Authorization header, even an invalid one, takes the bearer path, never local admin.
     if "authorization" in request.headers:
         return await authenticate(request, credentials)
     try:
@@ -281,8 +279,6 @@ async def authenticate_operator(
         same_origin = origin is None or origin == f"{request.url.scheme}://{request.url.netloc}"
     except ValueError:
         local, same_origin = False, False
-    # Host and browser provenance checks stop another website from using the
-    # local operator API through DNS rebinding or a cross-origin form/fetch.
     fetch_site = request.headers.get("sec-fetch-site")
     if local and same_origin and fetch_site in {None, "same-origin", "none"}:
         return Principal("admin")
@@ -349,8 +345,7 @@ async def write_message(
                 ),
             )
             if inserted is None:
-                # A separate statement gets a new READ COMMITTED snapshot after
-                # a concurrent insert with this operation ID has committed.
+                # A new statement gets a fresh READ COMMITTED snapshot after the concurrent insert.
                 existing = await one(
                     connection,
                     "SELECT id, payload_hash FROM messages "
@@ -366,12 +361,11 @@ async def write_message(
             replay = True
         result = await one(connection, MESSAGE_SELECT + " WHERE m.id = %s", (message_id,))
         await add_participants(connection, [result])
-        # Shared run locks allow concurrent posts and fence a clock/stop change.
-        # The message and its durable notification commit in this same transaction.
+        # The shared run lock lets posts overlap and fences a stop; the event commits with the post.
         from agentrpg.director import emit
 
         if run is not None:
-            # This event is run data, so it never holds a body or a direct thread's subject.
+            # Run data: this event never holds a body or a direct thread's subject.
             await emit(
                 connection,
                 run["id"],
@@ -386,7 +380,6 @@ async def write_message(
                 },
                 f"board:{message_id}",
             )
-    # Exiting the connection context commits before the route reports success.
     return message(result), replay
 
 
@@ -400,7 +393,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             min_size=settings.pool_min_size,
             max_size=settings.pool_max_size,
             timeout=settings.pool_timeout,
-            # A lost connection must not reach a request after PostgreSQL restarts.
             check=AsyncConnectionPool.check_connection,
             kwargs={"row_factory": dict_row},
             open=False,

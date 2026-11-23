@@ -53,7 +53,6 @@ class DirectChatModel(BaseChatModel):
     provider_model: str
     key: SecretStr
     role: str = "model"
-    # An optional counter with before(role), after(role, usage) and a failed mapping.
     meter: Any = None
     max_tokens: int = 4000
     temperature: float | None = None

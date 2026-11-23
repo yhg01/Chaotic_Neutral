@@ -204,7 +204,6 @@ async def records(
                 "SELECT * FROM {} WHERE run_id=%s AND {} ORDER BY {} LIMIT %s OFFSET %s"
             ).format(sql.Identifier(table), condition, sql.SQL(order))
             result = await rows(conn, statement, (*args, limit + 1, offset))
-            # Operational hashes and leases are not useful in the observer.
             hidden = {"payload_hash", "sender_key", "lease_token", "input_hash"}
             result = [
                 {key: value for key, value in item.items() if key not in hidden} for item in result

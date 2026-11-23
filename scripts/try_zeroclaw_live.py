@@ -263,7 +263,6 @@ async def deepseek_balance(env: dict) -> float | None:
 async def progress(pool, run_id, config, meter, seconds, folder, env, floor) -> None:
     while True:
         await asyncio.sleep(seconds)
-        # Saved often, so a part that is killed still counts toward the caps.
         save_private(folder / "meter.json", meter.report())
         async with pool.connection() as conn:
             state = await (
@@ -272,7 +271,6 @@ async def progress(pool, run_id, config, meter, seconds, folder, env, floor) -> 
         total = sum(meter.input_tokens.values()) + sum(meter.output_tokens.values())
         balance = await deepseek_balance(env) if floor else None
         if balance is not None and balance < floor:
-            # The account is near the floor that was set. The next model call stops the run.
             meter.max_tokens = 0
         print(
             f"{config.now_text(state['sim_s'])} calls {meter.calls} tokens {total}"
@@ -287,7 +285,6 @@ async def execute(args, env: dict) -> dict:
             "assistant": args.max_assistant_calls,
             "owner": args.max_owner_calls,
             "director": args.max_director_calls,
-            # A site model has its own count, so its tokens are not priced as the Director's.
             "site": args.max_director_calls if args.site_model else 0,
         },
         max_tokens=args.max_tokens,
@@ -313,18 +310,15 @@ async def execute(args, env: dict) -> dict:
         runtime = await stack.enter_async_context(AgentRuntime(url, pool_size=24))
         if saved is None:
             manifest = await Director(app.state.pool).create_run(spec)
-            # The participants' board tokens. Private, and needed to continue the run.
             save_private(folder / "credentials.json", manifest)
         else:
             manifest = saved
-            # The frozen scenario of the run, not the file, which can have changed.
             run = await Director(app.state.pool).get_run(UUID(manifest["run_id"]))
             spec = ScenarioSpec.model_validate(run["scenario"])
         run_id = UUID(manifest["run_id"])
         print(f"Run: {run_id} in schema {schema}", flush=True)
         binding = None
         if args.budget_usd is not None:
-            # One campaign for one trial name, so a resumed trial keeps its ceiling and spend.
             campaign = uuid5(NAMESPACE_URL, f"zeroclaw-live:{args.name}")
             ledger = CampaignLedger(runtime.pool)
             await ledger.ensure_campaign(campaign, args.budget_usd, name=f"Trial {args.name}")
@@ -350,7 +344,6 @@ async def execute(args, env: dict) -> dict:
             )
         bridge = None
         if args.backend == "zeroclaw":
-            # A kept folder, so a resumed run loads each program's session again.
             bridge = await stack.enter_async_context(ZeroClawBridge(root=folder / "zeroclaw"))
             make = zeroclaw_factory(bridge, mode=args.mode)
         else:
@@ -440,7 +433,7 @@ async def execute(args, env: dict) -> dict:
                     await engine.run(run_id)
                 else:
                     await engine.advance(run_id, max_sim_minutes=args.advance_minutes)
-        except Exception as failure:  # The saved work stays. The report says what stopped it.
+        except Exception as failure:
             error = type(failure).__name__
         finally:
             printer.cancel()
@@ -465,7 +458,6 @@ async def execute(args, env: dict) -> dict:
             "real_seconds": round(time.monotonic() - started, 1),
             "peak_model_calls_in_flight": gate.peak_calls_in_flight,
             "model_use": meter.report(),
-            # Reported tokens at the dearest listed price. An upper bound, not an invoice.
             "ledger": (
                 {
                     key: str(value)

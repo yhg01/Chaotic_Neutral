@@ -92,11 +92,8 @@ _EMPTY_SCRATCH_DETAIL = (
     "If required facts are unavailable, report what is missing and ask the appropriate "
     "person once, then declare the expected wait event. Do not repeat empty searches."
 )
-# Clocked sessions summarize early: model input stays near this size, and cost depends on it.
-# At 20,000 and 6,000, an assistant lost track of its own orders within one task and bought again.
 CLOCKED_SUMMARY_TOKENS = 60_000
 CLOCKED_SUMMARY_KEEP_TOKENS = 20_000
-# About 100,000 tokens. Summaries read at most this much of the history they replace.
 CLOCKED_SUMMARY_INPUT_CHARS = 400_000
 
 
@@ -110,9 +107,7 @@ class _ClockedSummarization(SummarizationMiddleware):
 
     @property
     def name(self) -> str:
-        # The library adds its own summarizer unless one with this name is supplied. With two,
-        # the second applied the first's cutoff to an already shortened list, and the model
-        # saw only the summary, without the latest messages.
+        # This exact name makes the library replace its own summarizer instead of adding a second.
         return "SummarizationMiddleware"
 
     def _offload_to_backend(self, backend, messages, session_id):
@@ -265,7 +260,6 @@ class _ActivationYield(AgentMiddleware):
         decision = await self._decide(state)
         gate = self.agent.gate
         if gate is not None and not (decision or {}).get("jump_to"):
-            # A model call follows, so nothing this process owes can land before its floor.
             gate.before_model(self.agent.clock_process, state.get("messages", []))
         return decision
 
@@ -273,8 +267,6 @@ class _ActivationYield(AgentMiddleware):
         if not state.get("activation_mode"):
             return None
         result_model = self.agent._result_model
-        # On a clocked session a status read returns normally. Only a submission in this
-        # batch ends the activation, because the clearing comes at a later boundary.
         pending_tools = (
             {"submit_world_action", "submit_market_action"}
             if self.agent.gate is not None
@@ -323,10 +315,6 @@ class _ActivationYield(AgentMiddleware):
                             "The storefront returned invalid pending receipt IDs."
                         ) from None
         if pending:
-            # A pending transaction takes priority over a parallel 'finished'
-            # declaration. Keep any explicit owner reply, but do not turn an
-            # automatic transaction receipt into dialogue. Only settlement can
-            # complete the transaction.
             explicit = result_model(
                 status="waiting",
                 text=explicit.text if explicit is not None else "",
@@ -345,8 +333,6 @@ class _ActivationYield(AgentMiddleware):
                 state.get("notified_mail_ids", []),
             )
             if missing:
-                # Replace this exact tool response, preserving one response per call.
-                # The model must choose a corrective read or an explicit deferral.
                 return {
                     "messages": [
                         finish_message.model_copy(
@@ -370,9 +356,6 @@ class _ActivationYield(AgentMiddleware):
                     ]
                 }
         if explicit is not None and self.agent.guard_transfer_task_yield and not pending:
-            # A declared wait does not persist the business task's wait. Require
-            # a concrete task update before ending this activation, rather than
-            # silently choosing a task or rewriting the model's decision.
             async with self.agent.runtime.pool.connection() as conn:
                 cursor = await conn.execute(
                     "SELECT t.id,t.task_key,t.payment_request_id FROM transfer_tasks t "
@@ -507,14 +490,11 @@ class _BoundedCalls(AgentMiddleware):
         gate = self.agent.gate
         process = self.agent.clock_process
         if gate is not None:
-            # Also here for a resume that starts at the model node. Raw history, not the
-            # summarized request, because stamps come from every saved message.
+            # Raw saved history, not the summarized request: stamps come from every saved message.
             gate.before_model(process, request.state.get("messages", []))
         used = await self.agent._reserve_model_call()
         try:
             if gate is not None and used >= self.agent.max_model_calls - 2:
-                # Without this, an assistant that keeps browsing stops mid-task and its owner
-                # hears nothing. The note is not saved in history.
                 request = request.override(
                     messages=[*request.messages, HumanMessage(content=WRAP_UP_NOTE)]
                 )
@@ -551,12 +531,9 @@ class _BoundedCalls(AgentMiddleware):
             if gate is None:
                 response = await handler(request)
             else:
-                # A per-call bound. A parked activation spends real time without working.
                 async with gate.think_slot(), asyncio.timeout(self.agent.timeout_seconds):
                     response = await handler(request)
                 if _cut_off(response):
-                    # The same request stops at the same place on every retry, and the task is
-                    # then lost. Ask once for a shorter answer. The note is not saved in history.
                     await self.agent._reserve_model_call()
                     shorter = request.override(
                         messages=[*request.messages, HumanMessage(content=CUT_OFF_NOTE)]
@@ -603,7 +580,7 @@ class _BoundedCalls(AgentMiddleware):
             await self.agent._release_model_call()
             raise AgentTransientError() from None
         except Exception:
-            # LangGraph persists node errors. Sanitize here, before checkpointing.
+            # LangGraph persists node errors: raise only sanitized text, before checkpointing.
             raise AgentRuntimeError(
                 "The model request failed. Retry with the same task ID."
             ) from None
@@ -614,8 +591,6 @@ class _BoundedCalls(AgentMiddleware):
             and request.tool_call["name"] in _SCRATCH_READ_TOOLS
             and not request.state.get("files")
         ):
-            # A provider can return a tool that was not offered. Keep a durable
-            # corrective result; never read host files or manufacture a wait.
             return ToolMessage(
                 content=json.dumps(
                     {
@@ -659,7 +634,6 @@ class _BoundedCalls(AgentMiddleware):
                     "The task and counters are retained."
                 ) from None
             if isinstance(error, ModelGenerationError):
-                # The world's model did not answer inside this tool. The call runs again.
                 if error.kind in {"provider_rejected", "provider_request_refused"}:
                     raise AgentProviderError(
                         "The model provider rejected the request.", kind=error.kind
@@ -687,12 +661,9 @@ class AgentRuntime:
             max_size=pool_size,
             open=False,
             timeout=10,
-            # A lost connection must not reach a caller after PostgreSQL restarts.
             check=AsyncConnectionPool.check_connection,
             kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},
         )
-        # Long-lived session leases cannot consume the checkpoint pool. Even a
-        # small checkpoint pool can serve all 15 independent Agent sessions.
         self.lock_pool = AsyncConnectionPool(
             database_url,
             min_size=0,
@@ -710,11 +681,8 @@ class AgentRuntime:
             await migrate(self.database_url)
             await self.pool.open(wait=True)
             await self.lock_pool.open(wait=True)
-            # Saver migrations use CREATE INDEX CONCURRENTLY. Hold a session
-            # lock only during setup; do not wrap these migrations in a transaction.
+            # Saver setup runs CREATE INDEX CONCURRENTLY: no transaction; try-lock and poll.
             async with self.pool.connection() as connection:
-                # Wait with no statement running. CREATE INDEX CONCURRENTLY waits for every open
-                # transaction, so a blocked lock request here would deadlock with the holder.
                 while not (  # noqa: ASYNC110
                     await (
                         await connection.execute(
@@ -880,8 +848,6 @@ class PersonalAgent:
         ):
             raise ValueError("guard_transfer_task_yield requires tracked environment tools.")
         self.guard_transfer_task_yield = guard_transfer_task_yield
-        # Preserve hashes for existing board-only sessions. Environment sessions
-        # additionally bind a run and tool contract, so they cannot change scope.
         self._instructions_hash = (
             _digest(instructions)
             if environment is None
@@ -930,8 +896,6 @@ class PersonalAgent:
             "callbacks": list(callbacks),
         }
 
-        # This public beta profile API is pinned with Deep Agents. Register the
-        # exact model profile before graph construction; no subagents are added.
         provider = model._get_ls_params().get("ls_provider")
         identifier = getattr(model, "model_name", None) or getattr(model, "model", None)
         if not isinstance(provider, str) or not provider:
@@ -1023,8 +987,7 @@ class PersonalAgent:
             backend=backend,
             state_schema=_State,
             middleware=[_ActivationYield(self), self.summarization, _BoundedCalls(self)],
-            # One saver per Agent avoids a process-wide saver lock. All use the
-            # same pool, and each saver locks only its own short checkpoint I/O.
+            # One saver per Agent: a shared saver would add a process-wide lock across Agents.
             checkpointer=AsyncPostgresSaver(runtime.pool),
         )
 
@@ -1055,13 +1018,9 @@ class PersonalAgent:
             )
 
     async def _summarize(self, messages) -> str:
-        # The default summarizer calls the model outside model middleware.
-        # Supplying this public hook gives compaction the same durable budget.
         await self._reserve_model_call()
         history = get_buffer_string(messages, format="xml")
         if self.gate is not None and len(history) > CLOCKED_SUMMARY_INPUT_CHARS:
-            # A history that grew while summaries failed can pass the model's limit, and then
-            # every later summary fails the same way. Its most recent part carries the work.
             history = "[Earlier messages are left out.]\n" + history[-CLOCKED_SUMMARY_INPUT_CHARS:]
         prompt = DEEPAGENTS_DEFAULT_SUMMARY_PROMPT.format(messages=history)
         if self.gate is not None:
@@ -1077,8 +1036,6 @@ class PersonalAgent:
             else:
                 async with self.gate.think_slot(), asyncio.timeout(self.timeout_seconds):
                     response = await self.model.ainvoke([HumanMessage(content=prompt)])
-                # A summary cut off at its limit still holds most of what happened. The task
-                # would otherwise fail the same way on every retry, and on every later task.
                 if response.text.strip():
                     return response.text.strip()
             _validate_model_message(response)
@@ -1103,7 +1060,6 @@ class PersonalAgent:
                 "Conversation summarization failed. Retry with the same task ID."
             ) from None
         except ProviderCallError as error:
-            # An outage, not a bad summary. It is treated as any other model call.
             if self.gate is None:
                 raise AgentRuntimeError(
                     "Conversation summarization failed. Retry with the same task ID."
@@ -1149,8 +1105,6 @@ class PersonalAgent:
 
             def bind(tool_name: str):
                 async def execute(tool_call_id: str, **arguments):
-                    # UUID fields have been validated by LangChain; serialize
-                    # them to the same JSON types used by the existing adapter.
                     plain = json.loads(json.dumps(arguments, default=str))
                     if self.gate is not None:
                         plain = strip_nul(plain)
@@ -1159,8 +1113,6 @@ class PersonalAgent:
                     ):
                         saved = await self._saved_tool_result(tool_name, tool_call_id)
                         if saved is not None:
-                            # A resume must not read a later world than the first attempt
-                            # did. The saved result is what happened at this stamp.
                             self.events.append(saved)
                             return self._present(tool_name, saved["result"])
                     adapter = (
@@ -1194,8 +1146,6 @@ class PersonalAgent:
                                     (run_id, self.agent_id),
                                 )
                             ).fetchone()
-                            # Standalone adapters can target an external environment API.
-                            # Local runs persist every tool result for the observer.
                             if member is not None:
                                 await emit(
                                     conn,
@@ -1206,7 +1156,6 @@ class PersonalAgent:
                                     f"tool:{self.agent_id}:{self._active_task_id}:{tool_name}:{tool_call_id}",
                                     member["owner_id"],
                                 )
-                    # Saved events keep the original result for the observer and reports.
                     return self._present(tool_name, response)
 
                 return execute
@@ -1464,15 +1413,13 @@ class PersonalAgent:
         task_id = _uuid(task_id)
         if not self.runtime._open:
             raise AgentRuntimeError("The Agent runtime is closed.")
-        # Check before the first await as well as using the database lock below:
-        # PostgreSQL locks are reentrant if a pool happens to reuse a connection.
+        # In-process check too: PostgreSQL advisory locks are reentrant on a reused connection.
         if self._active_task_id is not None:
             raise AgentBusyError("This Agent session already has an active run.")
         self._active_task_id = task_id
         self._activation_mode = activation
         try:
-            # Clocked sessions bound each model and tool call instead: a parked activation
-            # can wait in real time for as long as other owners need, and that is not work.
+            # No whole-task timeout when clocked: a parked activation waits in real time.
             async with asyncio.timeout(None if self.gate is not None else self.timeout_seconds):
                 await self._verify_identity()
                 async with self.runtime.lock_pool.connection() as lease:
@@ -1487,8 +1434,6 @@ class PersonalAgent:
                         with local_model_calls():
                             return await self._run_locked(task, task_id)
                     finally:
-                        # The pool closes a failed connection, which also releases
-                        # its server-side session lock if explicit unlock fails.
                         await lease.execute("SELECT pg_advisory_unlock(%s)", (self._lock_key,))
         except TimeoutError:
             raise AgentLimitError(
@@ -1521,14 +1466,10 @@ class PersonalAgent:
             self.web.operation_namespace = self.board.operation_namespace
         snapshot = await self.graph.aget_state(self.config)
         started = snapshot.values.get("active_task_id") == str(task_id)
-        # A crash can follow the saved writes of every tool task but precede the next
-        # checkpoint. Then next is empty and tasks are not, and invoking None applies them.
         unapplied = self.gate is not None and bool(snapshot.tasks)
         if started and not snapshot.next and not unapplied:
-            # Graph finished before the process saved the completion receipt.
             state = snapshot.values
         else:
-            # The natural prompt reads as messages, so the structured input comes from the caller.
             activation_envelope = self._activation_envelope if self._activation_mode else None
             graph_input = (
                 None

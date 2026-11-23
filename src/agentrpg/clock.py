@@ -21,7 +21,6 @@ from psycopg.types.json import Jsonb
 
 from agentrpg.agent_surface import internal_tool_name
 
-# Event classes at equal time (docs/EVENT_CLOCK.md). Class 2 lives in memory, in the gate.
 EVENT_CLASSES = {
     "director_plan": 0,
     "plan": 0,
@@ -41,8 +40,7 @@ EVENT_CLASSES = {
 }
 AGENT_TOOL_CLASS = EVENT_CLASSES["agent_tool"]
 
-# These read no world state. Their time is the thought that asked for them, so they cost
-# nothing and never park at the gate.
+# Only tools that read no world state belong here: they cost no time and skip the gate.
 FREE_TOOLS = frozenset(
     {
         "end_turn",
@@ -59,12 +57,9 @@ FREE_TOOLS = frozenset(
     }
 )
 
-# Seconds before a person notices a message while they are reachable or free (R9).
 NOTICE_MIN_S = 240
 NOTICE_MAX_S = 2400
-# Chat-only exchanges allowed before an owner stops being woken by further messages.
 CHAT_STREAK_LIMIT = 2
-# Only these do something for the owner, so only these restart the count of chat-only messages.
 EFFECTFUL_TOOLS = frozenset(
     {
         "send_mail",
@@ -79,19 +74,12 @@ EFFECTFUL_TOOLS = frozenset(
         "direct_message",
     }
 )
-# These submit_form actions only read a page, so they do not count as doing something.
 READ_ONLY_FORM_ACTIONS = frozenset(
     {"search", "view_cart", "order_status", "view_listings", "view_bills"}
 )
-# Activations caused only by other assistants before their messages stop waking this one at
-# once. After that they wait, coalesced, as ambient news does (R8).
 PEER_WAKE_LIMIT = 3
-# The shortest wait an assistant can ask for, whatever the scenario's lower bound (R8).
 MIN_WAKE_S = 20 * 60
 
-# A drawn perturbation has fired when its event was popped: an owner who ends the action first
-# stops it, however late it would have been. It has an effect when its saved plan changed
-# something. Reports count drawn, fired and with-effect separately. Alias d, a, e, p.
 FIRED_DRAWS = """FROM clock_draws d
     LEFT JOIN clock_actions a ON a.run_id=d.run_id AND a.id=d.action_id
     LEFT JOIN clock_events e ON e.run_id=d.run_id AND e.key='perturb:'||a.key
@@ -102,8 +90,6 @@ DRAW_HAS_EFFECT = """(p.payload#>>'{summary,replace_action}' IS NOT NULL OR EXIS
         'site_updates','events','cancelled','retimed']) AS effect(name)
     WHERE jsonb_array_length(p.payload#>ARRAY['summary',effect.name]) > 0))"""
 
-# Wake rules (R8). Direct events wake an Agent at once. Ambient events wake it after the
-# ambient delay, coalesced by the single queued wake. Own effects never wake it.
 AGENT_DIRECT_KINDS = frozenset(
     {
         "owner_message",
@@ -119,8 +105,6 @@ AGENT_AMBIENT_KINDS = frozenset(
 )
 AGENT_KINDS = AGENT_DIRECT_KINDS | AGENT_AMBIENT_KINDS
 
-# Cues arrive at once. Messages arrive after a notice delay. Only these kinds wake an owner.
-# A record change or a board post never wakes a person. The board is never in their view (R13).
 ACTOR_CUE_KINDS = frozenset({"actor_cue"})
 ACTOR_MESSAGE_KINDS = frozenset(
     {
@@ -537,7 +521,6 @@ def classify_actor_event(event: Mapping, owner_id: str) -> str | None:
         return None
     kind, payload = event["kind"], event.get("payload") or {}
     if kind in ACTOR_CUE_KINDS:
-        # A quiet cue is read at the owner's next moment. It does not make that moment.
         return None if payload.get("quiet") else "cue"
     if kind == "owner_message":
         return "message" if payload.get("source") == "agent" else None
@@ -768,7 +751,6 @@ async def seed_clock(conn, run_id, clock, seed, participants) -> None:
         "INSERT INTO clock_state(run_id,epoch,config) VALUES (%s,%s,%s)",
         (run_id, start, Jsonb(section)),
     )
-    # R15: a clocked run has no Actor and Agent phases. Readers of this column stay valid.
     await conn.execute("UPDATE environment_runs SET phase='agents' WHERE id=%s", (run_id,))
     for participant in participants:
         for kind in ("actor", "agent"):

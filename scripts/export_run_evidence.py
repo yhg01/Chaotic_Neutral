@@ -247,7 +247,6 @@ async def export(run_id: UUID, out: Path) -> dict:
             "draws": len(draws),
             "drawn_interventions": sum(1 for d in draws if d["outcome"] != "none"),
             "drawn_extreme": sum(1 for d in draws if d["outcome"] == "extreme"),
-            # Fired means its event was popped. A drawn one can end with its action, unfired.
             "interventions": sum(1 for d in draws if d["outcome"] != "none" and d["fired"]),
             "extreme": sum(1 for d in draws if d["outcome"] == "extreme" and d["fired"]),
             "interventions_with_effect": sum(

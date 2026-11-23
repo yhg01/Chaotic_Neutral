@@ -25,8 +25,6 @@ from agentrpg.budget import (
     direct_provider,
 )
 
-# The provider refused this one request, or returned nothing usable (status 0). Any other
-# status that cannot be retried is about the key or the account.
 REQUEST_REFUSALS = frozenset({0, 400, 404, 413, 422})
 
 
@@ -132,7 +130,6 @@ def create_model(
     if not 0 <= temperature <= 2:
         raise ValueError("Model temperature must be between zero and two.")
     if direct_provider(model.strip()) is not None:
-        # "provider:model" is called at its own provider. The key is that provider's key.
         from agentrpg.direct_model import create_direct_model
 
         return create_direct_model(
@@ -227,7 +224,6 @@ class UsageTracker(AsyncCallbackHandler):
         if isinstance(model, str):
             self.models.add(model)
         for generations in response.generations:
-            # n=1 in the model factory. Token usage covers the complete response.
             if not generations:
                 continue
             message = getattr(generations[0], "message", None)

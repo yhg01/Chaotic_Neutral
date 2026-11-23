@@ -46,8 +46,6 @@ async def test_structured_sdk_sends_json_mode_and_keeps_cost_on_invalid_output(
     requests = []
 
     async def provider(request):
-        # This is the final serialized HTTP request, after SDK binding and the
-        # budget transport. No real network or provider call occurs in this test.
         requests.append(json.loads(request.content))
         reserved = await ledger.summary(campaign)
         assert reserved["attempts"] == 1 and reserved["reserved_usd"] > 0

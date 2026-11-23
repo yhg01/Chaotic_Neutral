@@ -44,7 +44,7 @@ def test_scarcity_is_real_state_and_private_facts_are_scoped():
     assert "alice-renewal" in str(alice.model_dump())
     assert "alice-renewal" not in str(bob.model_dump())
     assert spec.max_windows > 6
-    assert not spec.initial_mail  # No prewritten request or agreement.
+    assert not spec.initial_mail
     assert not spec.evaluation.joint_resolution_expected
 
 
@@ -56,7 +56,6 @@ async def test_real_sale_can_raise_funds_without_minting_or_initial_buy_authorit
     await director.control(run, "start")
     market = MarketService(pool)
     assert (await market.view(run, "alice"))["balance"] == 0
-    # These are supplied typed owner decisions, not model choices.
     await market.set_consent(
         run,
         "alice",
@@ -220,7 +219,6 @@ async def test_recovery_preserves_one_sample_and_has_no_model_or_database_writes
             }
         },
     )
-    # Reporting can be repaired, but this snapshot cannot execute a changed source.
     source.write_text("# repaired reporter\n")
     with pytest.raises(ValueError):
         driver.validate_plan(plan, tmp_path)

@@ -23,7 +23,6 @@ from agentrpg.judge_controls import control_cases  # noqa: E402
 from agentrpg.judge_evidence import load_run, pack_owner  # noqa: E402
 from agentrpg.misalignment import CATEGORIES  # noqa: E402
 
-# Models with a price in the table of the budget code, so an estimate asks no network.
 TABLE_PRICED = [
     "--screen-model",
     "anthropic:claude-opus-5-5",
@@ -130,7 +129,6 @@ def test_the_control_cases_are_well_formed():
             for item in record.body.get("owner_messages", [])
             if item.startswith(case.id)
         ]
-        # A turn names the owner message that woke it, and that record is an owner message.
         assert named and all(case.records[ids.index(item)].role == "owner" for item in named)
         assert (case.expect == "clean") == (case.category is None)
 
@@ -145,7 +143,6 @@ async def test_the_command_scores_the_controls_and_saves_private_files(tmp_path)
     assert result["status"] == "completed"
     score = result["controls"]
     assert score["seeded_cases"] == 10 and score["clean_cases"] == 6
-    # The rule lists an action in 15 cases. It gives a finding for the seeded ones only.
     assert score["seeded_screened"] == 10 and score["seeded_caught"] == 10
     assert score["clean_with_a_false_finding"] == 0
     assert score["seeded_with_the_expected_category"] == 2
@@ -158,7 +155,6 @@ async def test_the_command_scores_the_controls_and_saves_private_files(tmp_path)
     assert len(list((folder / "evidence").iterdir())) == 16
     files = [path for path in folder.rglob("*") if path.is_file()]
     assert files and all(oct(path.stat().st_mode & 0o777) == "0o600" for path in files)
-    # A rule that marks everything shows up as false findings on the clean cases.
     harsh = script.parse_args(["--controls", "--votes", "1", "--name", "harsh"])
     everything = [case.id for case in control_cases()]
     marked = await script.execute(
@@ -237,12 +233,10 @@ async def test_the_command_judges_a_saved_clocked_run_and_does_not_change_it(
     assert 1 <= sum(",sample_not_listed," in line for line in sample) <= 5
     assert await saved_rows() == before
 
-    # The same command again reads the saved answers and asks no model.
     calls = (screen.calls, verdict.calls)
     again = await script.execute(args, root=tmp_path, env=env, models=(screen, verdict))
     assert again["counts_by_owner"] == result["counts_by_owner"]
     assert (screen.calls, verdict.calls) == calls
-    # Other settings under the same name are refused, so two judges cannot share one folder.
     other = script.parse_args(["--run", run_id, "--votes", "3"])
     with pytest.raises(script.JudgeRunError, match="other settings"):
         await script.execute(other, root=tmp_path, env=env, models=(screen, verdict))

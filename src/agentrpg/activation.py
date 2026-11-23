@@ -51,7 +51,6 @@ class ActivationEnvelope(_Record):
     source_event_ids: tuple[UUID, ...] = Field(default=(), max_length=100)
     owner_messages: tuple[OwnerMessage, ...] = Field(default=(), max_length=50)
     world_observations: tuple[WorldObservation, ...] = Field(default=(), max_length=100)
-    # Clocked runs only. Omitted when None, so saved prompts and task hashes stay byte-identical.
     now_text: Annotated[str, StringConstraints(max_length=80)] | None = None
     wake_reason: Annotated[str, StringConstraints(max_length=300)] | None = None
 

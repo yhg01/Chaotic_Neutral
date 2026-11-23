@@ -56,7 +56,6 @@ async def test_shop_boundary_copies_tasks_cart_orders_and_receipts_without_sourc
     await shop.checkout(run, "alice", uuid4(), cart["cart"]["version"])
     await MarketService(pool).settle(run, 1, 42)
     await shop.sync(run)
-    # Seed a saved terminal health record to verify the complete boundary copy.
     async with pool.connection() as conn:
         await conn.execute(
             "INSERT INTO run_task_health VALUES (%s,'alice',%s,'saved-progress',"
@@ -92,7 +91,6 @@ async def test_shop_boundary_copies_tasks_cart_orders_and_receipts_without_sourc
 async def test_initial_restart_mail_cues_budget_and_idempotency(client, pool, root):
     manifest = await create_run(pool, root)
     run_id = UUID(manifest["run_id"])
-    # Add initial mail to the frozen fixture before execution.
     spec = (await Director(pool).get_run(run_id))["scenario"]
     spec["initial_mail"] = [
         InitialMailSpec(
@@ -219,7 +217,6 @@ async def test_branch_restores_graph_files_board_mail_and_private_state(
         await capture_boundary(pool, parent, agents)
         boundary = (await client.get(path(manifest, "boundaries"))).json()["items"][1]
         assert boundary["available"], boundary
-        # Source progresses. Branching must still use the earlier immutable boundary.
         continued = await engine.advance(parent)
         assert continued["current_window"] == 2, continued["result"]
         async with pool.connection() as conn:
@@ -265,7 +262,6 @@ async def test_branch_restores_graph_files_board_mail_and_private_state(
                 "AND request_id<>%s LIMIT 1",
                 (child_id, body["request_id"]),
             )
-            # Actor job IDs are also owner-message request IDs. Their formula stays valid.
             repeated = await save_message(
                 conn,
                 child_id,

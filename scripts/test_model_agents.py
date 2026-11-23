@@ -17,7 +17,6 @@ from dotenv import dotenv_values
 from agentrpg.agent_tools import BoardTools
 from agentrpg.model_agent import OPENROUTER_URL, AgentRunError, ModelAgent, ModelUsage
 
-# Deep Agents imports stay inside exercise so the baseline runner remains usable.
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -116,7 +115,6 @@ async def exercise(args, env: dict) -> dict:
                     limits=httpx.Limits(max_connections=20),
                 )
             )
-            # Reject invalid credentials before provisioning a verification cluster.
             key_check = await provider.get("/key")
             if key_check.status_code != 200:
                 raise AgentRunError(
@@ -191,7 +189,6 @@ async def exercise(args, env: dict) -> dict:
                 failures = []
                 for index, result in enumerate(results):
                     if isinstance(result, BaseException):
-                        # Do not write arbitrary provider exceptions or credentials to the report.
                         detail = (
                             str(result)
                             if isinstance(result, public_errors)
@@ -213,8 +210,6 @@ async def exercise(args, env: dict) -> dict:
                 if failures:
                     raise AgentRunError(f"The {label} phase did not complete for every Agent.")
                 if deep:
-                    # Close the runtime and rebuild each adapter before restoring saved sessions.
-                    # Completed task IDs must return their cached answers without new model calls.
                     before_requests = usage_report()["requests"]
                     snapshots = [await agent.graph.aget_state(agent.config) for agent in agents]
                     await runtime_stack.aclose()
@@ -248,7 +243,6 @@ async def exercise(args, env: dict) -> dict:
                     for i in range(args.agents)
                 ],
             )
-            # Test barriers make peer content available. They are not Director implementation.
             await phase(
                 "read_and_reply",
                 [
@@ -406,7 +400,6 @@ def main() -> None:
         parser.error("Configure OPENROUTER_API_KEY and ADMIN_TOKEN in .env.")
     if args.runtime == "deepagents" and not env.get("DATABASE_URL"):
         parser.error("Configure DATABASE_URL in .env for Agent checkpoints.")
-    # Board credentials are for the local environment. Avoid accidental remote use.
     url = httpx.URL(args.base_url)
     if url.scheme != "http" or url.host not in ("127.0.0.1", "localhost", "::1"):
         parser.error("--base-url must be a loopback HTTP address.")

@@ -63,7 +63,6 @@ from agentrpg.web_tools import WebTools  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "openai/gpt-4.1-mini"
 TIMEOUT_SECONDS = 240
-# A long Director answer from a large model can take most of this.
 DIRECTOR_TIMEOUT_SECONDS = 120
 EXIT_BUDGET = 3
 EXIT_TRY_AGAIN = 75
@@ -440,7 +439,6 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         config = new_configuration(args, env, spec_file)
     roles = ("model", "actor_model", "director_model")
     if not scripted:
-        # A model written as provider:model uses that provider's own key.
         missing = sorted({key_name(config[role]) for role in roles} - {k for k in env if env[k]})
         if missing:
             raise ScenarioRunError(f"Set {', '.join(missing)} locally.")
@@ -531,8 +529,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         if scripted:
             brain = ScriptedDirectorBrain()
         else:
-            # max_retries is 0: the engine retries with a growing wait, so a run of failures
-            # holds no extra reservation for each quick repeat.
+            # max_retries=0: the engine retries; adapter retries would hold extra reservations.
             director_model = create_model(
                 env[key_name(config["director_model"])],
                 config["director_model"],
@@ -563,7 +560,6 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 model = create_model(
                     env[key_name(config["model"])],
                     config["model"],
-                    # At 2000, a long document or message stopped at the limit on every retry.
                     max_tokens=4000,
                     max_retries=0,
                     **({"budget": binding, "budget_role": "assistant"} if binding else {}),
@@ -648,7 +644,6 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         report["usage"] = await run_usage(runtime.pool, run_id, usage)
         report["scripted"] = bool(scripted)
         if binding is not None:
-            # Campaign-wide, for every run it pays for. report["usage"] is this run alone.
             report["campaign_budget"] = await binding.ledger.summary(binding.campaign_id)
         save_private(credentials_path.parent / "report.json", report)
         await save_observer_report(runtime.pool, report)

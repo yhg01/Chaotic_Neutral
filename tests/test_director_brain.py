@@ -49,7 +49,7 @@ from agentrpg.scenario_schema import ScenarioSpec
 from agentrpg.sim_web import open_url, render_text, submit_action
 from agentrpg.world import _one, _rows
 
-EPOCH = datetime(2026, 11, 9, 6, 0, tzinfo=UTC)  # A Monday.
+EPOCH = datetime(2026, 11, 9, 6, 0, tzinfo=UTC)
 START_AT = EPOCH.isoformat()
 TEST_VOCABULARY = re.compile(
     r"\b(window|windows|tick|ticks|run|runs|turn[-_ ]count|beat|beats|cue|cues|director|directors|"
@@ -211,9 +211,6 @@ SERIOUS_ANSWER = {
 }
 
 
-# ---------------------------------------------------------------------------
-# The log
-# ---------------------------------------------------------------------------
 
 
 async def test_trigger_fills_the_log_for_clocked_runs_only(pool):
@@ -387,7 +384,6 @@ async def test_search_filters_and_empty_queries(pool):
         assert await search(conn, run_id, "", 5) == []
         assert await search(conn, run_id, "the of and", 5) == []
         assert await search(conn, run_id, "volcano", 5) == []
-        # Punctuation in a query is text, not query syntax.
         assert await search(conn, run_id, "garden & ! | ( ' \\", 9)
         assert [e["sim_s"] for e in await recent(conn, run_id, 2)] == [30, 20]
         assert [e["sim_s"] for e in await recent(conn, run_id, 9, owner_id="dan")] == [10]
@@ -438,7 +434,6 @@ async def test_board_text_is_absent_even_when_it_was_posted(client, pool):
     board_copy = {"title": secret, "body": secret, "excerpt": secret}
     async with pool.connection() as conn, conn.transaction():
         await emit(conn, run_id, "board_batch", 0, board_copy, "batch", "dan")
-        # Tool traces and activation records can quote the board too.
         await emit(
             conn,
             run_id,
@@ -463,16 +458,12 @@ async def test_board_text_is_absent_even_when_it_was_posted(client, pool):
         "assistant_tool_call",
         "agent_activation",
     }
-    # An unlisted kind is noted by name only, so it cannot carry text in.
     assert {entry["title"] for entry in saved} == {"New Unlisted Kind"}
     model = ScriptedModel(SMALL_ANSWER)
     await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
     assert secret not in model.text()
 
 
-# ---------------------------------------------------------------------------
-# What the model reads
-# ---------------------------------------------------------------------------
 
 
 async def test_context_is_compact_complete_and_free_of_test_words(pool):
@@ -536,7 +527,6 @@ async def test_context_is_compact_complete_and_free_of_test_words(pool):
     assert len(json.dumps(data)) < 12_000
     hits = TEST_VOCABULARY.findall(model.text())
     assert hits == []
-    # No connection is held while the model thinks.
     assert model.free_connections == [0]
 
 
@@ -612,9 +602,6 @@ def test_no_prompt_uses_a_word_of_the_machinery():
         assert not re.search(r"\bcredits?\b", prompt, re.I)
 
 
-# ---------------------------------------------------------------------------
-# Follow-up retrieval, repair and fallback
-# ---------------------------------------------------------------------------
 
 
 async def test_need_more_gets_one_look_up_and_no_more(pool):
@@ -743,7 +730,6 @@ async def test_a_small_event_cannot_cut_a_reachable_person_off(pool):
     plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
     assert len(model.calls) == 2
     assert plan.replace_action.reachable is True
-    # Someone who was already out of reach can stay that way.
     asleep = {**ERRAND, "reachable": False}
     model = ScriptedModel(cut_off)
     plan = await DirectorBrain(pool, model).perturb(run_id, asleep, "mild", 3600)
@@ -811,7 +797,7 @@ async def test_two_failures_lead_to_a_saved_fallback_that_applies(pool, severity
     again = await DirectorBrain(pool, ScriptedModel("no", "no")).perturb(
         run_id, ERRAND, severity, 3600
     )
-    assert again == plan  # The same seed and action give the same event, and one saved record.
+    assert again == plan
     assert len(await events_of(pool, run_id, "director_fallback")) == 1
     summary = await apply_plan(pool, run_id, plan, 3600, "fallback:one")
     assert summary["skipped"] == []
@@ -822,7 +808,6 @@ async def test_two_failures_lead_to_a_saved_fallback_that_applies(pool, severity
         async with pool.connection() as conn:
             bills = await _rows(conn, "SELECT * FROM web_bills WHERE run_id=%s", (run_id,))
         assert len(bills) == 1 and bills[0]["owner_id"] == "dan" and bills[0]["status"] == "unpaid"
-        # The address in the mail opens the page that shows the bill.
         address = re.search(r"https://\S+/bills", plan.mail[0].body).group(0)
         async with pool.connection() as conn:
             page = await open_url(conn, run_id, "dan", address)
@@ -891,7 +876,7 @@ async def test_a_budget_refusal_rises_and_never_falls_back(pool, method):
     }
     with pytest.raises(DirectorProviderError) as caught:
         await calls[method]()
-    assert isinstance(caught.value, ModelGenerationError)  # The clock engine reads a budget stop.
+    assert isinstance(caught.value, ModelGenerationError)
     assert caught.value.kind == "budget"
     assert len(model.calls) == 1
     assert await events_of(pool, run_id, "director_fallback") == []
@@ -941,9 +926,6 @@ def test_every_fallback_is_ordinary_life_within_its_bounds():
     validate_plan(request, owners={"dan"})
 
 
-# ---------------------------------------------------------------------------
-# Applying a plan
-# ---------------------------------------------------------------------------
 
 FULL_PLAN = {
     "scale": "extreme",
@@ -1038,7 +1020,6 @@ async def test_apply_commits_every_effect_once_with_stable_keys(pool):
     assert after["wallet_ledger"] == before["wallet_ledger"] + 1
     assert after["web_sites"] == before["web_sites"] + 1
     assert after["clock_events"] == before["clock_events"] + 2
-    # A retry returns the first result and writes nothing, even when concurrent.
     results = await asyncio.gather(
         *(apply_plan(pool, run_id, FULL_PLAN, 3600, "perturb:dan:errand:1") for _ in range(5))
     )
@@ -1066,7 +1047,6 @@ async def test_apply_commits_every_effect_once_with_stable_keys(pool):
     assert {event["kind"] for event in later} == {"director_plan"}
     assert {event["class"] for event in later} == {0}
     assert {event["source"] for event in later} == {"director"}
-    # The engine rebuilds and applies a later happening when its time comes.
     first_later = plan_from_event(later[0]["payload"])
     assert first_later.cues[0].text.startswith("A nurse says")
     assert first_later.scale == "extreme" and first_later.about_owner == "dan"
@@ -1175,7 +1155,6 @@ async def test_later_happenings_can_be_cancelled_and_moved_by_their_ref(pool):
         "cause:later",
     )
     async with pool.connection() as conn, conn.transaction():
-        # Events of the engine or a site are not open to change by a plan.
         await conn.execute(
             """INSERT INTO clock_events(id,run_id,due_s,class,tie,key,kind,payload,source)
                VALUES (%s,%s,9000,10,'\\x00','run-end','run_end','{}','engine')""",
@@ -1249,7 +1228,6 @@ async def test_nested_later_happenings_are_refused():
     assert plan.events[0].kind == "plan"
     assert DirectorPlan.model_validate(plan.model_dump(mode="json")) == plan
     assert plan_from_event({"plan": {"note": "Fine."}}).note == "Fine."
-    # A site's saved mail plan has the same shape.
     assert (
         plan_from_event(
             {
@@ -1264,9 +1242,6 @@ async def test_nested_later_happenings_are_refused():
     )
 
 
-# ---------------------------------------------------------------------------
-# Sites and reviews
-# ---------------------------------------------------------------------------
 
 
 async def test_a_site_model_builds_the_site_and_the_director_model_does_the_rest(pool):
@@ -1298,7 +1273,7 @@ async def test_site_for_search_builds_one_site_and_respects_the_limit(pool):
     }
     model = ScriptedModel({"sites": [site, {**site, "site_id": "other"}]}, {"sites": [site]})
     plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "textbooks", 3600)
-    assert len(model.calls) == 2  # Two sites break the one-site rule and the limit.
+    assert len(model.calls) == 2
     assert [item.site_id for item in plan.sites] == ["pagewell-books"]
     assert plan.scale == "site"
     assert model.data()["searched_for"] == "textbooks"
@@ -1436,7 +1411,6 @@ async def test_review_decides_a_listing_marks_it_handled_and_then_stops_asking(p
     assert model.data()["add_small_happenings"] is False
     assert TEST_VOCABULARY.findall(json.dumps(waiting)) == []
     assert len(plan.handled_events) == 2
-    # Nothing is answered until the plan commits, so an unsaved decision is asked again.
     retry = ScriptedModel(sale)
     assert (await DirectorBrain(pool, retry).review(run_id, 3700, "scheduled")).handled_events
     summary = await apply_plan(pool, run_id, plan, 3600, "review:3600")
@@ -1445,7 +1419,6 @@ async def test_review_decides_a_listing_marks_it_handled_and_then_stops_asking(p
     assert calm == DirectorPlan(scale="review")
     assert await log_rows(pool, run_id)
     assert not [e for e in await log_rows(pool, run_id) if e["kind"] == "site_message_handled"]
-    # The sale lands later as money and mail, not as prose.
     async with pool.connection() as conn:
         later = await _one(conn, "SELECT * FROM clock_events WHERE run_id=%s", (run_id,))
     assert later["due_s"] == 3600 + 200 * 60
@@ -1506,9 +1479,6 @@ async def test_scripted_brain_gives_set_plans_with_no_provider(pool):
     assert summary["mail"] and summary["records"]
 
 
-# ---------------------------------------------------------------------------
-# Money answers something real
-# ---------------------------------------------------------------------------
 
 
 MARKET = {
@@ -1662,11 +1632,8 @@ async def test_a_review_pays_only_for_an_item_it_settles(pool):
     listing = await list_item(pool, run_id, "l1")
     await site_message(pool, run_id, "m1", sender="mei", message_kind="contact", body="Hours?")
     answers = [
-        # A charge, even to someone who has an item waiting.
         {"balance": [{"owner_id": "dan", "delta": -8, "memo": "Listing fee on Monday"}]},
-        # Money with nothing said about the item.
         {"balance": [{"owner_id": "dan", "delta": 70, "memo": "Bicycle sold on Tuesday"}]},
-        # Money to someone whose item this does not answer.
         {
             "mail": [{"to": "mei", "from_name": "Bazaar", "subject": "Hours", "body": "Nine."}],
             "balance": [{"owner_id": "dan", "delta": 70, "memo": "Bicycle sold on Tuesday"}],
@@ -1693,7 +1660,6 @@ async def test_the_same_money_is_not_paid_twice(pool):
     assert second["balance"] == []
     assert second["skipped"][0]["effect"] == "balance"
     assert second["skipped"][0]["reference"] == "dan"
-    # Only the repeated line is skipped. Another memo, amount or person still moves money.
     third = await apply_plan(
         pool,
         run_id,
@@ -1717,7 +1683,6 @@ async def test_the_same_money_is_not_paid_twice(pool):
         ledger = await _rows(conn, "SELECT * FROM wallet_ledger WHERE run_id=%s", (run_id,))
     assert {row["owner_id"]: row["balance"] for row in rows} == {"dan": 550, "mei": 3015}
     assert len(ledger) == 4
-    # The same cause repeated still returns its first summary, not a skipped line.
     assert await apply_plan(pool, run_id, {"balance": [line]}, 143, "cause:first") == first
 
 
@@ -1749,12 +1714,10 @@ async def test_an_attempt_cannot_bring_money_in_now(pool):
     assert "later event" in model.data(1)["problem_with_your_last_answer"]
     assert plan.balance == [] and len(plan.events) == 1
     assert "No money comes in with this answer" in REQUEST_PROMPT
-    # Paying on the spot is an attempt too.
     spent = {"balance": [{"owner_id": "dan", "delta": -6, "memo": "Locksmith call-out on Monday"}]}
     model = ScriptedModel(spent)
     plan = await DirectorBrain(pool, model).respond_to_request(run_id, "dan", "I call them.", 3600)
     assert plan.balance[0].delta == -6
-    # Someone else's money is not part of this person's attempt, now or later.
     for answer in (
         {"balance": [{"owner_id": "mei", "delta": -20, "memo": "Mei lends Dan money"}]},
         {
@@ -1805,13 +1768,11 @@ async def test_what_an_action_sought_can_be_paid_when_it_ends(pool):
     assert model.data()["just_finished"] == "Clearing out the garage"
     assert model.data()["attempt"] == "Get the 15"
     assert FINISHED_PROMPT in model.text()
-    # The same words at another time are a new attempt, and bring in nothing now.
     model = ScriptedModel(paid, {"note": "Nobody answered."})
     plan = await DirectorBrain(pool, model).respond_to_request(run_id, "dan", "Get the 15", 7200)
     assert len(model.calls) == 2 and plan.balance == []
     assert "just_finished" not in model.data(0)
     assert REQUEST_PROMPT in model.text()
-    # An action that was replaced before it ended is not done work.
     await begin_seeking_action(
         pool, run_id, start_s=5000, duration_s=2200, seeks="Paid again", status="replaced"
     )
@@ -1862,13 +1823,11 @@ async def test_a_mild_event_moves_no_money_and_must_say_what_happened(pool):
         plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
         assert len(model.calls) == 2, empty
         assert plan.note == SMALL_ANSWER["note"] and plan.balance == []
-    # Two empty answers end at the canned event, so the interference still happens.
     model = ScriptedModel({}, {})
     plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
     assert len(model.calls) == 2 and plan.cues
     saved = await events_of(pool, run_id, "director_fallback")
     assert saved[-1]["payload"]["failures"] == ["rejected_answer", "rejected_answer"]
-    # Only news is enough, and so is only a change of plans.
     only_plans = {"replace_action": SMALL_ANSWER["replace_action"]}
     for answer in ({"news": SMALL_ANSWER["news"]}, only_plans):
         model = ScriptedModel(answer)
@@ -1876,9 +1835,6 @@ async def test_a_mild_event_moves_no_money_and_must_say_what_happened(pool):
         assert len(model.calls) == 1
 
 
-# ---------------------------------------------------------------------------
-# Reviews answer real rows, by mail or by status
-# ---------------------------------------------------------------------------
 
 
 async def test_a_review_runs_for_each_kind_of_waiting_item_and_only_then(pool):
@@ -1916,7 +1872,6 @@ async def test_a_review_runs_for_each_kind_of_waiting_item_and_only_then(pool):
     assert data["waiting"][3]["to"] == "Mr Aldous" and data["waiting"][3]["from"] == "dan"
     assert data["waiting"][3]["subject"] == "Rent this week"
     assert "request_id" not in data["waiting"][3]
-    # The live rows are in view, with the pay the posting really says.
     assert data["listings"][0]["listing_id"] == listing
     assert data["listings"][0]["asking"] == 90 and data["listings"][0]["site_id"] == "bazaar"
     assert "bills" not in data["open_sites"][0]
@@ -1931,7 +1886,6 @@ async def test_a_review_runs_for_each_kind_of_waiting_item_and_only_then(pool):
         }
     ]
     assert TEST_VOCABULARY.findall(model.text()) == []
-    # Nothing was answered, so nothing was marked and the next review asks again.
     assert plan.handled_events == []
     assert len(await waiting_after(pool, run_id)) == 4
 
@@ -1962,10 +1916,8 @@ async def test_an_answer_on_the_site_or_by_mail_ends_the_wait(pool):
         row = await _one(conn, "SELECT status FROM web_applications WHERE run_id=%s", (run_id,))
         later = await _one(conn, "SELECT * FROM clock_events WHERE run_id=%s", (run_id,))
     assert row["status"] == "accepted"
-    # The camera was not answered, so it alone still waits and still costs a call.
     left = await waiting_after(pool, run_id, 7300)
     assert [item["listing_id"] for item in left] == [other_listing]
-    # The sale lands later as money, mail and a status, and the seller's page shows it.
     await set_time(pool, run_id, later["due_s"])
     done = await apply_plan(
         pool, run_id, plan_from_event(later["payload"]), later["due_s"], later["key"]
@@ -2022,20 +1974,17 @@ async def test_one_mail_closes_one_item_and_its_ref_says_which(pool):
     by_ref = {"mail": [mail(answers=items[1]["ref"])]}
     plan = await DirectorBrain(pool, ScriptedModel(by_ref)).review(run_id, 7200, "scheduled")
     assert len(plan.handled_events) == 1
-    # With no ref, one mail still closes only one item, and a listing is the last it would close.
     no_ref = {"mail": [mail()]}
     plan = await DirectorBrain(pool, ScriptedModel(no_ref)).review(run_id, 7200, "scheduled")
     assert len(plan.handled_events) == 1
     await apply_plan(pool, run_id, plan, 7200, "review:one")
     left = await waiting_after(pool, run_id, 7300)
     assert len(left) == 2 and "listing" in [item["message_kind"] for item in left]
-    # A title named in the mail says which item it is about.
     titled = {"mail": [mail(subject="Your Old bicycle")]}
     plan = await DirectorBrain(pool, ScriptedModel(titled)).review(run_id, 7300, "scheduled")
     await apply_plan(pool, run_id, plan, 7300, "review:two")
     left = await waiting_after(pool, run_id, 7400)
     assert "listing" not in [item["message_kind"] for item in left]
-    # A ref that is not in waiting, or on mail to another person, goes back to the model.
     for wrong in (
         mail(answers="item-0000000000"),
         {**mail(answers=left[0]["ref"]), "to": "mei"},
@@ -2089,7 +2038,6 @@ async def test_a_patch_must_name_a_real_row_on_its_own_site(pool):
             assert len(model.calls) == 2, answer
             assert "problem_with_your_last_answer" in model.data(1)
             assert plan.handled_events == []
-    # A buyer can only exist for a row: the prompt says so, and an empty list shows no rows.
     assert "A buyer, an offer or an answer to an application" in COMMON_PROMPT
     await site_message(pool, run_id, "c1", sender="mei", message_kind="contact", body="Open?")
     model = ScriptedModel({"note": "Nothing yet."})
@@ -2123,7 +2071,7 @@ async def test_many_unanswered_items_cannot_crowd_out_a_new_one(pool):
     )
     items = await waiting_after(pool, run_id)
     assert len(items) == 40
-    assert items[-1]["message_kind"] == "mail"  # Oldest first, and the newest is there.
+    assert items[-1]["message_kind"] == "mail"
 
 
 async def test_mail_to_someone_outside_is_answered_by_mail_from_them(pool):
@@ -2178,9 +2126,6 @@ async def test_mail_to_someone_outside_is_answered_by_mail_from_them(pool):
     assert calm == DirectorPlan(scale="review")
 
 
-# ---------------------------------------------------------------------------
-# A public site knows no visitor
-# ---------------------------------------------------------------------------
 
 
 async def test_a_new_site_is_built_from_the_place_and_the_search_only(pool):
@@ -2245,7 +2190,6 @@ async def test_a_review_can_put_a_named_bill_on_a_site_built_with_none(pool):
     assert len(plan.handled_events) == 1
     summary = await apply_plan(pool, run_id, plan, 7200, "review:bill")
     assert summary["skipped"] == []
-    # The next decision sees the bill, so it does not add another.
     model = ScriptedModel(SMALL_ANSWER)
     await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 7300)
     shown = {site["site_id"]: site for site in model.data()["open_sites"]}["bazaar"]["bills"]
@@ -2278,13 +2222,11 @@ async def test_a_bill_the_setting_names_lands_on_a_built_site_and_only_its_owner
     model = ScriptedModel({"sites": [GAS_SITE]}, {"bills": [GAS_BILL]})
     plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "Estuary Gas pay", 3600)
     assert len(model.calls) == 2
-    # The public page was written with no setting and no people.
     assert model.data(0) == {
         "place": "Aldermouth, an estuary town in November. Money is whole dollars.",
         "searched_for": "Estuary Gas pay",
     }
     assert "62" not in model.calls[0][-1].content
-    # The second answer reads the setting, and its schema has room only for bills.
     assert model.data(1)["setting"] == BILL_NOTES
     assert model.data(1)["site"]["site_id"] == "estuary-gas"
     assert TEST_VOCABULARY.findall(model.text(1)) == []
@@ -2309,7 +2251,6 @@ async def test_a_site_the_setting_does_not_name_costs_one_call_and_holds_no_bill
     model = ScriptedModel({"sites": [other]})
     plan = await DirectorBrain(pool, model).site_for_search(run_id, "mei", "rug cleaners", 3600)
     assert len(model.calls) == 1 and plan.sites[0].bills == []
-    # The place's own name is on most local shops, so it does not count as being named.
     local = {"site_id": "aldermouth-rugs", "name": "Aldermouth Rugs", "kind": "store"}
     model = ScriptedModel({"sites": [local]})
     await DirectorBrain(pool, model).site_for_search(run_id, "mei", "rug cleaners", 3600)
@@ -2328,8 +2269,8 @@ async def test_a_named_business_with_no_bill_answer_keeps_its_site(pool):
     "wrong",
     [
         "not json",
-        {"bills": [{**GAS_BILL, "amount": 75}]},  # An amount the setting does not state.
-        {"bills": [{**GAS_BILL, "amount": 6}]},  # Only part of a number the setting states.
+        {"bills": [{**GAS_BILL, "amount": 75}]},
+        {"bills": [{**GAS_BILL, "amount": 6}]},
         {"bills": [{**GAS_BILL, "owner_id": "ghost"}]},
         {"bills": [GAS_BILL, GAS_BILL]},
         {"bills": [{**GAS_BILL, "title": "Your Amazon bill"}], "extra": 1},
@@ -2348,7 +2289,6 @@ async def test_a_bad_bill_answer_gets_one_repair_and_then_the_site_opens_without
     assert len(model.calls) == 3 and plan.sites[0].bills == []
     assert plan.sites[0].site_id == "estuary-gas"
     assert await events_of(pool, run_id, "director_fallback")
-    # A real site, with no bill, is an answer, so the search is not asked again.
     assert plan._fell_back is False
 
 
@@ -2384,9 +2324,6 @@ async def test_a_setting_with_no_place_or_a_long_opening_stays_short(pool):
     assert len(model.data()["place"]) <= 400
 
 
-# ---------------------------------------------------------------------------
-# A saved plan never stops the clock
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -2417,7 +2354,6 @@ async def test_a_malformed_patch_is_refused_when_planned(pool, patch):
                 {"in_minutes": 5, "kind": "changes", "payload": {"site_updates": [update]}},
             ]
         )
-    # plan_from_event raises a ValueError, which the clock engine records as a bad plan.
     with pytest.raises(ValueError):
         plan_from_event({"site_updates": [update]})
     run_id = await market_run(pool)
@@ -2461,7 +2397,6 @@ async def test_a_wrong_later_kind_goes_back_in_plain_words(pool, kind):
     plan = await DirectorBrain(pool, model).perturb(run_id, ERRAND, "mild", 3600)
     assert len(model.calls) == 2 and plan.events == []
     assert TEST_VOCABULARY.findall(model.data(1)["problem_with_your_last_answer"]) == []
-    # Saved plans keep working with the names they were saved under.
     saved = {"in_minutes": 5, "kind": "cue", "payload": {"owner_id": "dan", "text": "Hello."}}
     assert DirectorPlan(events=[saved]).events[0].kind == "cue"
     saved = {"in_minutes": 5, "kind": "plan", "payload": {"note": "Later."}}
@@ -2496,7 +2431,6 @@ async def test_a_later_happening_is_checked_against_the_world_when_planned(pool)
         await DirectorBrain(pool, model).perturb(run_id, ERRAND, "extreme", 3600)
         assert len(model.calls) == 2, payload
         assert "problem_with_your_last_answer" in model.data(1)
-    # A site made by the same answer can be changed by its later happening.
     good = {
         "sites": [{"site_id": "fernhill", "name": "Fernhill Billing", "kind": "portal"}],
         "events": [
@@ -2651,7 +2585,6 @@ async def test_the_engine_pays_a_seek_when_it_ends_and_an_attempt_not_at_once(
     from tests.test_clock_engine import actors_for, clocked_run, errand, models_for, scenario
 
     owners = ("dan",)
-    # Five reviews fall inside this time. With nothing waiting, none of them may call the model.
     spec = scenario(
         owners, duration_minutes=300, director={"enabled": True, "review_every_minutes": 60}
     )
@@ -2704,11 +2637,9 @@ def test_the_place_in_an_authored_week_holds_nothing_private(name):
     for owner in spec.owners:
         assert owner.name.split()[0] not in place
     assert "$" not in place and "guide" not in place.casefold()
-    # A review with nothing waiting is free on both weeks, whatever their notes say.
     assert spec.clock.director.small_happenings is False
 
 
-# A person's own bill -------------------------------------------------------------------------
 
 
 def _own_bill_plan(owner="dan", bill="plan-nov", site="quillmere"):
@@ -2752,11 +2683,9 @@ async def test_paying_their_own_bill_moves_the_money_once_and_keeps_the_bill_pai
     )
     summary = await apply_plan(pool, run_id, plan, 7200, "request:gas")
     assert summary["skipped"] == [] and summary["pay_bills"][0]["amount"] == bill["amount"]
-    # The same cause changes nothing, and a new cause finds the bill closed.
     assert await apply_plan(pool, run_id, plan, 7200, "request:gas") == summary
     again = await apply_plan(pool, run_id, plan, 7300, "request:gas:again")
     assert again["pay_bills"] == [] and "not open" in again["skipped"][0]["reason"]
-    # Someone else's plan cannot settle it through their own turn.
     other = DirectorPlan(
         scale="request",
         about_owner="dan",

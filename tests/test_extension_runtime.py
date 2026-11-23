@@ -42,7 +42,6 @@ async def test_legacy_run_gets_empty_resources_without_world_change(pool):
     before = await director.get_run(run_id)
     async with pool.connection() as conn, conn.transaction():
         for table in ("resource_journal", "market_permissions", "resource_state"):
-            # Each table is a fixed application name in this isolated test schema.
             await conn.execute(f"DELETE FROM {table} WHERE run_id=%s", (run_id,))
     await director.ensure_extensions(run_id)
     await director.ensure_extensions(run_id)

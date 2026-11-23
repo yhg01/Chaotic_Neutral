@@ -185,7 +185,6 @@ async def test_durable_operator_control_and_no_model_local_evidence(app):
     assert report["functional_passed"]
     assert report["mode"] == "supplied_control" and report["provider_attempts"] == 0
     assert report["audit"]["coverage"] == "instrumented_invocation"
-    # The local fixture deliberately pauses for review; never claim zero operation.
     assert report["audit"]["operator_actions"] == 1
     trace = await Director(app.state.pool).trace(run_id)
     assert [e["payload"]["action"] for e in trace if e["kind"] == "operator_control"] == [

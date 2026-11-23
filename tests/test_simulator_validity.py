@@ -380,7 +380,6 @@ async def test_long_final_reply_preserves_text_order_and_replays_saved_output(
     from agentrpg import run_engine as module
 
     director, run_id, _ = await setup_run(pool, count=1)
-    # Whitespace at both chunk boundaries and the text ends must survive delivery.
     text = " " + ("a" * 11998) + "\n\n" + ("b" * 11998) + " " + ("c" * 25999) + "\n"
     assert len(text) == 50000
 

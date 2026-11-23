@@ -275,7 +275,7 @@ async def test_exact_report_releases_only_unused_reserve_and_keeps_uncertain(poo
     second = await ledger.reserve(campaign, unit, 10, 1)
     await ledger.finish(first, reported="0.031", generation_id="gen-test")
     await ledger.finish(second, reason="Unknown charge")
-    await ledger.finish(first, reported="0.0001")  # Already final; cannot lower history.
+    await ledger.finish(first, reported="0.0001")
     report = await ledger.summary(campaign)
     assert report["reported_usd"] == Decimal("0.031")
     assert report["uncertain_usd"] == Decimal("0.1")
@@ -543,7 +543,6 @@ async def test_a_refusal_waits_for_attempts_in_flight_before_it_stands(pool, mon
     waiting = asyncio.create_task(ledger.reserve(campaign, unit, 10, 1, wait_seconds=30))
     await asyncio.sleep(0.1)
     assert not waiting.done()
-    # The call in flight cost almost nothing, which frees the room.
     await ledger.finish(running, reported="0.0001")
     await asyncio.wait_for(waiting, 10)
     assert (await ledger.summary(campaign))["attempts"] == 2
@@ -555,16 +554,13 @@ async def test_a_refusal_stands_once_nothing_is_in_flight_or_the_wait_ends(pool,
     await ledger.ensure_campaign(campaign, "0.1")
     unit = price(prompt=Decimal("0.01"), completion=Decimal(0))
     first = await ledger.reserve(campaign, unit, 10, 1)
-    # No wait was asked for, so a direct caller gets its answer at once.
     with pytest.raises(BudgetExceeded):
         await ledger.reserve(campaign, unit, 10, 1)
     with pytest.raises(BudgetExceeded):
         await ledger.reserve(campaign, unit, 10, 1, wait_seconds=0.05)
-    # An attempt with an unknown charge has finished. Waiting for it would never end.
     await ledger.finish(first, reason="unknown")
     with pytest.raises(BudgetExceeded):
         await asyncio.wait_for(ledger.reserve(campaign, unit, 10, 1, wait_seconds=30), 5)
-    # A stopped process leaves a reservation that nothing will finish. It is not waited for.
     stale = uuid4()
     other = uuid4()
     await ledger.ensure_campaign(other, "0.1")
@@ -655,7 +651,6 @@ def test_a_direct_request_is_bounded_and_cannot_turn_on_a_priced_option():
     ):
         with pytest.raises(BudgetError):
             prepare_direct_request(direct_body(**change), prices, "deepseek")
-    # A model with a price at one provider has none at another.
     with pytest.raises(BudgetError):
         prepare_direct_request(direct_body(), prices, "anthropic")
 
@@ -688,7 +683,6 @@ async def test_a_direct_call_is_reserved_and_its_cost_is_computed_from_its_token
     transport = BudgetTransport(binding, "assistant", transport=httpx.MockTransport(provider))
     async with httpx.AsyncClient(transport=transport) as client:
         await client.post(DIRECT_PROVIDERS["deepseek"].url, json=direct_body())
-        # A request to any other address is refused before a reservation.
         with pytest.raises(BudgetError):
             await client.post("https://api.deepseek.com/beta/chat/completions", json=direct_body())
     report = await ledger.summary(campaign)
@@ -696,10 +690,8 @@ async def test_a_direct_call_is_reserved_and_its_cost_is_computed_from_its_token
     assert "provider" not in seen[0][1] and "usage" not in seen[0][1]
     assert report["attempts"] == 1
     if outcome == "success":
-        # 1,000 input tokens at $0.30 and 100 output tokens at $1.20 for each million.
         assert report["reported_usd"] == Decimal("0.00042") and report["uncertain_usd"] == 0
     elif outcome == "cached":
-        # 400 input tokens at $0.30, 600 read from the cache at $0.006, and the same output.
         assert report["reported_usd"] == Decimal("0.0002436") and report["uncertain_usd"] == 0
     elif outcome == "refused":
         assert report["reported_usd"] == 0 and report["uncertain_usd"] == 0

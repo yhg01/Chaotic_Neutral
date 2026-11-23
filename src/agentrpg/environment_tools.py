@@ -142,8 +142,6 @@ class EnvironmentTools:
             )
         self.shop_browser = shop_browser
         if shop_browser is not None:
-            # This opt-in buyer uses the website for commerce. Existing seller
-            # and legacy environments retain their direct market tools.
             self.tools = {
                 name: value
                 for name, value in self.tools.items()

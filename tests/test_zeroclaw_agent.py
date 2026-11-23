@@ -48,7 +48,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 NEXT = {"description": "Shift", "minutes": 60, "reachable": False, "category": "work"}
-# The words that tests/test_clock_realism.py bans from everything a clocked assistant reads.
 BANNED = re.compile(
     r"\b(windows?|\w+_window|window_\w+|ticks?|ticked|runs?|running|run_id|turn[- ]counts?|beats?"
     r"|cues?|directors?|actors?|scenarios?|simulat\w*|credits?|\w+_credits)\b",
@@ -121,13 +120,10 @@ async def test_the_control_story_is_the_same_on_both_backends(app, pool, test_da
         )
     assert run["status"] == "completed", run["result"]
     assert run["result"]["reason"] == "horizon"
-    # The check replaces random IDs, date-time text and cursors with marks. After that the
-    # story text is the same: the same events at the same story seconds in the same order.
     assert control.trace_text(trace) == control.trace_text(baseline)
     assert {owner: model.calls for owner, model in models.items()} == {
         owner: model.calls for owner, model in first.items()
     }
-    # No attempt failed on either backend, and every program ended by itself.
     async with pool.connection() as conn:
         failures = await (
             await conn.execute("SELECT count(*) AS n FROM run_events WHERE kind='job_failure'")
@@ -135,7 +131,6 @@ async def test_the_control_story_is_the_same_on_both_backends(app, pool, test_da
     assert failures["n"] == 0
     assert len(made) == 3
     for agent in made:
-        # One program served every turn of its assistant.
         assert agent.stats.early_exits == 0 and agent.stats.processes == 1
         assert agent.stats.turns >= 2
         assert agent.stats.unexpected_calls == agent.stats.unanswered_calls == 0
@@ -164,9 +159,7 @@ async def test_the_harness_mode_shows_the_model_only_our_own_surface(app, pool, 
     assert "zeroclaw" not in everything.lower() and PREFIX not in everything
     assert "Host:" not in everything and "Working directory" not in everything
     assert not [m for seen in model.all_seen for m in seen if WALL_CLOCK.match(str(m.content))]
-    # The model read the owner's words, though the program was given only a placeholder.
     assert "Tell me what is new, please." in everything
-    # The program ran the loop: three model steps and four tool calls, and a clean exit.
     assert stats.processes == 1 and stats.early_exits == 0
     assert stats.model_calls == 3 and stats.tool_asks == 4
     assert stats.unexpected_calls == stats.changed_arguments == stats.unanswered_calls == 0
@@ -191,17 +184,14 @@ async def test_the_pass_through_mode_shows_the_model_the_program_s_own_text(
         )
         stats = agent.stats
     system, user = model.all_seen[0][0], model.all_seen[0][1]
-    # What ZeroClaw 0.8.7 adds, and configuration cannot remove.
     assert "## Safety" in system.content
     assert f"Host: {socket.gethostname().split('.')[0]}" in system.content
     assert "Working directory:" in system.content
     assert WALL_CLOCK.match(user.content)
     assert BANNED.search(system.content.replace(INSTRUCTIONS, ""))
-    # With ZeroClaw's default compact setting, its section about messaging channels is absent.
     assert "Channel Capabilities" not in system.content
     names = [tool["function"]["name"] for tool in model.offered]
     assert names and all(name.startswith(PREFIX) for name in names)
-    # The world effect is still ours: one owner message, saved under the internal tool name.
     assert stats.early_exits == 0 and stats.unexpected_calls == 0
     called = [row["payload"]["tool"] for row in await events(pool, run_id, "assistant_tool_call")]
     assert called == ["send_owner_message"]
@@ -228,7 +218,6 @@ async def test_a_failed_tool_call_is_retried_in_a_new_process_without_a_second_e
             if call_id == "note-2" and not failed:
                 failed.append(call_id)
                 if after_the_effect:
-                    # The message is committed, and the answer is lost on the way back.
                     await real(name, payload, call_id)
                 raise httpx.ConnectError("down")
             return await real(name, payload, call_id)
@@ -240,7 +229,6 @@ async def test_a_failed_tool_call_is_retried_in_a_new_process_without_a_second_e
         agent, run_id = await one_owner(app, pool, test_database_url, model, factory)
         stats = agent.stats
     assert failed == ["note-2"]
-    # The second process got both saved model messages and the saved first result again.
     assert stats.processes == 2 and stats.early_exits == 0
     assert stats.replayed_messages == 2 and stats.replayed_results == 1
     assert model.calls == 3
@@ -352,7 +340,6 @@ async def test_private_notes_are_kept_between_turns_and_after_a_restart(
     results = {m.tool_call_id: m.content for m in agent.messages if isinstance(m, ToolMessage)}
     assert "Call the caterer." in results["r-1"] and "/plan.md" in results["l-1"]
     assert "Call the caterer." not in results["r-0"] and "missing.md" in results["r-0"]
-    # The files are in the database with the session, not in the program's folder.
     assert list(saved) == ["/plan.md"]
     assert not list(tmp_path.rglob("plan.md"))
 
@@ -426,12 +413,10 @@ async def test_an_abandoned_activation_leaves_a_history_that_a_provider_accepts(
             app, pool, test_database_url, model, factory, minutes=235, turns=turns
         )
         stats = agent.stats
-        # The whole saved history of the session, as the last activation left it.
         messages = agent.messages
     assert refused == ["open-1"]
     abandoned = await events(pool, run_id, "activation_abandoned")
     assert len(abandoned) == 1 and abandoned[0]["payload"]["failure_kind"] == "task_limit"
-    # The later activation ran, and every call in its history has one result.
     assert stats.open_calls_closed == 2
     answered = [m.tool_call_id for m in messages if isinstance(m, ToolMessage)]
     asked = [c["id"] for m in messages if isinstance(m, AIMessage) for c in m.tool_calls]
@@ -475,7 +460,6 @@ async def test_a_long_history_is_summarised_for_the_model_and_kept_whole_for_the
 
     def factory(runtime, **arguments):
         agent = zeroclaw_factory(bridge)(runtime, **arguments)
-        # About 300 tokens of history start a summary, and about 120 stay as they are.
         agent.summary_tokens, agent.summary_keep_tokens = 300, 120
         return agent
 
@@ -487,17 +471,14 @@ async def test_a_long_history_is_summarised_for_the_model_and_kept_whole_for_the
     summarised = [seen for seen in model.all_seen if str(seen[1].content).startswith(SUMMARY_LEAD)]
     assert summarised
     for seen in summarised:
-        # After the summary the model reads whole exchanges: no result without its call.
         assert seen[2].type != "tool"
         asked = {c["id"] for m in seen if isinstance(m, AIMessage) for c in m.tool_calls}
         assert {m.tool_call_id for m in seen if isinstance(m, ToolMessage)} <= asked
         assert len(seen) < len(agent.messages) + 1
-    # The saved history still holds every message, and every note went out once.
     assert agent.messages[0].content.endswith("Tell me what is new, please.")
     assert sum(1 for m in agent.messages if isinstance(m, ToolMessage)) == 6
     called = [r["payload"]["call_id"] for r in await events(pool, run_id, "assistant_tool_call")]
     assert called == [f"note-{n}" for n in range(5)]
-    # Each summary is one counted model call of the task.
     async with pool.connection() as conn:
         task = await (
             await conn.execute(
@@ -532,8 +513,6 @@ async def test_in_pass_through_mode_the_program_keeps_its_own_history_between_tu
             turns=turns,
         )
         stats = agent.stats
-    # One program, several turns. In a later turn the model reads the earlier turn as the
-    # program kept it: the owner's first words, its own tool call and the result.
     assert stats.processes == 1 and stats.turns >= 2 and stats.early_exits == 0
     later = next(seen for seen in model.all_seen if "Second job." in text_of(seen))
     said = [m.content for m in later if m.type == "human"]
@@ -553,9 +532,7 @@ async def test_the_program_has_no_host_tools_and_no_keys(app, pool, test_databas
     try:
         assert agent.stats.early_exits == 0 and agent.stats.turns >= 1
         names = [tool["function"]["name"] for tool in model.offered]
-        # Only our tools, under ZeroClaw's prefix. Its shell, file and memory tools are absent.
         assert len(names) >= 20 and all(name.startswith(PREFIX) for name in names)
-        # The configuration holds no provider key and no board credential.
         assert "Bearer" not in config and "openrouter" not in config.lower()
         assert 'api_key = "local-bridge"' in config
     finally:

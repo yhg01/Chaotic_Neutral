@@ -218,7 +218,6 @@ def build_app(seen: dict, replies: list[dict], tool_delay: float, result_chars: 
             seen["tool_calls"] += 1
             payload = {"ok": True, "data": {"tool": name, "n": seen["tool_calls"], "items": []}}
             if result_chars:
-                # A result of a real size, such as a page or a mail.
                 words = f"item {seen['tool_calls']} of the list for the week "
                 payload["data"]["text"] = (words * (result_chars // len(words) + 1))[:result_chars]
             result = {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False}

@@ -204,7 +204,6 @@ def test_session_hash_keeps_saved_legacy_value_and_separates_surfaces():
 @pytest.mark.parametrize("name", V2)
 def test_v2_text_people_read_has_no_backstage_terms(name):
     scenario = spec(name)
-    # "the plot" and tool-level words are checked on everything an owner or assistant can read.
     banned = re.compile(r"simulat|fiction|scenario|decision window|\bcredits?\b|owner-\d", re.I)
     readable = [o.request for o in scenario.owners] + [o.name for o in scenario.owners]
     readable += [f"{m.subject} {m.body}" for m in scenario.initial_mail]
@@ -265,7 +264,6 @@ async def test_natural_actor_rejects_backstage_words_and_keeps_declared_terms():
     declared = json.dumps({"kind": "reply", "text": "offer it for 5 credits"})
     actor = ModelActor(model(declared), max_repairs=0, natural=True)
     assert (await actor.respond(view("offer it for 5 credits"))).kind == "reply"
-    # Legacy Actors keep their original contract for saved and resumed runs.
     actor = ModelActor(model(leaked), max_repairs=0)
     assert (await actor.respond(view())).text == "this simulation is odd"
 

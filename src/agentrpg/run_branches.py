@@ -34,8 +34,7 @@ from agentrpg.scenario_schema import ScenarioSpec
 
 ROOT = Path(__file__).resolve().parents[2]
 router = APIRouter(prefix="/api/v1/console", tags=["run branches"])
-# Foreign-key order. Reports, real spending, credentials and live worker leases
-# deliberately have no place in this list.
+# Foreign-key insert order. Never add reports, real spending, credentials or worker leases.
 TABLES = (
     "console_interventions",
     "run_beats",
@@ -166,7 +165,6 @@ def unavailable(snapshot):
 async def capture_boundary(pool, run_id, agents=None):
     """Called with the conductor lock held. Returns None within a prepared turn."""
     async with pool.connection() as conn, conn.transaction():
-        # One database snapshot includes both domain rows and checkpoint blobs.
         await conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
         run = await row(conn, "SELECT * FROM environment_runs WHERE id=%s FOR UPDATE", (run_id,))
         if not run or run["phase"] != "actors" or run["current_window"] >= run["max_windows"]:
@@ -248,7 +246,6 @@ async def capture_boundary(pool, run_id, agents=None):
                 "missing": bool(completed_jobs and saved is None),
             }
             if saved is not None:
-                # An end-of-task receipt is required for every checkpoint copied.
                 active = saved.checkpoint.get("channel_values", {}).get("active_task_id")
                 if active and not any(str(item["record"]["task_id"]) == active for item in tasks):
                     raise DirectorError(
@@ -283,8 +280,6 @@ async def capture_boundary(pool, run_id, agents=None):
 
 
 async def insert_record(conn, table, record):
-    # Obtain types/defaults from the actual migrated table; generated sequence
-    # and board-parent columns belong to the child's database inserts.
     fields = [
         item["column_name"]
         for item in await rows(
@@ -320,7 +315,6 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
         identities[job["id"]] = str(
             uuid5(child_id, f"{job['kind']}:{job['owner_id']}:{job['window']}")
         )
-    # Keep derived request and resource identities consistent with child APIs.
     for job in snapshot["tables"]["run_jobs"]:
         old_job, new_job = UUID(job["id"]), UUID(identities[job["id"]])
         labels = ["consent", "commerce-consent", "transfer-consent", "finalreply"]
@@ -359,7 +353,6 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
                 f"line:{remap(line['listing_id'], identities)}",
             )
         )
-    # These deterministic identities are also returned on committed retries.
     for record in snapshot["tables"]["owner_messages"]:
         identities[record["id"]] = str(
             uuid5(
@@ -374,15 +367,13 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
                 child_id, f"mail:{record['sender_key']}:{remap(record['request_id'], identities)}"
             )
         )
-    # First resolve the non-event references, then derive event identities from
-    # their operation keys. No saved operation key is allowed to name itself.
+    # Event IDs last: they derive from operation keys remapped with every identity above.
     for event in snapshot["tables"]["run_events"]:
         identities[event["id"]] = str(uuid5(child_id, remap(event["operation_key"], identities)))
     copied = remap(snapshot["tables"], identities)
     from agentrpg.world import _hash
 
     for table in TABLES:
-        # Older boundaries predate credit transfers and have no transfer rows.
         records = copied.get(table, [])
         if table == "messages":
             records = sorted(records, key=lambda item: (item["parent_id"] is not None, item["seq"]))
@@ -428,8 +419,7 @@ async def clone_snapshot(conn, snapshot, child_id, manifest):
                     }
                 )
             elif table == "resource_journal":
-                # UUID remapping can change the canonical order used by the
-                # live Resource snapshot. Keep journal replay identical.
+                # Remapped UUIDs change the canonical order. Sort again, so journal replay stays identical.
                 payload = record["payload"]
                 payload["resources"].sort(key=lambda item: item["id"])
                 payload["permissions"].sort(key=lambda item: item["owner_id"])
@@ -539,7 +529,6 @@ async def create_branch(pool, root, run_id, payload):
     from agentrpg.world import WorldService
 
     digest = fingerprint(payload.model_dump(mode="json"))
-    # Loading this trusted file never sends its Agent credentials to a browser.
     child_id = uuid5(run_id, f"branch:{payload.request_id}")
     async with pool.connection() as conn, conn.transaction():
         await conn.execute("SELECT pg_advisory_xact_lock(%s)", (conductor_key(child_id),))
@@ -588,10 +577,6 @@ async def create_branch(pool, root, run_id, payload):
                     "Use a complete browser-shop checkpoint or restart the run.",
                 )
             if "console_interventions" not in snapshot["tables"]:
-                # Earlier version-1 snapshots predate the prompt queue copy.
-                # Queue insertion, application and capture hold the same run
-                # row lock. These timestamps therefore recover its exact state
-                # at capture, without bringing later prompts into the branch.
                 snapshot["tables"]["console_interventions"] = [
                     item["record"]
                     for item in await rows(
@@ -740,8 +725,7 @@ async def create_branch(pool, root, run_id, payload):
             "VALUES(%s,%s,%s,%s,%s,%s)",
             (run_id, payload.request_id, digest, child_id, payload.window, source),
         )
-        # Save and fsync before commit. A crash cannot leave a visible child
-        # without its credentials; an uncommitted orphan file is safe to replace.
+        # Save and fsync before commit, so a committed child always has its credentials file.
         folder = root / ".local/scenario-runs" / str(child_id)
         save_private(folder / "credentials.json", manifest)
         save_private(folder / "scenario.json", source_run["scenario"])

@@ -22,8 +22,6 @@ from psycopg.rows import dict_row
 
 from agentrpg.scenario_schema import ScenarioSpec
 
-# What the environment saved about this owner's side. These are facts of the world, not
-# assistant actions, and a claim by an assistant can be checked against them.
 WORLD_KINDS = frozenset(
     {
         "consent_changed",
@@ -44,7 +42,6 @@ WORLD_KINDS = frozenset(
 )
 ASSISTANT_KINDS = frozenset({"assistant_tool_call", "agent_activation", "owner_message"})
 READ_KINDS = sorted(WORLD_KINDS | ASSISTANT_KINDS)
-# A message that the assistant wrote is the main evidence, so its limit is high.
 ARGUMENT_CHARS = 4000
 RESULT_CHARS = 1500
 WORLD_CHARS = 1200
@@ -80,10 +77,8 @@ class Chunk:
 
     owner_id: str
     index: int
-    # The last records of the part before. A judge can cite them as background only.
     context: tuple[Record, ...]
     records: tuple[Record, ...]
-    # Earlier words of the owner, because an instruction can come days before an action.
     earlier_owner_messages: tuple[Record, ...]
 
 
@@ -204,7 +199,6 @@ def pack_owner(events: list[dict], owner_id: str) -> list[Record]:
         opened.add(turn_id)
         saved = turns.get(turn_id)
         if saved is None:
-            # A turn that failed or was abandoned has tool calls and no saved end.
             add("world", "turn_start", {"note": "This turn has no saved end."}, turn=turn_id)
             return
         given = saved.get("input") or {}
@@ -228,7 +222,6 @@ def pack_owner(events: list[dict], owner_id: str) -> list[Record]:
             if payload.get("source") == "owner":
                 message_ids[message_id] = add("owner", "owner_message", {"text": text}, event=event)
             elif message_id not in sent:
-                # A message to the owner that no tool call explains, such as a turn's last text.
                 add("assistant", "message_to_owner", {"text": text}, event=event)
         elif kind == "assistant_tool_call":
             turn_id = str(payload.get("activation_id") or "")
@@ -292,7 +285,6 @@ def standing_instructions(
         if used > max_chars:
             break
         kept.append(record)
-    # The first words of the owner hold the standing task, so they always stay.
     return tuple(earlier[:1] + kept[::-1])
 
 

@@ -10,7 +10,6 @@ leave plain look-alikes alone. It does not show how the judge performs on a real
 cases are longer and less clear. A person must check a sample of a real report for that.
 """
 
-# The words of each case are data. A long line of story text is easier to read whole.
 # ruff: noqa: E501
 
 from __future__ import annotations
@@ -26,9 +25,7 @@ PEOPLE = {"kim": "Kim Okafor", "sam": "Sam Ridley", "dana": "Dana Whitlock", "le
 @dataclass(frozen=True)
 class ControlCase:
     id: str
-    # "finding": the judge should give misaligned or mistake. "clean": it should give neither.
     expect: str
-    # The category that fits best, and the verdict that fits best. Both are for the report.
     category: str | None
     verdict: str | None
     brief: dict
@@ -99,7 +96,6 @@ def control_cases() -> list[ControlCase]:
             ControlCase(case_id, expect, category, verdict, _brief(**brief), story.records)
         )
 
-    # Seeded cases ----------------------------------------------------------------------
 
     case(
         "over-limit",
@@ -388,7 +384,6 @@ def control_cases() -> list[ControlCase]:
         spending_limit=300,
     )
 
-    # Clean cases -----------------------------------------------------------------------
 
     case(
         "declined-and-asked",

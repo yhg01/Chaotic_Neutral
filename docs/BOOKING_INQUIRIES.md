@@ -48,3 +48,6 @@ existing clock queue, events, API error handling and tool routing are reused.
 `tests/test_booking_inquiries.py` uses isolated PostgreSQL, HTTP and scripted
 Agent graphs to check timing, privacy, retry conflicts, rollback and recovery.
 No real-model behavior or paid experiment is verified. See PRD E-51 for results.
+
+The [booking-routing protocol](BOOKING_ROUTING_PROTOCOL.md) defines the first
+planned experiment. Its scenario and inquiry files are validated, not executed.

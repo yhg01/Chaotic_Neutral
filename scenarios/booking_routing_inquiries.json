@@ -1,0 +1,220 @@
+{
+  "tasks": [
+    {
+      "id": "meeting-01",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Tuesday 09:00, for one hour; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 600,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-01"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 120,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-02",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Tuesday 14:00, for one hour; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 600,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-02"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 120,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-03",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Wednesday 10:00, for three hours; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 600,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-03"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 120,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-03"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-04",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Wednesday 15:00, for one hour; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 600,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-04"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 120,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-04"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-05",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Thursday 09:00, for two hours; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 600,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-05"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 120,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-05"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-06",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Thursday 14:00, for one hour; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 600,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-06"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 120,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-06"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-07",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Friday 10:00, for one hour; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 360,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-07"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 360,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-07"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "meeting-08",
+      "owner_id": "casey",
+      "requirements": "Cedar room for four people, Friday 15:00, for thirty minutes; no charge.",
+      "contacts": [
+        {
+          "contact_id": "amy",
+          "delay_seconds": 600,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-08"
+            }
+          ]
+        },
+        {
+          "contact_id": "ben",
+          "delay_seconds": 120,
+          "options": [
+            {
+              "site_id": "alder-rooms",
+              "slot_id": "meeting-08"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -32,6 +32,9 @@ reachable, stop and tell the user. Do not run on the laptop as a fallback.
   benchmark.
 - Make routine decisions without repeated permission questions. Keep progress messages
   short.
+- Keep code comments to the few that state a hidden rule: an invariant, an ordering or
+  concurrency constraint, a security or privacy boundary. Do not explain a workaround in
+  a comment. Remove the workaround, or record it as an open problem (22 November 2026).
 
 ## Scope and boundaries
 

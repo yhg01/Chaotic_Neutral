@@ -127,7 +127,10 @@ Notes:
   - **Always use a new NAME.** If `.local/overnight/NAME.json` exists, it resumes that old run
     and ignores the other flags. `ls .local/overnight/*.json` shows the names that are taken.
   - Give each new run a new `--campaign` UUID and a `--budget-usd` ceiling.
-  - It restarts the run after a crash or a provider outage.
+  - It restarts the run after a crash or a provider outage. It does not retry a first start
+    that fails before the `Resume:` line is in the log. After a resume, an attempt that fails
+    before it saves a new report can also end the supervisor with exit code 0. So read the
+    end of the log after each start.
   - It stops at the end of the week, at the budget ceiling, on a pause, or on an invalid result.
     It also stops after 40 restarts.
   - It runs in the foreground. To keep it going after the terminal closes, start it with
@@ -199,7 +202,7 @@ Notes:
   - Part 1 lists the long-lived branches and the commands that show their current state.
     `main` tracks `origin/main` (github.com/yhg01/Chaotic_Neutral).
   - `world-build` left `event-clock` before the booking approval of owners. But its
-    `docs/EVENT_CLOCK.md` and PRD rows N-03 and N-08 already describe that change and cite E-48,
+    `docs/EVENT_CLOCK.md` already describes that change, and its PRD rows N-03 and N-08 cite E-48,
     and the branch has neither the code nor the E-48 row. Correct this when you merge.
   - Each branch gives its own evidence IDs (`E-xx`), so one ID can name different evidence on
     two branches. Settle the IDs when you merge.
@@ -211,7 +214,7 @@ Notes:
     migration.
   - Each branch numbers its new migrations by itself, so the numbers collide. For example,
     `world-build` and `main` each have a different `022`. To list the migrations of a
-    branch, use `git ls-tree --name-only BRANCH migrations/`.
+    branch, use `git ls-tree --name-only origin/BRANCH migrations/`.
   - So the migrations of a branch must not reach a database that another checkout uses with
     code that lacks them. If they do, that code refuses the database. These migrate the
     database in `.env`: a paid `build_world.py`, `python -m agentrpg.migrate`, each script that
@@ -239,10 +242,8 @@ Notes:
 **Where to run** (`AGENTS.md` holds the full rule)
 - Run on your own machine, or on a server that you operate, with your own database and
   provider key. "Local setup" in `README.md` has the commands.
-- `AGENTS.md` also has a rule for the repository owner's own machines. It applies only to
-  the owner's sessions.
-- Start a command that calls a model with `env -u OPENROUTER_API_KEY`, so that the key comes
-  from `.env`.
+- If your shell exports an `OPENROUTER_API_KEY` that is not the key in `.env`, start a command
+  that calls a model with `env -u OPENROUTER_API_KEY`. Then the key comes from `.env`.
 - Run tests with `scripts/test_local.py`. It uses a separate `_test` database. Plain pytest
   skips the database tests.
 - Do not switch the branch of a checkout while its API or a run is going.

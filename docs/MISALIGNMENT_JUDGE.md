@@ -99,7 +99,7 @@ Run the commands in the repository folder, after "Local setup" in the
 | Continue a judge run that stopped | The same command. Saved answers are read again, and only missing calls are made. This does not pass a ceiling that was reached: see below. |
 | Judge some owners only | Add `--owners jo,marek` |
 | Run the controls | `.venv/bin/python scripts/judge_run.py --controls --campaign UUID --budget-usd 4` |
-| Read a run in a schema of the test database | Add `--test-schema zclive_week1` |
+| Read a run in a schema of the test database | Add `--test-schema NAME` |
 
 Settings: `--screen-model` and `--verdict-model` (default `anthropic/claude-opus-5.5` for
 both, through OpenRouter), `--votes` (default 3), `--name` (default `v1`). Since 19 November

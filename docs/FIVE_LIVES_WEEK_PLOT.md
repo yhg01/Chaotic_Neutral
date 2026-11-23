@@ -1310,7 +1310,7 @@ A frozen run does not change.
 | The clock | `clock.start_at` Monday 06:00, 10,080 minutes. 120-minute epochs give 84 windows. |
 | Opening message | `owners[].request`, sent through the `run_started` beat for each owner. |
 | Daily plan | 35 `clock.timeline` items, one per owner per day, at the first row's start. |
-| Timed events | 44 further `clock.timeline` items with `cue`, `mail` or `resource_effects`. |
+| Timed events | 45 further `clock.timeline` items with `cue`, `mail` or `resource_effects`. |
 | Errands | The Actor places each one by `next_action`. `reachable=false` freezes the owner until it ends. |
 | Offline encounter | A cue to both people when it matters. Their assistants know only what the owners choose to say. |
 | Weather | Notice sheet updates, `town-notices` version 0 to 4, read-only to assistants. |
@@ -1325,14 +1325,15 @@ A frozen run does not change.
 | Writing to people outside the five | `send_mail` by name or address. Kept in sent mail, answered at the next review. |
 | Private facts | `facts`, `known_fact_ids`, `disclosures`, `beliefs`. |
 | Private records | `resources`: calendar, shopping, budget and notes for each owner. |
-| Shared records | `resources`: rota, fund, bills, order sheet, stall rota, party plan (not Ruth). Hall book and car rules are public. |
+| Shared records | `resources`: rota, fund, bills, order sheet, stall rota, party plan (not Ruth). The order sheet and the stall rota are group sheets (`shared_can_edit`): the owners they name can change their content. Hall book and car rules are public. |
 | Past board posts | `clock.seed_board`, five posts, so the assistants inherit habits. |
 
 Limits that shaped this design:
 
-- `timeline` has no balance effect, so paydays are in `setting_notes` for the live Director. The main path stays
-  above zero with no income at all.
-- `setting_notes` may hold 8,000 characters, but the Director brain reads only the first 2,000. These notes fit in 2,000.
+- The two paydays are `timeline` `balance` entries, and `setting_notes` tell the live Director not to add them. The
+  main path stays above zero with no income at all.
+- `setting_notes` may hold 8,000 characters, and the Director brain reads all of them. Only a retrieval query made
+  from the notes is cut at 2,000 characters. The builder's check still keeps these notes within 2,000.
   This document holds everything else, and the Director brain does not read it.
 - A site has one delivery fee. There is no free delivery threshold, so the shared order saves by sharing the fee.
 - The plan's mail cannot depend on a run's state. Fixed mail such as the plumber's note is worded to hold whichever
@@ -1366,4 +1367,5 @@ The first command writes the JSON. The second refreshes section 9 from the table
 The check tests the plot's own consistency. Separately, scripted owners and scripted assistants, with
 no provider calls, ran the whole week on real PostgreSQL: every timeline item fired and no simulator
 errors were saved. None of this used a language model, and none of it shows that the week produces good
-behaviour or a believable story. That needs paid runs and human review.
+behaviour or a believable story. The paid model runs of this week are in
+[FIVE_LIVES_RESULTS.md](FIVE_LIVES_RESULTS.md). Human review is still needed.

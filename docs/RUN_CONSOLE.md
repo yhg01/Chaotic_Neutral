@@ -209,6 +209,19 @@ paused child at Turn 01 from the frozen initial scenario. Initial restart does
 not retain the old run's later memory or world changes. Incomplete checkpoints
 and older request records without their original input also prevent restoration.
 
+Three compatibility rules apply to restoration. Keep them when this code changes.
+
+- A version-1 boundary that was saved without console prompt queue records still
+  restores. It first passes its original hash check. The service then recovers
+  the prompt records with the boundary's creation time: it includes prompts
+  created at or before that time, and it restores a prompt applied after that
+  time as pending.
+- Resource journal arrays are sorted again into canonical order after ID mapping.
+  The journal replay of the child then equals its Resource snapshot.
+- A branch records its immediate parent. For a branch of a branch, the lineage
+  record and the parent link name the run it was created from, not the first
+  ancestor. Copied history keeps the earlier `run_branched` event.
+
 ## Limits and other views
 
 The console is a local operator view of synthetic private records. Selecting
@@ -265,10 +278,10 @@ real control write, or model call occurred in those browser tests. Live HTTP and
 the in-app observer also confirmed direct local access. Foreign-origin requests
 were rejected. Ruff, formatting, and JavaScript syntax checks passed. This change
 used no paid model calls.
-The [browser runner](../scripts/test_console_ui.mjs) writes
-[local evidence](../.local/console-tests/results.json) and screenshots under
-`.local/console-tests/`. It blocks real console writes unless a test intercepts
-them. These local artifacts are ignored by Git.
+The [browser runner](../scripts/test_console_ui.mjs) writes its local evidence
+file `results.json` and screenshots under `.local/console-tests/`. It blocks real
+console writes unless a test intercepts them. These local artifacts are ignored
+by Git.
 
 ## Browser shop profile
 
@@ -434,7 +447,9 @@ checked with scripted rows and a scripted control run, not with a real week of m
 records. `scripts/test_console_ui.mjs` has no clocked checks, because it needs a clocked
 run saved in the development database and an API process that has loaded these routes.
 The API process must restart to serve the new routes. The server does not refuse prompts or
-branches for a clocked run; only the console disables them.
+branches for a clocked run; only the console disables them. Row E-46 of the
+[PRD evidence register](../PRD.md#evidence-register) records a later check of the
+replay portal on paid clocked runs.
 
 ## Saved failure categories
 

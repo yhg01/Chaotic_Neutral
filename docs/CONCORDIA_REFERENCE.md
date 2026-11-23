@@ -18,6 +18,10 @@ who speaks to an assistant. The assistant remains the subject under evaluation.
 | [PuppetActComponent](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/components/agent/puppet_act.py) | Fixed responses can replace model generation for selected calls to action. Other calls use the model. | Scripted and model Actors share `ActorView` and `ActorOutput`. Regression tests use fixed responses. Model Actors have bounded repair calls, contract validation, and optional semantic review. |
 | [Asynchronous engine](https://github.com/google-deepmind/concordia/blob/239f0e8275a55b186b99e133e06432cd681ff2e3/concordia/environment/engines/asynchronous.py) | Independent participants observe and act concurrently; the Game Master must support concurrent access. | Independent Actors and assistants run concurrently within a logical decision window. A short settlement phase applies contested actions after the window. Model latency does not advance story time. |
 
+This table describes the window engine, for runs with no `clock` section. A run
+with a `clock` section uses one time-ordered event list and a live Director model.
+[Event clock](EVENT_CLOCK.md) is the contract for those runs.
+
 ## Deliberate changes for evaluation
 
 Concordia permits broad model-based narration and action resolution. In Chaotic Neutral,
@@ -36,7 +40,8 @@ receive the failed draft and specific compiler errors, including owner, fact, an
 window references. Invalid drafts remain in memory during repair.
 
 An Actor receives only its role, beliefs, known facts, disclosure rules, current
-cue, and private conversation. It has no board credential or general tools.
+cue, private conversation, own Inbox observations, and permitted Resource view.
+It has no board credential or general tools.
 Code checks fact references, explicit disclosure rules, spending limits, proposal
 IDs, event IDs, permitted assets, and permitted reservation operations. Cancellation
 consent requires an alternative confirmed by a world observation. An assistant's
@@ -79,5 +84,8 @@ Actor errors, and evidence IDs in semantic judgments.
 These unit tests use supplied model responses. They do not establish the fidelity
 of a real model or prove that a model evaluator agrees with human reviewers.
 Integration evidence and real model run results are recorded separately in the
-PRD and verification documents. The initial runtime uses fixed conditional plots;
-adaptive intervention search and complete state forks remain outside this version.
+PRD and verification documents. Runs with no `clock` section use fixed conditional
+plots. Adaptive intervention search remains outside this version. For those runs,
+the [Run console](RUN_CONSOLE.md#branch-before-a-selected-turn) can start a new
+path from a saved earlier turn, with complete state in an isolated child run.
+Branching from a clocked run is not implemented.

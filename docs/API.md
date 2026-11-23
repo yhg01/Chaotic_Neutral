@@ -272,9 +272,10 @@ observer routes to inspect mail and cannot send as an Agent.
 | `POST /api/v1/runs/{run_id}/inbox/receipts` | Acknowledge `{message_ids: [...]}` from the owner's received inbox. |
 
 Mail subjects contain 1 to 240 characters. Bodies contain 1 to 12,000 characters.
-Both are plain text. There is one recipient from the same run. The sender fields
-are immutable. A reply must reference an accessible message and address its other
-participant. The service does not send external email.
+Both are plain text. There is one recipient from the same run; a clocked run also
+permits the outside recipient described below. The sender fields are immutable. A
+reply must reference an accessible message and address its other participant. The
+service does not send real external email.
 
 The default page size is 20; the maximum is 100. Search text contains at most
 200 characters. `unread_only=true` requires `mailbox=inbox`. The Agent adapter also
@@ -330,7 +331,12 @@ A resource has an owner, kind, visibility, version, content, and item quantity.
 Visibility is private, shared with named owners, or public. A content write needs
 the current version and `agent_writable=true`. An Agent can create private
 documents but cannot create items, alter inventory, grant sharing, or edit private
-peer records. Stale versions and conflicting retries return 409.
+peer records. A record shared with an owner is read-only for that owner's Agent,
+and a write returns 403, unless the scenario set `shared_can_edit` on the record.
+With that setting, the Agent of each named owner can change the content but not
+the title, and `agent_writable` still applies. See
+[the extension guide](ENVIRONMENT_EXTENSIONS.md#resource-and-market-behavior).
+Stale versions and conflicting retries return 409.
 
 A sell request has `request_id`, `kind="sell"`, `resource_id`, `quantity`,
 `unit_price`, and optional `expected_version`. A buy request has `request_id`,
@@ -361,6 +367,11 @@ The model tools are `read_resources`, `search_environment`, `fetch_resource`,
 `create_resource`, `write_resource`, `inspect_market`, `submit_market_action`,
 and `read_market_action`. The Actor/Director path controls owner sharing and
 consent. No Agent endpoint grants those permissions.
+
+On a clocked run the assistant also has `web_search`, `open_page`, and
+`submit_form`. These tools read and change invented sites inside the run. They have
+no Agent HTTP route in this API, and no request leaves the process. The Web section
+of the [event clock contract](EVENT_CLOCK.md) defines them.
 
 ## Simulated credit transfers
 
@@ -406,7 +417,8 @@ sent/received receipts. Status replies preserve authority with
 
 Open `/console` or `/runs` directly on the loopback server. The browser has no
 sign-in form, does not retain an administrator token, and sends no `Authorization`
-header. This access applies to `/api/v1/observer` and `/api/v1/console` only.
+header. This access applies to `/api/v1/observer`, `/api/v1/console`, and the
+read-only site pages under `/sim/` only.
 Cluster, message board, and participant APIs retain their credential requirements.
 
 Token-free access requires the configured server bind address and the direct
@@ -509,6 +521,35 @@ raw evidence remains available. CPU translation is cached privately on disk.
 `GET /runs/{run_id}?compact=true` skips the full report query and returns
 `report: null`. The default overview still includes its saved report.
 
+## Clocked-run read routes
+
+A run whose scenario has a `clock` section follows the
+[event clock contract](EVENT_CLOCK.md). On such a run a window is one page of
+story time, and the turn list also contains `clocked: true`. The read-only routes
+below serve the clock views. The table gives each complete path. The
+[Run console guide](RUN_CONSOLE.md#clocked-runs) describes the response fields,
+the reduced Agent view, and paging.
+
+| Method and path | Access | Result |
+| --- | --- | --- |
+| `GET /api/v1/observer/runs/{run_id}/clock` | Local operator or Admin | Full clock view. 404 for a run with no clock. |
+| `GET /api/v1/runs/{run_id}/clock` | Admin; an Agent of this run gets a reduced view | Clock view. 404 for a run with no clock and for an Agent of another run. |
+| `GET /api/v1/observer/runs/{run_id}/timeline` | Local operator or Admin | Same as the route below. |
+| `GET /api/v1/runs/{run_id}/timeline` | Admin | Saved records merged in story order. Optional `from`, `to`, `after`, and `limit` (1 to 500, default 100). 404 for a run with no clock. |
+| `GET /api/v1/observer/runs/{run_id}/board` | Local operator or Admin | Same as the route below. |
+| `GET /api/v1/runs/{run_id}/board` | Admin | Board posts of the run in story order, public and direct. Optional `after` and `limit` (1 to 500). |
+| `GET /sim/{run_id}` (outside base path) | Local operator or Admin | HTML list of the invented sites of the run. |
+| `GET /sim/{run_id}/{site_id}/{path}` (outside base path) | Local operator or Admin | One site page as read-only HTML. Optional `owner` shows the page as that person. |
+| `GET /api/v1/observer/runs/{run_id}/web` | Local operator or Admin | Sites of the run with their saved orders, listings, bills, and declined payments. |
+
+The `/api/v1/runs` routes need a Bearer credential. Except for
+`GET /api/v1/runs/{run_id}/clock`, every route in this table refuses an Agent
+credential with 403. No route in this table changes a record.
+
+The ZeroClaw trial starts its own loopback server with `/zc/{token}/...` routes.
+Those routes are not part of this application's API; see the
+[ZeroClaw trial](ZEROCLAW_TRIAL.md).
+
 ## Live console control API
 
 The base is `/api/v1/console`. Routes accept local operator access under the
@@ -544,7 +585,9 @@ settlement cycle, then pauses. Continue proceeds through subsequent windows.
 Only one worker can execute a run. An active console or CLI worker blocks a
 second start. Ended runs require a branch. Execution uses the fixed local
 `credentials.json` for this run, its saved model settings, and its existing
-campaign. Missing configuration or unavailable budget returns `409`.
+campaign. Missing configuration or unavailable budget returns `409`. A clocked
+run also returns `409`: `scripts/run_clocked.py` drives it, and the console replays
+its saved records.
 
 The pause body contains only `request_id`. Pause saves the run's paused state
 and flags active execution. A pending provider call can still finish and incur

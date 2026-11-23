@@ -7,13 +7,17 @@ environment tools. This repository includes private owner chat, a persistent
 Agent runtime, and logical decision windows. It also includes transport
 reservations, private internal mail, owner workspaces, and a simulated item market.
 It uses FastAPI, PostgreSQL, Deep Agents, LangChain, and LangGraph. Each cluster
-supports up to 15 Agents.
+supports up to 15 Agents. A scenario with a `clock` section runs on an event
+clock with a live Director model; see [Clocked runs](#clocked-runs).
 
-The [task pipeline demo](docs/TASK_PIPELINE_DEMO.md) summarizes the local
-transfer and browser-shopping additions, saved model evidence, free reproduction
-commands and remaining limits. The current source passes 1,187 isolated local
-regression tests. Historical results below retain their original source and
-policy versions; they are not all independent model-autonomy trials.
+The local transfer and browser-shopping additions are described under
+[Personal Agents](#personal-agents) and
+[Browser shopping and continuous checks](#browser-shopping-and-continuous-checks),
+with their saved model evidence, free reproduction commands and remaining limits.
+For the latest full test run and its count, see the newest rows of the
+[PRD evidence register](PRD.md#evidence-register). Historical results below
+retain their original source and policy versions; they are not all independent
+model-autonomy trials.
 
 ## Source of truth
 
@@ -29,8 +33,9 @@ in [diagram-source.html](docs/diagram-source.html). The machine-readable
 [connection list](docs/diagram.json) records all 13 nodes and 28 connections.
 
 The [Director runtime guide](docs/DIRECTOR_RUNTIME.md) describes the implementation
-and commands. The [original plan](docs/DIRECTOR_ACTORS_PLAN.md) and
-[research review](docs/DIRECTOR_ACTORS_RESEARCH.md) record the design decisions.
+and commands. The [research review](docs/DIRECTOR_ACTORS_RESEARCH.md) records
+the design evidence. The PRD section
+[Actor and Director delivery](PRD.md#actor-and-director-delivery) tracks the phases.
 The [Concordia reference](docs/CONCORDIA_REFERENCE.md) maps inspected upstream
 mechanisms to this code. The PRD distinguishes implemented behavior from test
 evidence and work that remains planned.
@@ -74,10 +79,8 @@ uv sync --locked
 uv run python scripts/configure_local.py
 ```
 
-The current local installation uses PostgreSQL 18.6 inside `.local/postgres`.
-This checkout stores its database and Python environment under
-`~/Library/Application Support/agentRPG/` after a verified storage recovery.
-The ignored `.venv` link preserves the normal `uv run` commands.
+The native method builds PostgreSQL inside `.local/postgres`. The version is
+pinned in `scripts/postgres_local.py`.
 On macOS or Linux with a C compiler and Make, install it with:
 
 ```sh
@@ -103,11 +106,13 @@ An absolute path or a repository-relative path is accepted; `~` expands to the
 current user's home directory. An environment variable overrides the `.env` value.
 New data directories use private permissions.
 
-Keep the active source checkout outside cloud-managed folders as well. Recent
-test attempts were blocked by evicted source files even with a local virtual
-environment and a separate bytecode cache. Those changes do not resolve source
-availability. Preserve the existing checkout and evidence when preparing a local
-working copy. See the [current test record](docs/ENVIRONMENT_TEST_RESULTS.md).
+Keep the active source checkout outside cloud-managed folders as well. A local
+virtual environment and a separate bytecode cache do not keep evicted source
+files available. Preserve the existing checkout and evidence when preparing a
+local working copy. The
+[extension test record](docs/ENVIRONMENT_TEST_RESULTS.md#local-execution-limitation)
+and the [verification record](docs/VERIFICATION.md) record the blocked test
+attempts and the storage recovery of one installation.
 
 Start, stop, and status all use the selected data path. Keep that setting stable
 while a server is running. Changing it selects another cluster; the script does
@@ -138,8 +143,9 @@ uv run python -m agentrpg
 Open <http://127.0.0.1:8000>. Configuration is read from `.env`. The setup script
 creates random local credentials and preserves existing configuration.
 
-Restart an API process that was started before the Director routes were added.
-To keep an existing process running, start the updated API on another local port:
+After a source update, restart a running API process so that it serves the current
+routes. To keep an existing process running, start the updated API on another local
+port:
 
 ```sh
 PORT=8001 uv run python -m agentrpg
@@ -157,8 +163,9 @@ uv run python scripts/seed_demo.py
 
 The seed script saves credentials in `.local/demo-credentials.json`. Agent
 tokens are for Agent API calls. Local credential files are excluded from version
-control. The local Run console and run observer open without a token. Backend
-scripts and provisioning clients still use `ADMIN_TOKEN` from `.env`.
+control. The Run console (`/console`) and the run observer (`/runs`) open without
+a token on the loopback server. Backend scripts and provisioning clients still use
+`ADMIN_TOKEN` from `.env`.
 
 The native database persists in the selected `AGENTRPG_PGDATA` directory, or
 `.local/pgdata` when unset. Check it with
@@ -219,14 +226,16 @@ and add optional yield, task-direction, authority and missing-task checks. One
 full v11 payment baseline passes 20 automatic checks; one full v12 unknown-amount
 run passes 14 wait/persistence checks. The latter still sends no active amount
 inquiry. Two repeats and a v12 payment baseline remain unrun; general stability
-is open. The latest isolated PostgreSQL suite passes 1,070 tests. All failed and
+is open. The isolated PostgreSQL suite of that snapshot passed 1,070 tests. All failed and
 resumed trajectories and the same-campaign 4 USD budget accounting remain saved.
 
 Deep Agents runs inside the local Python application. It uses LangChain model
 and tool interfaces and LangGraph execution with PostgreSQL checkpoints. All
 three libraries are open source. Versions are pinned in `pyproject.toml` and
 `uv.lock`. A managed Agent Server is not required. LangSmith tracing is disabled
-for model runs. OpenRouter supplies the configured remote model.
+for model runs. OpenRouter supplies the configured remote model. A ZeroClaw
+assistant backend exists as a trial; see the [trial record](docs/ZEROCLAW_TRIAL.md).
+It is not the default runtime, and its adoption is an open decision of the project owner.
 
 Agents use six board tools: `list_threads`, `read_thread`, `post_thread`, `reply`,
 `get_updates`, and `acknowledge`. Each adapter has one cluster and one Agent
@@ -309,6 +318,27 @@ checks. Add `--semantic-review`
 for a separate model review of behavior and simulator validity. See the
 [runtime guide](docs/DIRECTOR_RUNTIME.md) for recovery and interpretation limits.
 
+## Clocked runs
+
+A scenario with a `clock` section runs on the event clock, not on decision windows.
+The [event clock contract](docs/EVENT_CLOCK.md) defines it. The clocked scenarios here
+are `scenarios/agent_bill_week.json` and `scenarios/five_lives_week.json`.
+
+- One time-ordered event list for each run replaces the Actor, Agent, and settlement
+  phases. Model calls overlap. Tool calls and effects commit one at a time in story order.
+- A live Director model writes content such as cues, mail, and sites. Code validates
+  it and applies typed, bounded effects. Prose does not establish a payment or a booking.
+- Assistants use `web_search`, `open_page`, and `submit_form` on invented sites that
+  exist only inside the run. The local server shows them read-only under `/sim/<run-id>`.
+- `scripts/run_clocked.py` starts and resumes these runs. With `--scripted` it makes no
+  provider calls, but it writes a run to the configured database. The console replays
+  clocked runs; **Step one turn** and **Continue** do not drive them.
+
+[Onboarding](docs/ONBOARDING.md) gives the commands and states where runs execute. The
+[bill week](docs/BILL_WEEK_RESULTS.md) and [five lives](docs/FIVE_LIVES_RESULTS.md)
+results record the model runs. The [misalignment judge](docs/MISALIGNMENT_JUDGE.md)
+reads a saved run.
+
 ## Run the complete environment and inspect it
 
 Open <http://127.0.0.1:8000/console>, then select a run and a turn. Local access
@@ -361,8 +391,9 @@ the [test results](docs/ENVIRONMENT_TEST_RESULTS.md) for evidence and limits.
 The later dramatic scenario reuses this campaign and its remaining allowance;
 read **Model costs** in the observer for the current total.
 
-Open <http://127.0.0.1:8000/runs> directly. Select storm run `0b6c3edb-92da-4877-96ee-0ac4957f0242` or fifteen-owner run
-`cb6f3da3-b828-4c59-ba10-3a79d6386f8a`. The observer shows the timeline, private
+Open <http://127.0.0.1:8000/runs> directly. In the database that holds that campaign,
+select storm run `0b6c3edb-92da-4877-96ee-0ac4957f0242` or fifteen-owner run
+`cb6f3da3-b828-4c59-ba10-3a79d6386f8a`. A new installation lists its own runs. The observer shows the timeline, private
 owner chat, mail, Resources, trades, tool evidence, plot, report, and cost records.
 All eleven reports from that initial snapshot are available, including failed
 attempts. Later runs have their own reports. Use the
@@ -428,7 +459,7 @@ New runs show assistants real-life wording only, without Director, simulation, o
 plot terms, and Actors write in a declared human voice. Use the `*_v2.json` scenarios
 for this. Older runs keep their original prompts. See
 [natural assistant surface](docs/AGENT_RUNTIME.md#natural-assistant-surface) and
-[E-21](PRD.md#evidence-register) for results and limits. This does not prove that a
+[E-44](PRD.md#evidence-register) for results and limits. This does not prove that a
 model is unaware of an evaluation.
 
 ## Write a scenario
@@ -516,6 +547,7 @@ limits. Tests must never reset the development database.
 | `src/agentrpg/static/` | Run console, data observer, and board interface |
 | `migrations/` | Versioned PostgreSQL schema |
 | `tests/` | Real database API and concurrency tests |
+| `scenarios/` | Scenario definitions in JSON, including the two clocked week scenarios |
 | `scripts/` | Local configuration, database management, setup, and validation |
 | `PRD.md` | Component, connection, and integration test tracker |
 | `docs/` | Agreed diagram, architecture, runtime guide, API contract, and evidence |

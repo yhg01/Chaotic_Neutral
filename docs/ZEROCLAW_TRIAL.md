@@ -1,6 +1,8 @@
 # ZeroClaw trial: can ZeroClaw run the Chaotic Neutral assistants?
 
-Date: 12 November 2026. Branch: `zeroclaw-agent`. Status: trial, not merged.
+Date: 12 November 2026. Built on branch `zeroclaw-agent`; a branch that starts from it has the
+same code. Status: trial. `scripts/run_clocked.py` does not use this backend, and its adoption is
+an open decision of the user.
 
 This document records a test of ZeroClaw as the assistant (Agent) runtime on clocked runs, and
 an estimate of the work to make our setup compatible with it. The first tests used scripted
@@ -28,6 +30,7 @@ DeepSeek and Anthropic keys. "Live results" gives the measured figures.
     about 50. It is not certain that this can meet our clock rules.
 - **A rule must change first.** `AGENTS.md` says "Personal Agents use Deep Agents with LangChain
   and LangGraph in the local application". Any adoption needs your explicit decision.
+  `AGENTS.md` names this trial and keeps that decision open.
 
 ## What ZeroClaw is
 
@@ -152,7 +155,7 @@ What the live runs found in our own code, not in ZeroClaw:
 | A second "yes" to the same booking doubled the permitted amount. | Corrected, with a test. |
 | An assistant tried 54 times to write a document that another owner shared with it. The refusal said "not found", so it read the list again and retried. | Corrected, with tests. The story's two group sheets now have shared editing, so the write succeeds. A write to any other shared record gets a refusal that says the record is read-only for this assistant. See "Documents that several people edit". |
 | The real run script and the ledger took OpenRouter models only. | Corrected: see "Direct providers". |
-| In one turn with 59 model calls and 122 real tool results, ZeroClaw stopped early three times. Its message: the request exceeds the model's context window. ZeroClaw estimates that window itself, and its default for an unknown model is low. | Corrected, with a test that failed before the change: the configuration now gives ZeroClaw the model's real context size (`context_window`). |
+| In one turn with 59 model calls and 122 real tool results, ZeroClaw stopped early three times. Its message: the request exceeds the model's context window. ZeroClaw estimates that window itself, and its default for an unknown model is low. | Corrected, with a test that failed before the change: the configuration now gives ZeroClaw a fixed context size of 1,000,000 tokens (`context_window`, from `PROGRAM_CONTEXT_TOKENS` in `src/agentrpg/zeroclaw_agent.py`). The value is the same for every model and is not read from the model in use. The harness keeps its own limits and summaries. |
 | The Director built 11 sites on the first story morning. | Site building was already limited: one request for each distinct search, and `max_sites` sites for a run (40 in five-lives). 11 of the 30 Director calls built sites. A smaller model can now build them (`site_model`). The build stage on branch `world-build` makes such sites before a run starts. |
 
 ### Direct providers
@@ -161,6 +164,10 @@ A model name of the form `provider:model`, such as `deepseek:deepseek-flash` or
 `anthropic:claude-opus-5-5`, is called at that provider with its own key (`DEEPSEEK_API_KEY`,
 `ANTHROPIC_API_KEY`). `scripts/run_clocked.py` accepts these names for `--model`,
 `--actor-model` and `--director-model`. Every request goes through the campaign ledger.
+
+After this trial, the user decided that the project keeps one provider key, `OPENROUTER_API_KEY`
+(see `AGENTS.md`). So a `provider:model` name does not run under that rule. The code for these
+names is still present. Its removal or further use is an open decision.
 
 These providers report tokens and no cost. The ledger computes the cost from the reported
 tokens and the price table in `src/agentrpg/budget.py`. The table holds the listed USD prices,
@@ -338,13 +345,17 @@ because in Option A the model cannot tell which runtime is in use.
     more than 600 s.
   - A crash of the harness process during an activation was not tested on this backend.
 - The trial class uses private methods of `PersonalAgent`. A merged backend needs a shared base.
-- Migrations `022`, `023` and `024` must not reach the live database while the mini runs
-  `event-clock` code, because that code refuses a database with a migration that it does not
-  have. This branch was run only against the test database.
+- Migrations `022`, `023` and `024` must not reach a database that code without them still
+  uses, such as the live database while `event-clock` code runs on it. That code refuses a
+  database with a migration that it does not have. The trial was run only against the test
+  database.
 
 ## How to run it
 
-On the Mac mini, in the branch worktree `~/Desktop/BOLD/Chaotic_Neutral-zeroclaw-agent`:
+On the Mac mini, in a checkout of a branch that has this code. During the trial that was the
+branch worktree `~/Desktop/BOLD/Chaotic_Neutral-zeroclaw-agent`. The commands below are written
+for a branch worktree next to the main checkout: they use the main checkout's `.venv` and set
+`PYTHONPATH` to the worktree's own `src`.
 
 ```bash
 export AGENTRPG_ZEROCLAW="$HOME/Library/Application Support/agentRPG/zeroclaw/0.8.7/zeroclaw"
@@ -360,7 +371,12 @@ PYTHONPATH=$PWD/src env -u OPENROUTER_API_KEY ../Chaotic_Neutral/.venv/bin/pytho
 
 The probe needs no database and no key. It writes every request that ZeroClaw made.
 
-A bounded live run in a kept schema of the test database, with a USD ceiling in a ledger:
+A bounded live run in a kept schema of the test database, with a USD ceiling in a ledger.
+This command cannot run under the one-key rule. `scripts/try_zeroclaw_live.py` takes only
+`provider:model` names (its defaults are `deepseek:deepseek-flash` and `anthropic:claude-opus-5-5`)
+and stops when `DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY` is not set. It does not accept an
+OpenRouter name. The project keeps only `OPENROUTER_API_KEY`, so a live run needs a change that
+lets the script accept OpenRouter names. That change is not made.
 
 ```bash
 PYTHONPATH=$PWD/src env -u OPENROUTER_API_KEY ../Chaotic_Neutral/.venv/bin/python scripts/try_zeroclaw_live.py --name my_trial --scenario control --budget-usd 0.50

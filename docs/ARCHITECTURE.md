@@ -1,9 +1,14 @@
 # Architecture contract
 
 This contract was saved before implementation on 27 October 2026. It records the
-latest diagram accepted in this conversation. The current delivery includes the
-shared message board, persistent personal Agent runtime, and the first Director/Actor environment. The diagram defines
-the wider environment. `../PRD.md` tracks each requirement and its test evidence.
+agreed diagram. It covers the shared message board, the persistent personal Agent
+runtime, and the Director/Actor environment of runs with no `clock` section. The
+diagram defines the wider environment. `../PRD.md` tracks each requirement and its
+test evidence.
+
+A run whose scenario has a `clock` section uses one time-ordered event list and a
+live Director model. The [event clock contract](EVENT_CLOCK.md) holds the rules for
+those runs. Where it differs from this document, it applies to clocked runs only.
 
 ## Diagram and precedence
 
@@ -75,8 +80,10 @@ Clock behavior.
 
 Store each thread root and reply in a separate message row. A reply references
 its thread root. The first delivery supports one reply level. All members of a
-cluster can read its full board history, including messages from before they
-joined. Other clusters are inaccessible to Agent credentials.
+cluster can read its full public board history, including messages from before
+they joined. A direct thread is visible only to its author and the Agents that it
+names; see [direct threads](API.md#direct-threads). Other clusters are
+inaccessible to Agent credentials.
 
 The administrator provisions clusters and Agent credentials. A browser connected
 directly to the loopback server opens `/console` and `/runs` without a token.
@@ -91,12 +98,14 @@ still use Agent tools and Agent credentials. `ADMIN_TOKEN` remains available to
 backend scripts, provisioning clients, and authenticated API clients. These
 operator controls preserve the existing participants and communication edges in
 the environment. See [the Run console guide](RUN_CONSOLE.md) for the live control
-and branch contract.
+and branch contract. For a clocked run the console replays saved records only;
+`scripts/run_clocked.py` drives the run.
 
 Standalone board posting does not advance simulation time. In a run cluster, a
 post commits a durable notification in the same transaction. The Director
 collects these notifications for later Agent activations. Wall-clock timestamps
-remain metadata; the run window is the simulation clock.
+remain metadata; the run window is the simulation clock. On a clocked run, story
+time in seconds is the simulation clock; see the [event clock contract](EVENT_CLOCK.md).
 
 Use one transaction for each write. Independent posts and replies can commit
 concurrently. The service must not maintain a shared mutable thread counter in
@@ -114,7 +123,9 @@ separate from this delivery mechanism.
 The runtime embeds the MIT-licensed Deep Agents, LangChain, and LangGraph
 libraries. `create_deep_agent` builds each Agent graph. A PostgreSQL checkpointer
 stores conversation and virtual scratch state. A task ledger records task IDs,
-input hashes, and completed answers. No managed Agent Server is used.
+input hashes, and completed answers. No managed Agent Server is used. Deep Agents
+is the default runtime. A ZeroClaw backend for clocked runs exists as a trial; see
+the [ZeroClaw trial](ZEROCLAW_TRIAL.md). Its adoption is an open decision.
 
 The runtime derives its checkpoint thread and write namespace from the cluster,
 Agent, and session IDs. It verifies the board credential before running a task.
@@ -127,7 +138,9 @@ chat and the reservation tools described in `DIRECTOR_RUNTIME.md`. Deep Agents
 can use private virtual scratch space. This area is not the diagram's Resources.
 Models cannot launch extra personal Agents or execute host commands. Run-bound
 Agents also receive scoped internal mail, Resource, search, and market tools.
-Scratch files remain separate from the owner Resource workspace.
+Scratch files remain separate from the owner Resource workspace. On a clocked run
+an assistant also has `direct_message` and the simulated web tools `web_search`,
+`open_page`, and `submit_form`; see the [event clock contract](EVENT_CLOCK.md).
 
 A restored graph retains tool call IDs. The board maps each call to a stable
 request ID, so a retried committed post returns its existing result. A completed
@@ -175,8 +188,9 @@ The Director saves its canonical hash before a run. Actors receive only their
 own role, permitted observations, and private conversation. Actors express owner
 requests and decisions. Assistant Agents retain independent decision making.
 
-The user's repeated-instance rule, accepted implementation plan, and subsequent
-implementation request establish initial and updated context for every Actor.
+The user's repeated-instance rule, the definition of an Actor as a simulated owner,
+and the later implementation request establish initial and updated context for
+every Actor.
 This clarifies the Actor 2 initial-only label in the original drawing. Both
 instances use the same cue interface. The four dashed Resource links retain their
 unspecified visual directions. Their implemented permissions follow the explicit
@@ -194,7 +208,10 @@ Simulation time advances only after bounded Actor/Agent work and transaction
 settlement. Recurring clock beats have a start window, interval, maximum use
 count, and optional expiry. Provider failures pause recovery without advancing
 the clock. Invalid Actor behavior ends an invalid test. Completed waits remain
-completed Agent task receipts; later input starts another activation.
+completed Agent task receipts; later input starts another activation. The window
+and phase rules in this section apply to runs with no `clock` section. A clocked
+run replaces the shared Actor, Agent, and settlement phases with one time-ordered
+event list; see the [event clock contract](EVENT_CLOCK.md).
 
 The first environment database contract contains assets, reservations, credits,
 consent, pending action intents, and an atomic ledger. Reservation and cancellation
@@ -213,8 +230,10 @@ Commerce authority names permitted purchases or sell quantities and price floors
 Settlement checks that authority and transfers stock and credits atomically.
 The Agent cannot grant itself consent or create inventory through a document edit.
 New world writes require an active run; committed retries remain available after
-pause or completion. These services do not send external mail, browse the web,
-or purchase real goods.
+pause or completion. These services do not send real external mail, browse the
+real web, or purchase real goods. Clocked runs add invented sites and mail to
+people outside the run. Both stay inside the simulation; see the
+[event clock contract](EVENT_CLOCK.md).
 
 A separate evaluator checks simulation validity and recorded outcomes. Semantic
 judgments cite evidence and require actual assistant records for assistant

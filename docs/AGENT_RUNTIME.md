@@ -6,6 +6,16 @@ langchain-openrouter 0.2.9. These dependencies are pinned in the lock file.
 The application runs the libraries directly. It does not require a managed
 Agent Server or hosted LangSmith account.
 
+Deep Agents is the default runtime. A ZeroClaw backend for clocked runs exists as
+a trial; see the [ZeroClaw trial](ZEROCLAW_TRIAL.md). Its adoption is an open
+decision. The clock engine reads an assistant's saved messages through
+`activation_messages()`, so that a backend can supply them.
+
+The [event clock contract](EVENT_CLOCK.md) holds the rules, tools, and limits for
+runs with a `clock` section. Where it differs from this document, it applies to
+clocked runs only. Statements here about windows and phases describe runs with no
+`clock` section.
+
 ## Optional empty-scratch guard
 
 `AgentRuntime.agent(..., guard_empty_scratch=True)` hides `ls`, `glob`, `grep`
@@ -181,6 +191,13 @@ The graph also has a finite step limit. Token and cost metrics count successful
 provider responses. Request counts describe logical model calls; internal HTTP
 retries can add requests and cost.
 
+These are the defaults. A clocked run takes its call limit from
+`clock.limits.max_model_calls_per_activation` in the scenario, and
+`scripts/run_clocked.py` sets a larger reply limit. A clocked activation has no
+whole-task timeout, because it can wait for its turn in story order. A clocked
+session has its own token threshold for history summaries. The
+[event clock contract](EVENT_CLOCK.md) gives the values.
+
 A task that exhausts its stored call budget cannot continue under that same
 budget. Use a new session for a new task, or deliberately increase
 `max_model_calls` through the Python API or `--max-model-calls` on the CLI, then
@@ -234,6 +251,10 @@ Run-bound Agents can use the board, private owner chat, internal mail, permitted
 owner Resources, transport tools, and the simulated item market. Search and fetch
 operate on environment records. The Director supplies activations, logical time,
 and declared recurring events. PostgreSQL stores the environment state.
+On a clocked run, one time-ordered event list supplies activations and story time,
+and a live Director model writes content. Assistants on clocked runs also have
+`direct_message` and the simulated web tools `web_search`, `open_page`, and
+`submit_form`. See the [event clock contract](EVENT_CLOCK.md).
 The standalone Agent CLI is an operator entry point; scenario runs use the
 Director described below. Model reasoning quality and long-duration service
 reliability require further task-specific evaluation.
@@ -303,9 +324,10 @@ uncertain attempts retain theirs. Resume preserves the campaign and its spend.
 The stored model-call limit still applies to each Agent task.
 
 Open `/runs` on the local API to inspect timeline, private messages, mail,
-Resources, transactions, jobs, plot, and campaign cost. Use the administrator
-token from `.env` only in the local observer. Agent credentials cannot open that
-view. Saved reports remain under `.local/scenario-runs/<run-id>/`.
+Resources, transactions, jobs, plot, and campaign cost. The page opens without a
+token on the loopback server, under the
+[local access rules](API.md#local-console-access). Agent credentials cannot open
+that view. Saved reports remain under `.local/scenario-runs/<run-id>/`.
 
 
 ## Console execution and turn branches
@@ -315,6 +337,8 @@ configuration. Step completes one full decision window. Continue runs until the
 scenario ends or pauses. An operator pause does not cancel a pending provider
 call. Completed output is retained, and delivery resumes only on an explicit
 execution request. The existing campaign ceiling and task limits still apply.
+Step and Continue are refused for a clocked run. `scripts/run_clocked.py` drives
+it, and the console replays its saved records with prompts and branches disabled.
 
 An operator can queue a private Actor cue or an owner message for an Agent.
 The service applies it before an available Actor phase and saves its effective
@@ -381,7 +405,9 @@ The bounded model allowlist now includes DeepSeek V3 0324 and Qwen3 30B A3B
 Instruct 2507. Their reservations use the full declared input context plus
 capped output. Public metadata must satisfy the expected text and tool contract;
 price ceilings, disabled provider fallbacks and uncertain-cost holds remain.
-No model API or budget is selected by an assistant message.
+No model API or budget is selected by an assistant message. Later work added more
+model names. `SUPPORTED_MODELS` and `DIRECT_PROVIDERS` in
+[budget.py](../src/agentrpg/budget.py) hold the current list.
 
 The [funding comparison](MODEL_COMPARISON.md) preserves a six-slot role-swap plan
 and the original campaign. One mixed-model pilot made real tool calls and then

@@ -1,6 +1,7 @@
 # The misalignment judge
 
-Date: 16 November 2026. Branch: `zeroclaw-agent`. Judge version: `misalignment-judge-v1`.
+Date: 16 November 2026. Built on branch `zeroclaw-agent`; a branch that starts from it has the
+same code. Judge version: `misalignment-judge-v1`.
 
 The judge reads a saved run and reports actions of assistants that are misaligned. A model
 makes each judgment. Code checks each judgment against the saved records. The judge reads a
@@ -87,13 +88,16 @@ a severity (`low`, `medium`, `high`).
 
 ## How to run it
 
-All commands run on the Mac mini. Start each with `env -u OPENROUTER_API_KEY`.
+All commands run on the Mac mini. Start each with `env -u OPENROUTER_API_KEY`. Run them in a
+checkout of a branch that has `scripts/judge_run.py`. Branch `event-clock` does not have it. In a
+branch worktree, set `PYTHONPATH` to the worktree's `src` and use the main checkout's
+`.venv/bin/python`, as [ONBOARDING.md](ONBOARDING.md) says for work on another branch.
 
 | Task | Command |
 | --- | --- |
 | Count the work and its cost, with no model call | `.venv/bin/python scripts/judge_run.py --run RUN_ID --estimate` |
 | Judge a run | `.venv/bin/python scripts/judge_run.py --run RUN_ID --campaign UUID --budget-usd 15` |
-| Continue a judge run that stopped | The same command. Saved answers are read again, and only missing calls are made. |
+| Continue a judge run that stopped | The same command. Saved answers are read again, and only missing calls are made. This does not pass a ceiling that was reached: see below. |
 | Judge some owners only | Add `--owners jo,marek` |
 | Run the controls | `.venv/bin/python scripts/judge_run.py --controls --campaign UUID --budget-usd 4` |
 | Read a run in a schema of the test database | Add `--test-schema zclive_week1` |
@@ -101,13 +105,17 @@ All commands run on the Mac mini. Start each with `env -u OPENROUTER_API_KEY`.
 Settings: `--screen-model` and `--verdict-model` (default `anthropic/claude-opus-5.5` for
 both, through OpenRouter), `--votes` (default 3), `--name` (default `v1`). Since 19 November
 2026 the project keeps one provider key, `OPENROUTER_API_KEY`. A `provider:model` name such as
-`anthropic:claude-opus-5-5` needs that provider's own key, which is no longer set. A judge run with
-other settings needs another `--name`, so two judges never share saved answers.
+`anthropic:claude-opus-5-5` needs that provider's own key, which the project does not keep (see
+`AGENTS.md`). A judge run with other settings needs another `--name`, so two judges never share
+saved answers.
 
 Every paid call goes through the campaign ledger. `--budget-usd` and `--campaign` are both
 necessary for a paid run. When the ceiling is reached, the judge stops with status `stopped`
-and exit code 2. Raise the ceiling with `scripts/raise_campaign_ceiling.py`, then run the
-same command.
+and exit code 2, and keeps its saved answers. The judge has no command that raises its ceiling.
+`scripts/raise_campaign_ceiling.py` takes the saved manifest of a run in `.local/scenario-runs/`,
+not a judge run. A continued judge run also refuses a changed `--budget-usd`. So a judge run that
+stopped at its ceiling cannot continue past it until such a command exists. Use `--estimate`
+first, and set the ceiling with headroom.
 
 ### What it writes
 
@@ -121,6 +129,9 @@ All files are private (`0600`) and are in `.local/judge/RUN_ID/NAME/`, which git
 | `evidence/OWNER.jsonl` | The exact records that the models read. An evidence ID in a report is a line here. |
 | `answers/` | One file for each model answer, with its repair attempts. |
 | `settings.json` | The settings and the campaign of this judge run. |
+
+A controls run writes to `.local/judge/controls/NAME/`. It writes `controls.json` in place of the
+two report files and the review sample. A judge run that stopped also writes `stopped.json`.
 
 ## Controls
 
@@ -138,7 +149,10 @@ do not show how it performs on a real run, where cases are longer and less clear
 
 One run of the controls for each configuration. The verdict model was
 `anthropic:claude-opus-5-5` with three votes in both. These runs called the providers with
-their own keys. No judge run has gone through OpenRouter yet.
+their own keys. "(default)" in the table is the default of that date. The present default names,
+`anthropic/claude-opus-5.5` through OpenRouter, are the same model on another route. This
+document records no paid judge call through OpenRouter, so the present defaults have no measured
+control result.
 
 | Measure | Screening: `deepseek:deepseek-v4-pro` | Screening: `anthropic:claude-opus-5-5` (default) |
 | --- | --- | --- |

@@ -158,6 +158,14 @@ Also in 017: `run_jobs` gains `clock_seq bigint NOT NULL DEFAULT 0`, `start_s bi
 `owner_messages`, `inbox_messages`, `messages` (lookup through
 `environment_runs.cluster_id`), `credit_transfers`, `transfer_tasks` and `run_jobs`.
 
+Migrations after 021 are not part of the clock. `022_zeroclaw_messages.sql` and
+`023_zeroclaw_files.sql` belong to the ZeroClaw trial backend ([ZEROCLAW_TRIAL.md](ZEROCLAW_TRIAL.md)).
+`024_shared_editing.sql` adds shared editing of a record (`shared_can_edit`). Shared editing is a
+scenario setting for any run, with or without a clock. Its contract is in
+[ENVIRONMENT_EXTENSIONS.md](ENVIRONMENT_EXTENSIONS.md). The five-lives week sets it on two records.
+Other open branches use the numbers from 022 for different files, so look at them before you add
+or merge a migration.
+
 ## Scenario contract: `ScenarioSpec.clock`, omitted from canonical JSON when None
 
 ```json
@@ -217,8 +225,10 @@ a `run_started` beat in `beats`.
 - `booking_approval: {booking, up_to, action}`, shown to the owner model only when the world has
   assets. `booking` is an asset ID from the view, `up_to` the most the owner will pay, and
   `action` is `book` or `cancel`. Code adds it to the owner's current world consent: the asset and
-  action kind join the allowed lists and `up_to` joins the budget. It never withdraws an earlier
-  grant. Expired consent counts as none.
+  action kind join the allowed lists. For `book`, `up_to` is added to the budget. A repeated yes
+  adds no money: when the current consent already lists that booking and that action kind, the
+  budget becomes the larger of the present budget and `up_to`. For `cancel`, the budget does not
+  change. It never withdraws an earlier grant. Expired consent counts as none.
 
 `ActorView` gains `clock: {now, today, current_action, last_action, ...}`. It is omitted
 from the prompt when None, so old prompts do not change. `clock.your_earlier_decisions` holds up
@@ -275,6 +285,11 @@ capped per plan by severity; `sites [SiteSpec]`; `site_updates [{site_id, patch}
 plan keeps the run moving and a `director_fallback` event is saved. A failed model call (budget,
 provider or transport) raises `DirectorProviderError` and never plays a canned plan. Tests use
 `ScriptedDirectorBrain`, with no provider calls. The Director never sees or quotes board text.
+
+`DirectorBrain` takes an optional `site_model`. When it is set, `site_for_search` and the narrow
+answer that adds bills to a new site use it in place of the Director model, so a smaller model can
+build sites. `scripts/run_clocked.py` does not set it, so there the Director model builds sites.
+`scripts/try_zeroclaw_live.py` sets it with `--site-model`.
 
 A balance line must answer something real: a waiting item that the review settles (never a
 charge), what an action sought when it ends, what an owner tries (an attempt pays nothing in now,
@@ -354,6 +369,15 @@ the Director uses Opus 5.5. OpenRouter lists a Hugging Face ID for both open mod
 | Owner | `qwen/qwen3.8-flash` | JSON only. It refused `tool_choice: required` in a probe, so it cannot be an assistant yet |
 | Director | `anthropic/claude-opus-5.5` | JSON only. It takes no `temperature`, so the client omits it |
 
+These are not the defaults of `scripts/run_clocked.py`. With no flags, the assistant model is
+`OPENROUTER_MODEL` or else `openai/gpt-4.1-mini`, the owner model is `OPENROUTER_ACTOR_MODEL` or else
+the assistant model, and the Director model is the owner model. The run script does not read
+`OPENROUTER_DIRECTOR_MODEL`. So give `--model`, `--actor-model` and `--director-model` for a week
+run. Each flag takes an OpenRouter name, or a `provider:model` name from the table in
+`src/agentrpg/budget.py`. A `provider:model` name calls that provider with its own key, through the
+same campaign ledger. `AGENTS.md` says that the project keeps only `OPENROUTER_API_KEY`, so such a
+name does not run under that rule.
+
 The flash models think by default, and that counts toward `max_tokens`. A measured 800-token call
 returned no content, so `prepare_request` sends `reasoning: {enabled: false}` for them. Other
 reasoning options still fail closed. These three use the byte bound, not a full-context reservation.
@@ -406,13 +430,18 @@ The five-lives runs of 8 to 10 November found more faults:
 ## Limits stated plainly
 
 Determinism holds given the same saved model outputs and seed; fresh paid runs differ because
-models differ. Tool calls of one run execute one at a time. Actual overlap of model calls
-is unmeasured until the runs. Branching from clocked runs is not implemented.
+models differ. Tool calls of one run execute one at a time. Each run's `report.json` saves the
+most model calls that were open at one time (`peak_model_calls_in_flight`). No results document
+of the clocked runs states that figure. Branching from clocked runs is not implemented.
 
 Replies that reach the output limit can still abandon tasks after the retries, and the cause is not
 established. In the five-lives runs no clocked owner could approve a booking, and owners often said
 yes without the spending field, so the Director used off-system routes such as cash. The booking
-field and the ask-once checks are tested with scripted models only; no paid run has used them yet.
+field and the ask-once checks were first tested with scripted models only. Live runs of the
+ZeroClaw trial, in the test database, later used the booking field. They found that a second yes
+to the same booking doubled the permitted amount, which the repeat rule in "Actor additions" now
+prevents. See "Live results" in [ZEROCLAW_TRIAL.md](ZEROCLAW_TRIAL.md). No document records that an
+ask-once check fired in a paid run, or a paid run of these changes through `scripts/run_clocked.py`.
 The ask-once checks use word patterns, so they miss some yeses and some stated deeds. Quillmere
 reminders are timeline items, so they go out after the bill is paid. Some owner
 spending stays in prose, so balances are upper limits. A failed job saves a class and a place, or a

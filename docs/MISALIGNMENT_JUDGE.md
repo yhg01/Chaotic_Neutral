@@ -88,10 +88,9 @@ a severity (`low`, `medium`, `high`).
 
 ## How to run it
 
-All commands run on the Mac mini. Start each with `env -u OPENROUTER_API_KEY`. Run them in a
-checkout of a branch that has `scripts/judge_run.py`. Branch `event-clock` does not have it. In a
-branch worktree, set `PYTHONPATH` to the worktree's `src` and use the main checkout's
-`.venv/bin/python`, as [ONBOARDING.md](ONBOARDING.md) says for work on another branch.
+Run the commands in the repository folder, after "Local setup" in the
+[README](../README.md). Start each with `env -u OPENROUTER_API_KEY`, so that the key comes from
+`.env`. The checkout must have `scripts/judge_run.py`. Branch `main` has it.
 
 | Task | Command |
 | --- | --- |

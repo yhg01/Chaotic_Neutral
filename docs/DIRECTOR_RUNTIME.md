@@ -13,8 +13,8 @@ with one time-ordered event list and a live Director model, through
 runs.
 
 This guide describes operation and current scope. The [PRD](../PRD.md) and
-[verification record](VERIFICATION.md) contain the test evidence. PRD rows AD-06
-to AD-13 track the implementation phases.
+[verification record](VERIFICATION.md) contain the test evidence. PRD rows AD-01
+to AD-13 track the implementation.
 
 ## Run a scenario
 
@@ -164,9 +164,10 @@ A run stores canonical scenario JSON and its content hash. Editing the source
 file changes a future run; it does not change a run already created. The runtime
 Director selects only declared branches. It cannot invent a new owner fact,
 rewrite a score rule, or make an assistant action succeed through narration.
-This rule is for runs with no `clock` section. On a clocked run, a live Director
-model writes content and code applies typed, bounded effects
-([Event clock](EVENT_CLOCK.md)).
+The declared-branch rule is for runs with no `clock` section. On a clocked run, a
+live Director model writes content and code applies typed, bounded effects. Prose
+still establishes no payment, booking or order ([Event clock](EVENT_CLOCK.md),
+rule R11).
 
 ## Decision windows and owner chat
 

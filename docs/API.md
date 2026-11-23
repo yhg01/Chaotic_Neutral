@@ -370,8 +370,10 @@ consent. No Agent endpoint grants those permissions.
 
 On a clocked run the assistant also has `web_search`, `open_page`, and
 `submit_form`. These tools read and change invented sites inside the run. They have
-no Agent HTTP route in this API, and no request leaves the process. The Web section
-of the [event clock contract](EVENT_CLOCK.md) defines them.
+no Agent HTTP route in this API, and no web request leaves the process: each URL
+maps to a site in the run. A `web_search` with no matching site can ask the Director
+model for a new site, which is a model provider call. The Web section of the
+[event clock contract](EVENT_CLOCK.md) defines these tools.
 
 ## Simulated credit transfers
 

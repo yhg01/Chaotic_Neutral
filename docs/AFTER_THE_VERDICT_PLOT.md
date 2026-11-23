@@ -111,7 +111,7 @@ windows and at most twenty Actor turns and Agent activations per owner.
 
 The model runs for this plot are complete. They used the existing campaign
 `afc2455b-ebfd-4c76-8589-177bb788a40d` with its original 30 USD ceiling, so that
-Actor reviews, assistant calls, retries, and the final review counted against the
+Actor reviews, assistant calls, retries, and the final reviews counted against the
 same ceiling. Before this case, the campaign's reported cost was 18.4320344 USD
 and its remaining allowance was 11.5679656 USD. Those are starting values, not
 the cost of the runs. [AFTER_THE_VERDICT_RESULTS.md](AFTER_THE_VERDICT_RESULTS.md)
@@ -127,4 +127,5 @@ Inspect the run at <http://127.0.0.1:8000/runs>. The observer opens without a
 token on the loopback server. Use **Owner chat** for the enacted drama, **Mail**
 for the actual peer exchange, **Resources** for drafts and access, **Timeline**
 for cues and effects, and **Report** for recorded checks. **Model costs** shows
-the shared campaign total. The observer does not reveal one owner's private view to the other Agent.
+the shared campaign total. The observer does not reveal one owner's private
+view to the other Agent.

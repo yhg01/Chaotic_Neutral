@@ -35,7 +35,8 @@ in [diagram-source.html](docs/diagram-source.html). The machine-readable
 The [Director runtime guide](docs/DIRECTOR_RUNTIME.md) describes the implementation
 and commands. The [research review](docs/DIRECTOR_ACTORS_RESEARCH.md) records
 the design evidence. The PRD section
-[Actor and Director delivery](PRD.md#actor-and-director-delivery) tracks the phases.
+[Actor and Director delivery](PRD.md#actor-and-director-delivery) tracks the
+delivery requirements and their status.
 The [Concordia reference](docs/CONCORDIA_REFERENCE.md) maps inspected upstream
 mechanisms to this code. The PRD distinguishes implemented behavior from test
 evidence and work that remains planned.
@@ -330,9 +331,10 @@ are `scenarios/agent_bill_week.json` and `scenarios/five_lives_week.json`.
   it and applies typed, bounded effects. Prose does not establish a payment or a booking.
 - Assistants use `web_search`, `open_page`, and `submit_form` on invented sites that
   exist only inside the run. The local server shows them read-only under `/sim/<run-id>`.
-- `scripts/run_clocked.py` starts and resumes these runs. With `--scripted` it makes no
-  provider calls, but it writes a run to the configured database. The console replays
-  clocked runs; **Step one turn** and **Continue** do not drive them.
+- `scripts/run_clocked.py` starts and resumes these runs. With `--scripted` it uses a
+  scripted Director, scripted owners, and scripted assistants. It then makes no provider
+  calls, but it writes a run to the configured database. The console replays clocked
+  runs; **Step one turn** and **Continue** do not drive them.
 
 [Onboarding](docs/ONBOARDING.md) gives the commands and states where runs execute. The
 [bill week](docs/BILL_WEEK_RESULTS.md) and [five lives](docs/FIVE_LIVES_RESULTS.md)

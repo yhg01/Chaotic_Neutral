@@ -194,9 +194,9 @@ observation limits. A separate PostgreSQL plot check passed for initialization,
 scheduled mail, attributed owner mail, and the Director's resource update.
 Resource, market, budget, and observer checks are recorded in the
 [PRD evidence register](../PRD.md#evidence-register). That register also holds
-the full-suite results. After a later report
+the full-suite results; row E-14 has the suite of that time. After a later report
 persistence fix, 60 focused CLI, observer, and report tests passed in 3.93 seconds.
-This focused result includes one new test and overlaps the earlier suite. Observer browser checks
+This focused result includes one new test and overlaps the suite in row E-14. Observer browser checks
 passed on desktop and at 390 px mobile width, including live refresh and filters.
 These are scoped results. Some source files were unavailable for the suite of
 that time; row E-20 of the register records their later recovery.

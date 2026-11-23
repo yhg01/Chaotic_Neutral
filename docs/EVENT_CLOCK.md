@@ -226,9 +226,10 @@ a `run_started` beat in `beats`.
   assets. `booking` is an asset ID from the view, `up_to` the most the owner will pay, and
   `action` is `book` or `cancel`. Code adds it to the owner's current world consent: the asset and
   action kind join the allowed lists. For `book`, `up_to` is added to the budget. A repeated yes
-  adds no money: when the current consent already lists that booking and that action kind, the
-  budget becomes the larger of the present budget and `up_to`. For `cancel`, the budget does not
-  change. It never withdraws an earlier grant. Expired consent counts as none.
+  does not add `up_to` a second time: when the current consent already lists that booking and that
+  action kind, the budget becomes the larger of the present budget and `up_to`. So a repeated yes
+  can bring a lower or spent budget back up to `up_to`, and no higher. For `cancel`, the budget
+  does not change. It never withdraws an earlier grant. Expired consent counts as none.
 
 `ActorView` gains `clock: {now, today, current_action, last_action, ...}`. It is omitted
 from the prompt when None, so old prompts do not change. `clock.your_earlier_decisions` holds up
@@ -430,9 +431,10 @@ The five-lives runs of 8 to 10 November found more faults:
 ## Limits stated plainly
 
 Determinism holds given the same saved model outputs and seed; fresh paid runs differ because
-models differ. Tool calls of one run execute one at a time. Each run's `report.json` saves the
-most model calls that were open at one time (`peak_model_calls_in_flight`). No results document
-of the clocked runs states that figure. Branching from clocked runs is not implemented.
+models differ. Tool calls of one run execute one at a time. The `report.json` of a run saves the
+highest number of assistant and owner model calls that were open at one time in the last process
+that ran it (`peak_model_calls_in_flight`). Director calls are not in that count. No results
+document of the clocked runs states that figure. Branching from clocked runs is not implemented.
 
 Replies that reach the output limit can still abandon tasks after the retries, and the cause is not
 established. In the five-lives runs no clocked owner could approve a booking, and owners often said

@@ -1,7 +1,8 @@
 # Product requirements and verification tracker
 
-This introduction is a dated summary. It covers the work up to 2026-11-04. For later
-results, read the newest rows of the [evidence register](#evidence-register).
+This introduction is a dated summary. Its last entry is E-44 of 2026-11-04, and it does
+not name each evidence row. For E-36 to E-43, the event clock (E-45) and all later
+results, read the [evidence register](#evidence-register).
 
 E-21 records local transfer verification. E-22 records
 real model completion with fixed owner inputs after a notification reminder.
@@ -68,11 +69,12 @@ assistant Agents are the participants under test. The Director writes a conditio
 plot that introduces conflicts and pressure while preserving the assistants' choices.
 
 The first Director version follows the [Concordia source map](docs/CONCORDIA_REFERENCE.md).
-Rows AD-01 to AD-13 in [Actor and Director delivery](#actor-and-director-delivery)
-track its requirements. It includes scenario
-authoring and validation, frozen conditional plots, private owner chat, scripted
-and model Actors, typed Agent activations, logical decision windows, and recurring
-plot beats. The [runtime guide](docs/DIRECTOR_RUNTIME.md) explains operation.
+Rows AD-01 to AD-12 in [Actor and Director delivery](#actor-and-director-delivery)
+track its requirements. AD-13 is a later addition for direct payments. The first
+version includes scenario authoring and validation, frozen conditional plots,
+private owner chat, scripted and model Actors, typed Agent activations, logical
+decision windows, and recurring plot beats. The [runtime guide](docs/DIRECTOR_RUNTIME.md)
+explains operation.
 
 The world service implements transport reservations in one fixed time slot. It
 uses integer credits, owner consent, pending action receipts, cancellation, and
@@ -395,7 +397,7 @@ Their visual directions and labels remain unchanged.
 | EX-05 | A local operator can inspect run status, private conversations, mail, resources, transactions, tool evidence, plot, and campaign costs without a browser token. | Verified | E-14/E-15 saved observer evidence. E-19: direct local access, Host and origin restrictions, retained Agent permissions, and desktop/mobile views passed. |
 | EX-06 | A local operator can replay saved turns, select any owner–Agent pair, inspect delivered dialogue and saved Actor/Agent inputs, and review captured Resource views without future-state substitution. Play, filters, and follow mode make no model calls or prompt writes. | Verified | E-17 saved replay evidence, including all fifteen pairs. E-19: 34 browser checks and focused API regressions passed with no browser token. Saved views and active-turn pagination limits are documented. `/console` supplements `/runs`. E-24: white theme and larger type inspected on 2026-11-02.  E-39: historical English reading with original comparison, compact loading and interruptible motion verified on desktop and narrow layouts; 2026-11-03.  E-40: navy theme inspected on desktop and narrow screens; 2026-11-03. |
 | EX-07 | A local operator can Step, Continue, Pause, queue a private Actor cue or Agent owner message, and branch before a selected turn. Restore complete environment and Agent state in an isolated child. Preserve the original, enforce the same campaign, and reject unavailable historical restoration. | Verified | E-18: real model Step, queued Actor cue, and Turn 03 child execution passed; both source runs remained unchanged. E-19: token-free controls passed browser and focused execution/branch regressions without new model calls. |
-| EX-08 | New runs show assistants real-life wording only: no Director, activation, window, run, simulation, or plot terms in prompts, tool names, descriptions, results, or notifications. Actors write in a declared human voice. Saved legacy runs keep their prompts and tools. | Verified | E-44: leak-term tests with scripted models. E-46 has real model use on clocked runs. The real tool calls including `submit_booking` and the natural branch are from runs before the surface was reapplied; this register does not hold their record. This limits explicit test language; it does not prove evaluation unawareness. |
+| EX-08 | New runs show assistants real-life wording only: no Director, activation, window, run, simulation, or plot terms in prompts, tool names, descriptions, results, or notifications. Actors write in a declared human voice. Saved legacy runs keep their prompts and tools. | Verified | E-44: leak-term tests with scripted models. E-46 has real model use on clocked runs. The earlier real tool calls, including `submit_booking`, and a branched child run are from window runs made before the surface was reapplied; this register does not hold their record. This limits explicit test language; it does not prove evaluation unawareness. |
 
 | Scenario ID | Components and acceptance | Status | Evidence |
 | --- | --- | --- | --- |

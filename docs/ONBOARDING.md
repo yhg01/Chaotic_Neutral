@@ -35,7 +35,7 @@ test result or a spend, it names the command or the file that has the current va
   - Owners: `qwen/qwen3.8-flash`.
   - Director: `anthropic/claude-opus-5.5`.
 - **Branches.** Each long-lived branch has one purpose.
-  - `main`: the default branch on GitHub. It holds merged work only.
+  - `main`: the default branch on GitHub.
   - `event-clock`: the event clock line. It has clocked runs, the live Director, invented
     websites and the week stories.
   - `world-build`: the build stage. Before a run, the Director orders websites and papers, and
@@ -46,9 +46,9 @@ test result or a spend, it names the command or the file that has the current va
   - The order in which these lines merge into `main` is not decided.
 - **Current state.** This guide does not record it. Find it with:
   - `git branch -a -vv`: each branch, its commit and its push state.
-  - `gh pr list`: the open pull requests, which include the branches of other contributors.
-  - The newest row of the "Evidence register" in `PRD.md`: the last recorded test result and
-    what it covered.
+  - `gh pr list`: the open pull requests. They can include branches of other contributors.
+  - The newest rows of the "Evidence register" in `PRD.md`: the last recorded evidence. The
+    newest row that states a suite count has the last recorded test result.
   - `scripts/campaign_status.py` on the mini: the spend and ceiling of each campaign.
 - **Open problems.**
   - The week runs have no control scenario, and there is only one run per drama level. So no
@@ -60,10 +60,10 @@ test result or a spend, it names the command or the file that has the current va
   - Owners on clocked runs can approve a booking. An owner who answers a dollar request with a
     yes in words only, or who says another person did something, is asked about it once. These
     checks use word patterns, so they miss some cases.
-  - Recorded in `docs/AFTER_THE_VERDICT_RESULTS.md`, not rechecked since:
-    - Some activations end with empty text after private-note writes, so the owner gets no
-      reply. No cause is recorded.
-    - Peer mail answers do not set `in_reply_to`, so an answer is not linked to its question.
+  - Recorded in `docs/AFTER_THE_VERDICT_RESULTS.md` for one window run, not rechecked since:
+    - Four activations of one assistant ended with empty text after private-note writes, so
+      that owner got no reply. No cause is recorded.
+    - The one peer mail answer did not set `in_reply_to`, so it was not linked to its question.
 - **Budget.**
   - A five-lives week cost $17.60 to $24.68. The high-drama week needed its ceiling raised from
     $25 to $28.
@@ -113,8 +113,10 @@ Notes:
 - **The judge.** `scripts/judge_run.py` is not on every branch. If the main checkout does not
   have it, run it in a mini worktree of a branch that has it (Part 2, "Where to run"), in this
   form: `PYTHONPATH=$PWD/src env -u OPENROUTER_API_KEY ../Chaotic_Neutral/.venv/bin/python
-  scripts/judge_run.py --run RUN_ID --estimate`. The judge reads a run and applies no
-  migration. Add `--test-schema NAME` for a run in a schema of the test database.
+  scripts/judge_run.py --run RUN_ID --estimate`. The judge reads the database in `DATABASE_URL`
+  and applies no migration. So for a run in the live database, leave `DATABASE_URL` at the
+  value in `.env` for this command only. Add `--test-schema NAME` for a run in a schema of the
+  test database. No document records a judge run on the live database.
 - **Helper scripts.** `launch.sh`, `resume.sh` and `api_loop.sh` are local helpers in
   `.local/overnight/` on the mini. They are not in git. `api_loop.sh` logs to
   `.local/overnight/api.log`.
@@ -157,7 +159,7 @@ Notes:
 | Budget | The fifth `launch.sh` argument (`--budget-usd`). `launch.sh` makes a new campaign itself. Give high drama at least $30. Raise a ceiling with `raise_campaign_ceiling.py`, never by starting a new campaign for the same run. |
 | Models | Edit `launch.sh`, or call `scripts/run_clocked.py` with `--model` (assistants), `--actor-model` (owners) and `--director-model` (Director). Without flags, the assistant model is `OPENROUTER_MODEL` in `.env`, or else `openai/gpt-4.1-mini`. The owner model is `OPENROUTER_ACTOR_MODEL`, or else the assistant model. The Director follows the owner model. Always set all three. A name of the form `provider:model`, such as `deepseek:deepseek-flash` or `anthropic:claude-opus-5-5`, calls that provider with its own key (see "API key"). `src/agentrpg/budget.py` lists these models and their prices. |
 | Length | `--advance-minutes N` on `run_clocked.py` stops after N more story minutes. `launch.sh` does not take it, and a supervised restart drops it. |
-| API key | `OPENROUTER_API_KEY` in the mini's `.env`. The project keeps this one provider key and adds no other: see "Working rules from the user" in [`AGENTS.md`](../AGENTS.md). A `provider:model` name needs `DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY`, so a run with such a name is refused. Edit the key on the mini yourself. Never paste a key into a chat, a document or git. |
+| API key | `OPENROUTER_API_KEY` in the mini's `.env`. The project keeps this one provider key and adds no other: see "Working rules from the user" in [`AGENTS.md`](../AGENTS.md). A `provider:model` name needs `DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY`, and that rule does not let you add them. If the key is not set, `run_clocked.py` stops and names the missing key. Edit the key on the mini yourself. Never paste a key into a chat, a document or git. |
 
 ---
 
@@ -199,26 +201,29 @@ Notes:
     and the branch has neither the code nor the E-48 row. Correct this when you merge.
   - Each branch gives its own evidence IDs (`E-xx`), so one ID can name different evidence on
     two branches. Settle the IDs when you merge.
-- **Tests.** The newest row of the "Evidence register" in a branch's `PRD.md` has the last
-  recorded result of the full suite. `world-build` records its result in `docs/WORLD_BUILD.md`.
+- **Tests.** In the "Evidence register" of a branch's `PRD.md`, the newest row that states a
+  suite count has the last recorded result of the full suite. `world-build` records its result
+  in `docs/WORLD_BUILD.md`.
 - **Migrations.**
   - `migrate.py` refuses a database that holds a migration the code lacks, and refuses a changed
     migration.
   - Each branch numbers its new migrations by itself, so the numbers collide. For example,
     `world-build` and `zeroclaw-agent` each have a different `022`. To list the migrations of a
     branch, use `git ls-tree --name-only BRANCH migrations/`.
-  - So the migrations of a branch must never reach the live database. If they do, the code of
-    every checkout that lacks them refuses that database. A paid `build_world.py` and each
-    script that starts an `AgentRuntime`, such as `run_clocked.py`, migrate the database in
-    `.env`.
+  - So the migrations of a branch must not reach the live database while the main checkout
+    runs code without them. If they do, that code refuses the database. These migrate the
+    database in `.env`: a paid `build_world.py`, `python -m agentrpg.migrate`, each script that
+    starts an `AgentRuntime`, such as `run_clocked.py`, and each script that calls `migrate`
+    itself, such as a budgeted `author_scenario.py`. `git grep -n 'migrate(' scripts src` lists
+    the direct calls.
   - Do branch work in a separate mini worktree, such as
     `~/Desktop/BOLD/Chaotic_Neutral-world-build`. Point it only at the test database.
   - Before two branches merge, settle their migration numbers.
 - **Local state of a checkout.**
   - `.claude/` is local and not tracked.
-  - A checkout can hold uncommitted edits of another contributor. This occurred with the shop
-    files. Look at `git status` before you edit. Do not stage, revert or reformat files that
-    you did not change.
+  - A checkout can hold uncommitted edits and untracked files of another contributor. The
+    laptop's main checkout has held such shop files. Look at `git status` before you edit. Do
+    not stage, revert, reformat or delete files that you did not change or create.
 - **Next work.** These are the open problems from Part 1, plus:
   - Confirm the booking approval and the ask-once checks in one cheap paid run, with the user's
     agreement. For what live runs covered so far, read "Limits stated plainly" in

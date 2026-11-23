@@ -354,8 +354,9 @@ because in Option A the model cannot tell which runtime is in use.
 
 On the Mac mini, in a checkout of a branch that has this code. During the trial that was the
 branch worktree `~/Desktop/BOLD/Chaotic_Neutral-zeroclaw-agent`. The commands below are written
-for a branch worktree next to the main checkout: they use the main checkout's `.venv` and set
-`PYTHONPATH` to the worktree's own `src`.
+for a branch worktree next to the main checkout: they use the main checkout's `.venv`, and the two
+commands that import the package set `PYTHONPATH` to the worktree's own `src`. The probe imports
+no project module.
 
 ```bash
 export AGENTRPG_ZEROCLAW="$HOME/Library/Application Support/agentRPG/zeroclaw/0.8.7/zeroclaw"
@@ -374,7 +375,8 @@ The probe needs no database and no key. It writes every request that ZeroClaw ma
 A bounded live run in a kept schema of the test database, with a USD ceiling in a ledger.
 This command cannot run under the one-key rule. `scripts/try_zeroclaw_live.py` takes only
 `provider:model` names (its defaults are `deepseek:deepseek-flash` and `anthropic:claude-opus-5-5`)
-and stops when `DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY` is not set. It does not accept an
+and stops when the key of a provider that it uses is not set (with the defaults,
+`DEEPSEEK_API_KEY`, and `ANTHROPIC_API_KEY` when a Director model is used). It does not accept an
 OpenRouter name. The project keeps only `OPENROUTER_API_KEY`, so a live run needs a change that
 lets the script accept OpenRouter names. That change is not made.
 

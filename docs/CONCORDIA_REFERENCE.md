@@ -39,8 +39,11 @@ The compiler rejects filters that the selected event cannot supply. Author repai
 receive the failed draft and specific compiler errors, including owner, fact, and
 window references. Invalid drafts remain in memory during repair.
 
-An Actor receives only its role, beliefs, known facts, disclosure rules, current
-cue, private conversation, own Inbox observations, and permitted Resource view.
+An Actor receives only its role and spending limit, beliefs, known facts,
+disclosure rules, current cue, private conversation, the declared assets and owner
+IDs of the run, and its own scoped views: world observations, Inbox observations,
+permitted Resource view, market view, transfer account, and the event that its
+assistant waits for. On a clocked run, it also receives its own view of time.
 It has no board credential or general tools.
 Code checks fact references, explicit disclosure rules, spending limits, proposal
 IDs, event IDs, permitted assets, and permitted reservation operations. Cancellation

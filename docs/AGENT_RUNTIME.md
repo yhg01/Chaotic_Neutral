@@ -406,8 +406,11 @@ Instruct 2507. Their reservations use the full declared input context plus
 capped output. Public metadata must satisfy the expected text and tool contract;
 price ceilings, disabled provider fallbacks and uncertain-cost holds remain.
 No model API or budget is selected by an assistant message. Later work added more
-model names. `SUPPORTED_MODELS` and `DIRECT_PROVIDERS` in
-[budget.py](../src/agentrpg/budget.py) hold the current list.
+model names. `SUPPORTED_MODELS` in [budget.py](../src/agentrpg/budget.py) holds the
+current OpenRouter list. `DIRECT_PROVIDERS` in the same file holds `provider:model`
+names that need a second provider key. The project keeps one provider key (see
+`AGENTS.md`), so those names do not run. The removal or further use of that code
+is an open decision.
 
 The [funding comparison](MODEL_COMPARISON.md) preserves a six-slot role-swap plan
 and the original campaign. One mixed-model pilot made real tool calls and then

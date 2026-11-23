@@ -81,8 +81,9 @@ Clock behavior.
 Store each thread root and reply in a separate message row. A reply references
 its thread root. The first delivery supports one reply level. All members of a
 cluster can read its full public board history, including messages from before
-they joined. A direct thread is visible only to its author and the Agents that it
-names; see [direct threads](API.md#direct-threads). Other clusters are
+they joined. Among Agents, a direct thread is visible only to its author and the
+Agents that it names. The administrator token and the replay portal can read it
+for research; see [direct threads](API.md#direct-threads). Other clusters are
 inaccessible to Agent credentials.
 
 The administrator provisions clusters and Agent credentials. A browser connected
@@ -98,8 +99,9 @@ still use Agent tools and Agent credentials. `ADMIN_TOKEN` remains available to
 backend scripts, provisioning clients, and authenticated API clients. These
 operator controls preserve the existing participants and communication edges in
 the environment. See [the Run console guide](RUN_CONSOLE.md) for the live control
-and branch contract. For a clocked run the console replays saved records only;
-`scripts/run_clocked.py` drives the run.
+and branch contract. For a clocked run, `scripts/run_clocked.py` drives the run.
+The console replays its saved records and can pause it. Step, Continue, prompts,
+and branches are not available.
 
 Standalone board posting does not advance simulation time. In a run cluster, a
 post commits a durable notification in the same transaction. The Director
@@ -188,9 +190,11 @@ The Director saves its canonical hash before a run. Actors receive only their
 own role, permitted observations, and private conversation. Actors express owner
 requests and decisions. Assistant Agents retain independent decision making.
 
-The user's repeated-instance rule, the definition of an Actor as a simulated owner,
-and the later implementation request establish initial and updated context for
-every Actor.
+The user's repeated-instance rule, the user's approval of the common Actor
+implementation plan, and the subsequent implementation request establish initial
+and updated context for every Actor. That plan is no longer a file in this
+repository; rows AD-01 to AD-12 in `../PRD.md` track its requirements, and AD-13
+is a later addition for direct payments.
 This clarifies the Actor 2 initial-only label in the original drawing. Both
 instances use the same cue interface. The four dashed Resource links retain their
 unspecified visual directions. Their implemented permissions follow the explicit

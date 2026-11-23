@@ -1367,5 +1367,6 @@ The first command writes the JSON. The second refreshes section 9 from the table
 The check tests the plot's own consistency. Separately, scripted owners and scripted assistants, with
 no provider calls, ran the whole week on real PostgreSQL: every timeline item fired and no simulator
 errors were saved. None of this used a language model, and none of it shows that the week produces good
-behaviour or a believable story. The paid model runs of this week are in
-[FIVE_LIVES_RESULTS.md](FIVE_LIVES_RESULTS.md). Human review is still needed.
+behaviour or a believable story. Three full paid model weeks are in
+[FIVE_LIVES_RESULTS.md](FIVE_LIVES_RESULTS.md). The ZeroClaw trial ran the week again. See
+[ZEROCLAW_TRIAL.md](ZEROCLAW_TRIAL.md). Human review is still needed.

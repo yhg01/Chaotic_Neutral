@@ -11,11 +11,21 @@ explicit user instructions take precedence. Keep these sources consistent.
 
 ## Where to run
 
-By the user's instruction of 10 November 2026, all runs happen on the Mac mini, through
-the SSH profile `mini`. Do not run them on the laptop. Runs include scenario and model
-runs, campaigns, the board and observer servers, PostgreSQL, and integration and browser
-tests. On the laptop, only edit files, read files, and use git. If `mini` is not
-reachable, stop and tell the user. Do not run on the laptop as a fallback.
+- Every contributor other than the repository owner runs this repository on their own
+  machine, or on a service that they operate. "Local setup" in `README.md` has the
+  commands. Each contributor uses their own PostgreSQL, `.env` and provider key.
+- The Mac mini is the repository owner's private machine. Only the owner and the agents in
+  the owner's sessions use it. A session is the owner's when `git config user.name` gives
+  `yhg01`. The next rule applies to those sessions only.
+- By the owner's instruction of 10 November 2026, all runs in the owner's sessions happen
+  on the Mac mini, through the SSH profile `mini`. This includes each run that an agent
+  starts. Do not run them on the owner's laptop. Runs include
+  scenario and model runs, campaigns, the board and observer servers, PostgreSQL, and
+  integration and browser tests. On the laptop, only edit files, read files, and use git.
+  If `mini` is not reachable, stop and tell the user. Do not run on the laptop as a
+  fallback.
+- Keep the Mac mini out of `docs/ONBOARDING.md`, which is the guide for other contributors
+  (22 November 2026).
 
 ## Working rules from the user
 

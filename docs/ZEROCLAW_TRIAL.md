@@ -352,11 +352,12 @@ because in Option A the model cannot tell which runtime is in use.
 
 ## How to run it
 
-On the Mac mini, in a checkout of a branch that has this code. During the trial that was the
-branch worktree `~/Desktop/BOLD/Chaotic_Neutral-zeroclaw-agent`. The commands below are written
-for a branch worktree next to the main checkout: they use the main checkout's `.venv`, and the two
-commands that import the package set `PYTHONPATH` to the worktree's own `src`. The probe imports
-no project module.
+In a checkout that has this code, after "Local setup" in the [README](../README.md). Branch
+`main` has it. Set `AGENTRPG_ZEROCLAW` to the path of your ZeroClaw 0.8.7 program; the line below
+shows the path that the trial used. During the trial, the checkout was a branch worktree next to
+the main checkout. So the commands below use the main checkout's `.venv`, and the two commands
+that import the package set `PYTHONPATH` to the worktree's own `src`. In a single checkout, use
+`.venv/bin/python` and leave out `PYTHONPATH`. The probe imports no project module.
 
 ```bash
 export AGENTRPG_ZEROCLAW="$HOME/Library/Application Support/agentRPG/zeroclaw/0.8.7/zeroclaw"

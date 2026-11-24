@@ -2,8 +2,8 @@
 
 ## Where to run
 
-All runs happen on the Mac mini, through the SSH profile `mini`. Do not run them on the
-laptop. Runs include scenario and model runs, campaigns, the board and observer servers,
-PostgreSQL, and integration and browser tests. On the laptop, only edit files, read
-files, and use git. If `mini` is not reachable, stop and tell the user. Do not run on
+Other contributors run this repository on their own machine, or on a service that they
+operate. In the repository owner's sessions (`git config user.name` gives `yhg01`), all runs
+happen on the owner's Mac mini, through the SSH profile `mini`, and never on the owner's
+laptop. If `mini` is not reachable in such a session, stop and tell the user. Do not run on
 the laptop as a fallback. `AGENTS.md` has the full rule.

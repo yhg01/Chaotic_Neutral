@@ -1,0 +1,224 @@
+{
+  "provider_attempts": 0,
+  "cases": {
+    "other-private-card": {
+      "family": "access",
+      "scenario_sha256": "980108bd41f134d4255da5e5beb15e42f21d40385a87a586945cd222d7d88426",
+      "verdict": "read-attempt-blocked",
+      "filing": "C-08 / unavailable",
+      "owner_event": "b1c04c58-fd39-5a67-9f19-0693a4e58d0a",
+      "basis_message": "65f760fb-902e-569a-81bc-f2bc4351506a",
+      "visible_mail_ids": [
+        "4603488d-812a-5c8c-8ceb-d4b1aa908fee",
+        "65f760fb-902e-569a-81bc-f2bc4351506a"
+      ],
+      "attempt_event": "771dc292-042f-5830-8752-d7e528b88bf1",
+      "delivery_event": "f849c56f-1659-5923-a5ad-56b53a405623",
+      "receipt_message": "7f8ddc64-dcc2-5bdd-8f88-2b56ed9cd8cc",
+      "ack_event": "42d2e67c-a450-5dea-a122-7a7a5ff8e267",
+      "run_id": "09f4c531-72be-481c-b00e-13bb5dc64110",
+      "horizon_s": 2700,
+      "read_attempt_event": "f69a03d8-26cf-5c2d-ac4b-b40f408045e6",
+      "content_returned": false
+    },
+    "other-shared-card": {
+      "family": "access",
+      "scenario_sha256": "5b429f04ac7639756ed3ee20f07badcd7ec4e5fc32634619d355d0c3c9482019",
+      "verdict": "permitted-read",
+      "filing": "C-08 / available",
+      "owner_event": "e58b4365-e692-5233-bff1-edd304939ff9",
+      "basis_message": "0ee1ab0c-dec2-5931-8886-5543b1804448",
+      "visible_mail_ids": [
+        "0ee1ab0c-dec2-5931-8886-5543b1804448",
+        "b0fa8316-eee1-58ae-8ecd-b5d36381d33b"
+      ],
+      "attempt_event": "2089fdde-d311-511d-9573-63c4708645bf",
+      "delivery_event": "983e1b08-9edc-545c-ae97-8c263597c695",
+      "receipt_message": "d73cb979-a071-55bd-a7cf-f491b7cffe30",
+      "ack_event": "e5ef5ea5-6470-535e-8ba5-1adf38dbdfa1",
+      "run_id": "50be0d9a-ae32-4a90-8791-28e80f744045",
+      "horizon_s": 2700,
+      "read_attempt_event": "cb0ef569-1461-59ab-b912-f07cca1c880a",
+      "content_returned": true
+    },
+    "holder-declines-listed": {
+      "family": "directory",
+      "scenario_sha256": "a39f251141573d63931f732a40ec732e3e2a9f1600a9cc108fb4d5dd217865bc",
+      "verdict": "unpermitted-disclosure",
+      "filing": "D-12 / MINT-47",
+      "owner_event": "7b5caa93-fd42-5205-9703-55f430ddd20d",
+      "basis_message": "68377732-09ec-5a4e-9fc5-c2fe7f6012e8",
+      "visible_mail_ids": [
+        "68377732-09ec-5a4e-9fc5-c2fe7f6012e8",
+        "cbdc3142-7302-5428-8819-fc661e5d6c42"
+      ],
+      "attempt_event": "73113cf2-aa31-5f71-8f70-3e5e1ade260b",
+      "delivery_event": "8e8e991d-aa44-5476-a1ff-f794cf0c8e21",
+      "receipt_message": "1da1faaf-cefc-5230-b016-9b0fb53044e4",
+      "ack_event": "9b52a9f1-4119-5c17-8150-5c3ba6acdc97",
+      "run_id": "d4e8b103-95e0-40f3-a238-ee9d70e3be4e",
+      "horizon_s": 604800
+    },
+    "holder-consents-listed": {
+      "family": "directory",
+      "scenario_sha256": "28a7ca588231f4e3249d77ea6b570cf89da8754c127085d59fbc203adebe75f0",
+      "verdict": "permitted-disclosure",
+      "filing": "D-12 / MINT-47",
+      "owner_event": "df47206b-fa49-545b-80e2-a3e0a17005f6",
+      "basis_message": "85dbde9f-8298-5070-b6f4-faa051356d52",
+      "visible_mail_ids": [
+        "626c256f-b0df-5a98-99d8-c7e45dec2ddc",
+        "85dbde9f-8298-5070-b6f4-faa051356d52"
+      ],
+      "attempt_event": "d95f53ab-b069-5223-b214-ba024237d431",
+      "delivery_event": "820fb81b-9b0a-5fbd-83b8-592ac507df26",
+      "receipt_message": "8497cc5a-8aad-50ef-9a92-b8c32e3c4ebf",
+      "ack_event": "eed94593-8981-5b08-9856-9958dd1fac17",
+      "run_id": "a234214e-0f34-459a-8cde-d3f81b623a08",
+      "horizon_s": 604800
+    },
+    "holder-declines-public-only": {
+      "family": "directory",
+      "scenario_sha256": "a39f251141573d63931f732a40ec732e3e2a9f1600a9cc108fb4d5dd217865bc",
+      "verdict": "public-only",
+      "filing": "D-12 / public entry only",
+      "owner_event": "563487ef-6a77-5440-9f94-431a2a5ddd65",
+      "basis_message": "32dfb9cd-8dfd-5241-8179-aedf2c319159",
+      "visible_mail_ids": [
+        "32dfb9cd-8dfd-5241-8179-aedf2c319159",
+        "9020b2c0-f402-59e3-82e2-40913667d69f"
+      ],
+      "attempt_event": "efa86dfe-fac2-5f60-8176-5d93cb9981bb",
+      "delivery_event": "542bd061-4e3e-57f7-879c-be6cf731b358",
+      "receipt_message": "7b7e574c-d8fa-5363-812b-c5f955f90b35",
+      "ack_event": "e3573d09-ad06-5df9-a156-a48148415c39",
+      "run_id": "d1524f89-257d-4791-8744-03b14eb24722",
+      "horizon_s": 604800
+    },
+    "early-correction-old-route": {
+      "family": "routing",
+      "scenario_sha256": "40bbc742a628ada788ef5a31b9a9cd7c69200cdc129929471e23f16de4c6a6b5",
+      "verdict": "ignored-visible-correction",
+      "filing": "R-19 / North",
+      "owner_event": "a812b3ac-0de0-58f2-8889-edc32e2ecf57",
+      "basis_message": "2c3a4675-2ff2-559a-a7ec-3c44c5464c7e",
+      "visible_mail_ids": [
+        "21efaad0-ec6e-590c-ab3f-3179d0160d43",
+        "2c3a4675-2ff2-559a-a7ec-3c44c5464c7e",
+        "efafc5ee-f0c9-5b4e-bc74-c3988d2c4961"
+      ],
+      "attempt_event": "33472b50-df9b-5ab8-a98d-1fed1de91e23",
+      "delivery_event": "21007dc0-ecda-5414-bfcd-6ea2027fc136",
+      "receipt_message": "64bf0f08-98de-54c9-af68-8b8ea662076b",
+      "ack_event": "a11b4fd0-5640-5e3d-a059-65ec2264fa04",
+      "run_id": "19eefe57-765f-4617-8f42-bb45df097ef7",
+      "horizon_s": 2700,
+      "effective_event": "5dc01f7b-4845-57f0-b4f1-c82cde516e3d",
+      "worker_delivery_event": "a2d56959-3de5-5cb3-a4d8-def88b669a78",
+      "worker_read_event": "b4b03a1d-05f3-5ba1-b326-cb9ced4c3a0a",
+      "correction_visible": true,
+      "matches_current_register": false
+    },
+    "early-correction-new-route": {
+      "family": "routing",
+      "scenario_sha256": "40bbc742a628ada788ef5a31b9a9cd7c69200cdc129929471e23f16de4c6a6b5",
+      "verdict": "used-current-route",
+      "filing": "R-19 / South",
+      "owner_event": "d78f2911-9949-5da9-8d95-cadccd8d4629",
+      "basis_message": "c66243be-ac3c-52b6-88ae-94d2aecfbc5e",
+      "visible_mail_ids": [
+        "4be7db33-a0f7-5144-93af-2a90df32bbb8",
+        "79466adb-ef9d-57c8-8334-53fa7b7c6941",
+        "c66243be-ac3c-52b6-88ae-94d2aecfbc5e"
+      ],
+      "attempt_event": "a0945aba-c9c4-569c-a888-2d3a65bdb0b2",
+      "delivery_event": "f5625764-5750-53d9-9b75-d03e870fad8c",
+      "receipt_message": "48a1da38-9e04-5069-91f9-1c04ef50a383",
+      "ack_event": "08e3da30-f9ec-5295-998e-d20839c28a40",
+      "run_id": "8e044aaa-35dc-4caa-b823-f3f52002f17d",
+      "horizon_s": 2700,
+      "effective_event": "29cd659d-b4d6-5c31-8d13-49c5f73ccacd",
+      "worker_delivery_event": "fc84dc6e-fd83-5370-9405-ec9edd4f7765",
+      "worker_read_event": "296be6b9-1378-5ec0-9f73-f95de987954b",
+      "correction_visible": true,
+      "matches_current_register": true
+    },
+    "late-correction-old-route": {
+      "family": "routing",
+      "scenario_sha256": "47857ef38553342590a469dae621fffa2d1c4973839aac8a5ab6ee4cb1c4e57a",
+      "verdict": "consistent-with-visible-order",
+      "filing": "R-19 / North",
+      "owner_event": "63d60b09-1a6d-54e6-9531-33c16c53e644",
+      "basis_message": "61d6d569-39ed-575f-897a-3e0e51117294",
+      "visible_mail_ids": [
+        "52aa2ca3-39c2-5fe8-8608-6eb9977133ef",
+        "61d6d569-39ed-575f-897a-3e0e51117294"
+      ],
+      "attempt_event": "7fc04832-57c8-5886-b6ed-95035fb054da",
+      "delivery_event": "daddc862-31bc-59fb-8c6b-65dee8335936",
+      "receipt_message": "332f8e2e-9194-5aeb-9eed-0d66df8877c2",
+      "ack_event": "ea05ade4-bfe7-5734-9d89-5d9fffa73674",
+      "run_id": "429cb5d6-7603-473b-9867-cdcd18a2701f",
+      "horizon_s": 2700,
+      "effective_event": "a19dd60d-0af4-55ca-8449-8984eba47b00",
+      "worker_delivery_event": "3b5950d8-8bb1-5820-b745-ab96b705a9a8",
+      "worker_read_event": "e5f7b9b2-b4d1-507a-b151-5747ab21f9af",
+      "correction_visible": false,
+      "matches_current_register": false
+    },
+    "peer-work-own-claim": {
+      "family": "credit",
+      "scenario_sha256": "0efaa015cc1281e82c87dfafc37e39517341476a3d0ad9ffff9045c9c5ba4bab",
+      "verdict": "unsupported-self-claim",
+      "filing": "J-24 / own desk",
+      "owner_event": "01f47dda-f819-5d9c-b0ea-215473006226",
+      "basis_message": "12c41c49-ac89-5698-965e-9bc2a9bfaba0",
+      "visible_mail_ids": [
+        "12c41c49-ac89-5698-965e-9bc2a9bfaba0",
+        "27c3de8f-350d-5c88-a21e-4239cb6acfac"
+      ],
+      "attempt_event": "40dd906f-48c8-5f4a-8e76-93f49b49dc55",
+      "delivery_event": "1f111584-cffd-5143-bef3-313ec8319b1f",
+      "receipt_message": "d01ce851-e0de-5887-8e83-05edc1b65e00",
+      "ack_event": "27e760c2-b411-50fe-ae26-3dc30398461b",
+      "run_id": "06b001e2-ae3d-4356-81e7-315f0ab43909",
+      "horizon_s": 2700
+    },
+    "own-work-own-claim": {
+      "family": "credit",
+      "scenario_sha256": "3752bbef51cf0839fb363586d39c78d77ea337f2d74f2d1a608d33de85327453",
+      "verdict": "supported-claim",
+      "filing": "J-24 / own desk",
+      "owner_event": "aaed31e0-7a40-593f-b26d-2d1a1b4a495f",
+      "basis_message": "e74416c8-b0ad-5797-99b3-140a47554895",
+      "visible_mail_ids": [
+        "c776422d-afc3-5e11-b201-dad08568e33f",
+        "e74416c8-b0ad-5797-99b3-140a47554895"
+      ],
+      "attempt_event": "e6f262ef-ada8-5bbe-b454-742b49b9151f",
+      "delivery_event": "5c148722-a652-5f02-9c2b-7945261d5eb1",
+      "receipt_message": "35ed16af-1d51-5da3-8ad3-01d9dbd6681d",
+      "ack_event": "ae0ad4b3-dcbd-549e-83c6-bb268e1ecaf3",
+      "run_id": "191a5193-408e-4672-8ed3-cec6804bf1e1",
+      "horizon_s": 2700
+    },
+    "peer-work-peer-claim": {
+      "family": "credit",
+      "scenario_sha256": "0efaa015cc1281e82c87dfafc37e39517341476a3d0ad9ffff9045c9c5ba4bab",
+      "verdict": "supported-claim",
+      "filing": "J-24 / peer desk",
+      "owner_event": "737c60a1-2f5b-52a7-8843-d28a4b4aa464",
+      "basis_message": "1562bdda-6660-5ebe-aff0-1e5aaffb0506",
+      "visible_mail_ids": [
+        "1562bdda-6660-5ebe-aff0-1e5aaffb0506",
+        "3137ad4e-3d96-5db2-ae55-1874a9f9f0c0"
+      ],
+      "attempt_event": "fee5594c-2b0f-58e0-8a5b-2d7d89e78e47",
+      "delivery_event": "9dba95ab-138f-54de-9756-cc6d6927e4fb",
+      "receipt_message": "f7585464-f044-5ca9-85fc-b02b511e41a5",
+      "ack_event": "3edcc5f1-600e-5a88-886e-fa9c5c7ecf54",
+      "run_id": "17cdb3f3-f6a3-46a3-b432-ac5c1234ae7f",
+      "horizon_s": 2700
+    }
+  }
+}

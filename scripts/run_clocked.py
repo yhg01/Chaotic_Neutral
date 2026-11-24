@@ -64,8 +64,8 @@ EXIT_TRY_AGAIN = 75
 OUTAGE_REASONS = frozenset({"provider_rejected", "provider_outage"})
 
 
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+def parse_args(argv=None, *, description=__doc__):
+    parser = argparse.ArgumentParser(description=description)
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--scenario", type=Path, help="A ScenarioSpec JSON file with a clock.")
     source.add_argument("--resume", type=Path, help="A saved credentials.json of this run.")
@@ -393,7 +393,7 @@ def _client(base_url, app, headers):
     )
 
 
-async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
+async def execute(args, *, root: Path = ROOT, env: dict | None = None, experiment=None) -> dict:
     env = env if env is not None else {**dotenv_values(root / ".env"), **os.environ}
     credentials_path, manifest = (
         load_credentials(args.resume, root) if args.resume else (None, None)
@@ -428,6 +428,10 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
     )
     if config is None:
         config = new_configuration(args, env, spec_file)
+    if experiment is not None:
+        experiment.configure(config, resumed=manifest is not None)
+    elif config.get("experiment"):
+        raise ScenarioRunError("Resume this run with its experiment runner.")
     started = time.monotonic()
     usage = UsageTracker()
     async with AsyncExitStack() as stack:
@@ -456,9 +460,12 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             await ledger.ensure_campaign(
                 saved_budget["campaign_id"], Decimal(saved_budget["limit_usd"])
             )
-            prices = await fetch_model_prices(
-                {config["model"], config["actor_model"], config["director_model"]}
+            models = (
+                {config["model"]}
+                if experiment is not None
+                else {config["model"], config["actor_model"], config["director_model"]}
             )
+            prices = await fetch_model_prices(models)
             binding = BudgetBinding(ledger, UUID(saved_budget["campaign_id"]), prices)
         if manifest is None:
             if scripted:
@@ -510,7 +517,9 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             raise ScenarioRunError("The saved scenario hash does not match its content.")
         clock_config = ClockConfig.from_section(spec.clock.model_dump(mode="json"), spec.seed)
         gate = ClockGate(clock_config)
-        if scripted:
+        if experiment is not None:
+            await experiment.prepare(runtime.pool, run_id, spec, run["status"])
+        if scripted or experiment is not None:
             brain = ScriptedDirectorBrain()
         else:
             # max_retries is 0: the engine retries with a growing wait, so a run of failures
@@ -538,9 +547,12 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             client = await stack.enter_async_context(
                 _client(base_url, app, {"Authorization": f"Bearer {participant['token']}"})
             )
-            if scripted:
-                model = ScriptModel(resting_status="responded")
-                actors[owner] = ScriptedDay()
+            if scripted or (experiment is not None and owner != experiment.owner):
+                model = (
+                    experiment.scripted_model(owner)
+                    if experiment is not None
+                    else ScriptModel(resting_status="responded")
+                )
             else:
                 model = create_model(
                     env["OPENROUTER_API_KEY"],
@@ -551,6 +563,11 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                     **({"budget": binding, "budget_role": "assistant"} if binding else {}),
                 )
                 stack.push_async_callback(model.aclose)
+            if experiment is not None:
+                actors[owner] = experiment.actor(owner)
+            elif scripted:
+                actors[owner] = ScriptedDay()
+            else:
                 actor_model = create_model(
                     env["OPENROUTER_API_KEY"],
                     config["actor_model"],
@@ -569,7 +586,12 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
             agents[owner] = runtime.agent(
                 model=model,
                 board=BoardTools(client, manifest["cluster_id"], direct=True),
-                environment=EnvironmentTools(client, manifest["run_id"]),
+                environment=EnvironmentTools(
+                    client,
+                    manifest["run_id"],
+                    clocked=experiment is not None,
+                    booking_inquiries=experiment is not None and owner == experiment.owner,
+                ),
                 agent_id=participant["agent_id"],
                 session_id=participant["session_id"],
                 instructions=config["instructions"],
@@ -582,7 +604,11 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 web=WebTools(runtime.pool, manifest["run_id"], owner, brain),
             )
             await agents[owner]._verify_identity()
-        engine = ClockEngine(runtime.pool, actors, agents, brain)
+        engine = (
+            experiment.engine(runtime.pool, actors, agents, brain)
+            if experiment is not None
+            else ClockEngine(runtime.pool, actors, agents, brain)
+        )
         if run["status"] == "paused":
             await director.control(run_id, "resume")
         elif run["status"] == "pending":
@@ -629,6 +655,8 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
         report["peak_model_calls_in_flight"] = gate.peak_calls_in_flight
         report["usage"] = await run_usage(runtime.pool, run_id, usage)
         report["scripted"] = bool(scripted)
+        if experiment is not None:
+            report["experiment"] = await experiment.report(runtime.pool, run_id)
         if binding is not None:
             # Campaign-wide, for every run it pays for. report["usage"] is this run alone.
             report["campaign_budget"] = await binding.ledger.summary(binding.campaign_id)

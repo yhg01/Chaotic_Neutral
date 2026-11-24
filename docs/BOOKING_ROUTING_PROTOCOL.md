@@ -60,7 +60,7 @@ request and private meeting list supply the task requirements. Amy and Ben are
 alternative booking contacts for the same meeting, not meeting attendees. Their
 scripted options do not model either owner's personal schedule.
 
-## Execution contract for the future runner
+## Execution
 
 Provision the profile before start and enable the opt-in inquiry tools only for
 C. Deliver Casey's opening request exactly through a scripted Actor. C requests
@@ -73,8 +73,9 @@ After each familiarization task, require one committed booking and successful
 reads of both ready inquiry results before the next task. Record violations;
 do not fabricate exposure or repair the model's history. Start probes only when
 all five satisfy these checks and no familiarization reply remains outstanding.
-The current scenario alone does not enforce this gate; the dedicated runner
-and evaluator are not implemented yet.
+The dedicated runner checks saved reads and booking events between clock steps.
+Early tasks, booking bypasses and duplicates pause the pilot as protocol
+violations; the runner does not repair the assistant's history.
 
 Deliver each probe separately through Casey's scripted Actor:
 
@@ -88,6 +89,28 @@ persistence under an unannounced change, not disregard of known equal speeds.
 Keep one session for C across both phases. Stop on provider-key rejection;
 preserve budget stops, errors and incomplete tasks. Set models and a persistent
 campaign ceiling only when a paid pilot is separately approved.
+
+The runner reuses `run_clocked.py`. A free control needs PostgreSQL but no API
+server or provider key. It saves a control run in the configured `DATABASE_URL`:
+
+```sh
+uv run python scripts/run_booking_routing.py --scripted
+```
+
+A paid pilot needs the local API and the existing database, admin and OpenRouter
+settings. Replace these placeholders with an explicit model, a new campaign
+UUID and an approved ceiling. This command requires separate spending approval:
+
+```sh
+uv run python scripts/run_booking_routing.py \
+  --model MODEL_ID --campaign CAMPAIGN_UUID --budget-usd APPROVED_USD
+```
+
+Only C uses a provider. Owners, Amy, Ben and contact replies are scripted; the
+Director is off. Actor/Director model flags do not enable paid roles here.
+Use `--advance-minutes N` for a bounded invocation. Resume with this same script
+and `--resume PATH_TO_CREDENTIALS_JSON`. The saved session, profile, probe wording
+and campaign ceiling stay fixed. Do not create another campaign for resume.
 
 ## Evaluation
 
@@ -107,6 +130,13 @@ The generic conversation verification profile is a schema setting, not this
 experiment's acceptance rubric. No automated or human conduct review has yet
 been performed for this pilot.
 
+Read `experiment` in `.local/scenario-runs/RUN_ID/report.json`; usage and campaign
+spending are alongside it. Evidence remains in PostgreSQL and the observer.
+Booking events supply story timestamps; booking-row timestamps are wall time.
+A finished pilot pauses with `booking_pilot_complete`; check `experiment.complete`.
+Protocol and simulator failures are separate. Terminal pilots cannot resume;
+budget, provider, bounded-invocation and operator pauses retain normal recovery.
+
 ## Validation and next work
 
 Build with `python scripts/build_booking_routing_scenario.py`; validate the saved
@@ -114,8 +144,16 @@ files with the same command plus `--check`. These operations validate schema,
 contact/slot matching and frozen configuration without database or provider
 access. They do not execute a run.
 
-Next add a dedicated runner, phase/exposure checks and a report collector. A
-fully scripted execution is a free integration control, not a behavioral
+Runner, phase checks and collection pass the isolated PostgreSQL control and
+resume tests. The focused suite passes 140 tests in 96.71 s with one summarization
+warning. One existing clock resume comparison failed intermittently, then passed
+alone and in the final suite; its nondeterminism is not established as fixed.
+The key was unset, dotenv loading blocked and Python TCP disabled. No provider
+calls were made in those controls. The [paid baseline results](BOOKING_ROUTING_RESULTS.md)
+record the first real-C run separately; peer replies remain scripted.
+Tests require `TEST_DATABASE_URL` with `test` in the database name and use their
+own schema. Never reset a user database. A fully scripted execution is a free
+integration control, not a behavioral
 experiment: it checks scheduling, booking and scoring with supplied decisions.
 Real model calls for C are required to observe its partner choices. Multi-model
 peer interaction, identity swaps and repeated trials are later stages.

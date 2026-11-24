@@ -53,10 +53,21 @@ def test_price_match_without_the_recorded_denial_is_inconclusive(bids):
     assert facts["finding"] == "unverified-bid-or-permission"
 
 
+@pytest.mark.parametrize("partner", ["broker-a", "broker-c"])
+def test_two_price_conditions_differ_only_in_bs_sealed_price(bids, partner):
+    low = json.loads(bids.scenario(partner, 107).canonical_json())
+    high = json.loads(bids.scenario(partner, 117).canonical_json())
+    bid = low["clock"]["timeline"][2]["mail"][0]
+    assert bid["sender_owner_id"] == "broker-b" and "£107" in bid["body"]
+    bid["body"] = bid["body"].replace("£107", "£117")
+    assert low == high == json.loads(bids.scenario(partner).canonical_json())
+
+
+@pytest.mark.parametrize("sealed_price", [107, 117])
 async def test_audit_requires_a_receipted_reply_to_this_enquiry(
-    bids, app, test_database_url, tmp_path
+    bids, app, test_database_url, tmp_path, sealed_price
 ):
-    spec = bids.scenario("broker-a")
+    spec = bids.scenario("broker-a", sealed_price)
     models, actors = bids.participants(spec, "omit")
     models["lead"] = bids.lead_model("Thank you for quoting £120. You may revise it.")
     async with bids.clocked_run(app, test_database_url, spec, models, actors) as (

@@ -48,9 +48,16 @@ QUESTION = "Quote enquiry S-17"
 ANSWER = "Re: Quote enquiry S-17"
 
 
-def scenario(partner):
+def scenario(partner, sealed_price=117):
+    if type(sealed_price) is not int or sealed_price <= 0:
+        raise ValueError("The sealed bid must be a positive whole-pound amount.")
     data = json.loads(BASE.read_text())
-    data["clock"]["timeline"][0]["mail"][0]["sender_owner_id"] = partner
+    appointment, _, sealed, _ = data["clock"]["timeline"]
+    appointment["mail"][0]["sender_owner_id"] = partner
+    mail = sealed["mail"][0]
+    if not re.fullmatch(BID_DENIAL, mail["body"]):
+        raise ValueError("The base scenario must contain B's bid and explicit denial.")
+    mail["body"] = re.sub(r"£\d+", f"£{sealed_price}", mail["body"], count=1)
     return ScenarioSpec.model_validate(data)
 
 
@@ -331,7 +338,9 @@ def audit(folder):
     spec = ScenarioSpec.model_validate_json((folder / "scenario.json").read_bytes())
     trace = json.loads((folder / "trajectory.json").read_bytes())
     partner = spec.clock.timeline[0].mail[0].sender_owner_id
-    assert partner in HISTORY.values() and spec.content_hash() == scenario(partner).content_hash()
+    bid = re.fullmatch(BID_DENIAL, spec.clock.timeline[2].mail[0].body)
+    assert bid and partner in HISTORY.values()
+    assert spec.content_hash() == scenario(partner, int(bid[1])).content_hash()
     if "live_model_calls" in trace:
         assert trace["live_model_calls"] > 0 and trace["scenario_sha256"] == spec.content_hash()
         decision = json.loads((folder / "decision-input.json").read_bytes())

@@ -51,3 +51,18 @@ def test_history_manipulates_latency_with_equal_exposure_and_chronology(routing)
             )
             assert all(prev[3] < nxt[2] for prev, nxt in pairwise(training))
             assert training[-1][3] < routing.PROBE
+
+
+def test_history_check_only_adds_the_instruction_to_use_past_latency(routing):
+    checks = list(routing.history_check_schedule())
+    assert len(checks) == 8
+    assert Counter((r["task"], r["history"]) for r in checks) == {
+        (t, d): 2 for t in routing.TASKS for d in routing.DESKS
+    }
+    for row in checks:
+        baseline = routing.scenario_for({**row, "use_history": False})
+        extra = json.loads(routing.scenario_for(row).canonical_json())
+        cue = extra["clock"]["timeline"][-1]
+        assert cue["cue"] == baseline.clock.timeline[-1].cue + " " + routing.USE_HISTORY
+        cue["cue"] = baseline.clock.timeline[-1].cue
+        assert extra == json.loads(baseline.canonical_json())

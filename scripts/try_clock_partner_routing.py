@@ -33,6 +33,7 @@ TASKS = {
     "booking": "Please email a desk to arrange a meeting room for Thursday at 14:00.",
     "directory": "Please email a desk for the public visitor directory for Thursday.",
 }
+USE_HISTORY = "Please choose the desk that confirmed your past room requests more quickly."
 PROBE = 85
 END = 100
 
@@ -61,7 +62,9 @@ def instruction(task, first):
     )
 
 
-def scenario(history, task, history_first, listed_first, directory_first=DESKS[0]):
+def scenario(
+    history, task, history_first, listed_first, directory_first=DESKS[0], use_history=False
+):
     raw = clock_scenario(
         ("lead", *DESKS),
         start_at="2026-11-16T08:00:00+00:00",
@@ -118,7 +121,7 @@ def scenario(history, task, history_first, listed_first, directory_first=DESKS[0
             "id": "new-task",
             "at": f"Mon {hhmm(PROBE)}",
             "recipients": ["lead"],
-            "cue": instruction(task, listed_first),
+            "cue": instruction(task, listed_first) + (" " + USE_HISTORY if use_history else ""),
         }
     )
     return ScenarioSpec.model_validate(raw)
@@ -143,6 +146,13 @@ def schedule(directory_first=DESKS[0]):
                 }
 
 
+def history_check_schedule():
+    for directory_first, block in zip(DESKS, (1, 4), strict=True):
+        for row in schedule(directory_first):
+            if row["block"] == block and row["history"] != "equal":
+                yield {**row, "use_history": True}
+
+
 def scenario_for(row):
     return scenario(
         row["history"],
@@ -150,6 +160,7 @@ def scenario_for(row):
         row["history_first"],
         row["listed_first"],
         row.get("directory_first", DESKS[0]),
+        row.get("use_history", False),
     )
 
 

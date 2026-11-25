@@ -6,7 +6,15 @@ from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 
-from try_clock_partner_routing import DESKS, TASKS, audit, load, schedule
+from try_clock_partner_routing import (
+    DESKS,
+    TASKS,
+    USE_HISTORY,
+    audit,
+    history_check_schedule,
+    load,
+    schedule,
+)
 
 from agentrpg.console_execution import save_private
 
@@ -61,10 +69,15 @@ def check_provider(folder, evidence, charges):
 def report(root):
     protocol, budget = load(root, "protocol"), load(root, "budget")
     rows = load(root, "results")
-    plan = list(schedule(protocol["schedule"][0].get("directory_first", DESKS[0])))
+    arm = protocol["schedule"][0]
+    plan = list(
+        history_check_schedule()
+        if arm.get("use_history")
+        else schedule(arm.get("directory_first", DESKS[0]))
+    )
     assert protocol["schedule"] == plan and len(rows) == len(plan)
     ledger = budget["attempts"]
-    all_charges, lookups = [], []
+    all_charges, lookups, booking_searches = [], [], []
     for condition, row in zip(plan, rows, strict=True):
         assert all(row[k] == v for k, v in condition.items())
         folder = root / row["case"]
@@ -75,6 +88,16 @@ def report(root):
         charges = [c for c in ledger if c["role"] == f"{root.name}-{row['case']}"]
         if check_provider(folder, row, charges):
             lookups.append(row["case"])
+        batches = load(folder, "decision-batches")["batches"]
+        for n, batch in enumerate(batches[:-1], start=1):
+            if any(
+                c["name"] == "list_mail" and c["args"].get("query") == "Booking R-" for c in batch
+            ):
+                request = load(folder, f"provider-{n + 1:02}")["request_messages"]
+                outcome = json.loads(request[-1]["content"])
+                assert outcome["ok"] and len(outcome["data"]["items"]) == 20
+                booking_searches.append(row["case"])
+                break
         all_charges.extend(c["id"] for c in charges)
     assert len(set(all_charges)) == len(all_charges) == len(ledger)
     before, after = budget["before"], budget["after"]
@@ -87,7 +110,10 @@ def report(root):
     for task in TASKS:
         subset = [r for r in rows if r["task"] == task]
         asymmetric = [r for r in subset if r["history"] in DESKS]
-        paired = [(lookup[i, task, "desk-a"], lookup[i, task, "desk-b"]) for i in range(1, 5)]
+        paired = [
+            (lookup[i, task, "desk-a"], lookup[i, task, "desk-b"])
+            for i in sorted({r["block"] for r in subset})
+        ]
         cells[task] = {
             "by_history": {
                 h: dict(Counter(r["first"] for r in subset if r["history"] == h))
@@ -106,6 +132,7 @@ def report(root):
         "n": len(rows),
         "cells": cells,
         "saw_contact_order": lookups,
+        "searched_booking_records": booking_searches,
         "calls": len(ledger),
         "spend_usd": str(spent),
         "remaining_usd": after["remaining_usd"],
@@ -152,7 +179,7 @@ def report(root):
     return data
 
 
-def mirror_comparison(original, mirror):
+def mirror_comparison(original, mirror, checks=None):
     summaries = [report(root) for root in (original, mirror)]
     pairs = []
     for a, b in zip(load(original, "results"), load(mirror, "results"), strict=True):
@@ -180,7 +207,19 @@ def mirror_comparison(original, mirror):
                 },
             }
         )
-    return {"studies": summaries, "matched_pairs": pairs}
+    comparison = {"studies": summaries, "matched_pairs": pairs}
+    if checks:
+        comparison["instructed_summary"] = report(checks)
+        comparison["instructed_cases"] = load(checks, "results")
+        for row in comparison["instructed_cases"]:
+            case = row["case"]
+            source = original if row.get("directory_first", DESKS[0]) == DESKS[0] else mirror
+            baseline, positive = [load(p / case, "scenario") for p in (source, checks)]
+            cue = positive["clock"]["timeline"][-1]
+            assert cue["cue"] == baseline["clock"]["timeline"][-1]["cue"] + " " + USE_HISTORY
+            cue["cue"] = baseline["clock"]["timeline"][-1]["cue"]
+            assert positive == baseline
+    return comparison
 
 
 if __name__ == "__main__":
@@ -190,11 +229,12 @@ if __name__ == "__main__":
     parser.add_argument("study", type=Path)
     parser.add_argument("--mirror", type=Path)
     parser.add_argument("--export", type=Path)
+    parser.add_argument("--history-check", type=Path)
     args = parser.parse_args()
-    if args.export and not args.mirror:
-        parser.error("--export requires --mirror")
+    if (args.export or args.history_check) and not args.mirror:
+        parser.error("--export and --history-check require --mirror")
     if args.mirror:
-        comparison = mirror_comparison(args.study, args.mirror)
+        comparison = mirror_comparison(args.study, args.mirror, args.history_check)
         if args.export:
             save_private(args.export, comparison)
         print(f"Verified {len(comparison['matched_pairs'])} matched scenario pairs.")

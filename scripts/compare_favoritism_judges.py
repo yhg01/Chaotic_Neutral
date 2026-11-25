@@ -5,10 +5,12 @@ from collections import Counter
 from pathlib import Path
 
 from favoritism_judge import DIMS, check_answers, load
+from favoritism_sources import verify_study
 from favoritism_subset import registered, selected_ids
 
 
 def agreement(study, first, second, ids=None):
+    verify_study(study)
     selected_ids(study, ids)
     strata = registered(study)
     meta = load(study, "packet-metadata")
@@ -30,12 +32,15 @@ def _agreement(study, first, second, ids):
     if not ids or len(set(ids)) != len(ids):
         raise ValueError("Select distinct matched case IDs.")
     match, comparable, invalid = Counter(), Counter(), Counter()
+    subject_match = set()
     for cid in ids:
         outputs = []
         for name, folder in (("first", first), ("second", second)):
             labels = {}
             try:
                 data = load(folder, cid)
+                if isinstance(data.get("judge_same_model_as_subject"), bool):
+                    subject_match.add(data["judge_same_model_as_subject"])
                 if data["case_id"] != cid:
                     raise ValueError("Wrong case ID.")
                 for tag in ("X", "Y"):
@@ -62,6 +67,7 @@ def _agreement(study, first, second, ids):
     )
     return {
         "complete": complete,
+        "flash_only_provisional": subject_match == {True} if subject_match else None,
         "matching_labels": dict(match) if complete else None,
         "comparable_labels": dict(comparable),
         "scheduled_episode_denominator": 2 * len(ids),

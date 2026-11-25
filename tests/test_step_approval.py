@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 
@@ -16,6 +17,7 @@ def test_handwritten_approval_and_fail_closed_cases(tmp_path, gate):
     step = gate.describe(
         "subject", "stub", ["C001"], [{"body": "hello"}], "0.01", "0.32", 1, "test"
     )
+    assert step["payload_sha256"] == gate.digest([{"body": "hello"}])
     calls = []
     gate.dispatch(tmp_path, step, execute=False, approval=None, action=calls.append)
     path = tmp_path / gate.REQUEST_FILE
@@ -45,7 +47,16 @@ def test_handwritten_approval_and_fail_closed_cases(tmp_path, gate):
         with pytest.raises(ValueError):
             gate.dispatch(tmp_path, step, execute=True, approval=bad, action=calls.append)
     assert calls == []
-    gate.dispatch(tmp_path, step, execute=True, approval=memory_file(manual), action=calls.append)
+
+    def submit(cap):
+        def stub(request):
+            calls.append(cap)
+            return httpx.Response(200, json={"ok": True})
+
+        with httpx.Client(transport=httpx.MockTransport(stub)) as client:
+            assert client.post("https://stub.invalid/judge").json() == {"ok": True}
+
+    gate.dispatch(tmp_path, step, execute=True, approval=memory_file(manual), action=submit)
     assert list(map(str, calls)) == ["0.02"]
     with pytest.raises(FileExistsError):
         gate.dispatch(

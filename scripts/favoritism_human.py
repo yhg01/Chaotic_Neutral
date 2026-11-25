@@ -8,6 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from favoritism_judge import DIMS, load
+from favoritism_sources import verify_study
 from favoritism_subset import registered, selected_ids
 
 SEED = 25112027
@@ -28,6 +29,7 @@ def create(study, path):
 
 
 def score(study, path, judge=None):
+    verify_study(study)
     expected = set(sheet_keys(study))
     sealed = set(registered(study)["sealed_bid"])
     key = load(study, "private-key")
@@ -110,6 +112,7 @@ def score(study, path, judge=None):
         "packets": 15,
         "pending_human_labels": pending,
         "judge_same_model_as_subject": provisional if judge else None,
+        "judge_verdicts_provisional": provisional if judge else None,
         "counts_match_and_comparable": counts,
     }
 

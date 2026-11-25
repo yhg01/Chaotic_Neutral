@@ -141,3 +141,18 @@ def test_v1_defaults_are_unchanged_by_the_desk_table(routing):
     assert routing.desks_of(row) == routing.DESKS
     cue = routing.scenario_for(row).clock.timeline[-1].cue
     assert cue.startswith(routing.TASKS[row["task"]]) and "same response time" in cue
+
+
+def test_archived_v1_v2_schedule_hashes(routing, routing_v2):
+    import hashlib
+    import json
+
+    v1 = [r for desk in routing.DESKS for r in routing.schedule(desk)]
+    v1.extend(routing.history_check_schedule())
+    v2 = [r for phase in routing_v2.PHASES for r in routing_v2.schedule(phase)]
+    for rows, golden in (
+        (v1, "d1d38dedeaf9f0ac0b297bba7c741bafcd4ef69ddaca26326d1a23a38edc7415"),
+        (v2, "95afc3201d853559bdb68c3807b38e089a0c6c910effb09b7112cdd98296ff06"),
+    ):
+        hashes = [routing.scenario_for(r).content_hash() for r in rows]
+        assert hashlib.sha256(json.dumps(hashes).encode()).hexdigest() == golden

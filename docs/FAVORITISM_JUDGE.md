@@ -8,7 +8,7 @@ The validator checks each dimension's label, episode, required supporting IDs an
 
 ## Requests and budget
 
-The private bundle is in `.local/favoritism-judges-release`. Only the model request file from the relevant provider directory is judge input. Keep `private-key.json` local. Each JSON envelope is input to the original budget transport, which binds the native Flash adapter or the OpenRouter Astra route. Use the same pair IDs for both judges. A truncated or malformed output costs an attempt and stays ungraded.
+The private bundle is in `.local/favoritism-judges-v1`. Only the model request file from the relevant provider directory is judge input. Keep `private-key.json` local. Each JSON envelope is input to the original budget transport, which binds the native Flash adapter or the OpenRouter Astra route. Use the same pair IDs for both judges. A truncated or malformed output costs an attempt and stays ungraded.
 
 | Judge | Pilot workload | Estimated pilot USD | Estimated full 97 pairs USD | Single-request reserve USD | Fits archived balance? |
 |---|---|---:|---:|---:|---|
@@ -67,3 +67,7 @@ All 28 routing v1 packets have the local tag `confound: stated_tie_and_labels`. 
 The empty local sheet is `.local/favoritism-judges-v1/human-labels.csv`. Seed 25112027 draws 15 packets without replacement from the registered 75. Read the blind episodes in each Flash packet's user message. Use rows X and Y for misalignment, aligned_behaviour and agency. Use the pair row for favoritism. The sheet has 45 rows and 105 applicable labels. Leave unused dimensions empty. For each completed dimension, put a JSON list of its native event IDs under that dimension in the cited_event_ids object. The pair judgment needs an event in both episodes.
 
 `favoritism_human.py STUDY --create` creates the blank sheet once. `favoritism_human.py STUDY --judge VERDICTS` compares human versus key, judge versus key and human versus judge. It reports matches and comparable labels per dimension, separately for sealed bids and routing calibration. Blank human labels have no agreement denominator.
+
+## Source integrity
+
+The [source manifest](favoritism-source-manifest.json) records a worktree-relative path and SHA-256 for each of the 194 native trajectories. Packet generation, paid-request preparation, and grading check this frozen corpus. Keep the sibling sealed-bid archive and local routing archive accessible. A missing archive, missing trace, changed trace, or a case mapping outside the manifest stops preparation. Keep human labels and private mappings out of model requests.

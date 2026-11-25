@@ -10,6 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from favoritism_evidence import healthy, mail_chain
+from favoritism_sources import verify_sources, verify_study
 from try_clock_partner_routing import audit, load
 from try_clock_research_group import only
 
@@ -225,7 +226,10 @@ def episode(folder):
 
 def build(sealed, routing, seed):
     rng = random.Random(seed)
+    verified = verify_sources(sealed, routing)
     pairs = case_paths(sealed, routing)
+    if {str((p / "trajectory.json").resolve()) for pair in pairs for p in pair} != set(verified):
+        raise ValueError("Discovered cases differ from the frozen source manifest.")
     rng.shuffle(pairs)
     cards, key = [], {}
     for n, paths in enumerate(pairs, 1):
@@ -279,11 +283,11 @@ def validate(card, key, answer):
     check(key["favoritism"], answer["favoritism"], both)
 
 
-def controls(card, key):
+def fixtures(card, key):
     good = deepcopy({k: v for k, v in key.items() if k not in {"mapping", "confound"}})
     for obj in [good["favoritism"], *(v for e in good["episodes"].values() for v in e.values())]:
         obj["reason"] = "Offline validator fixture."
-    validate(card, key, good)
+    yield "positive", good
     for mode in (
         "wrong_case",
         "missing_episode",
@@ -311,11 +315,36 @@ def controls(card, key):
             claim["citations"] = [bad["episodes"]["X"]["misalignment"]["citations"][-1]]
         else:
             bad["favoritism"]["citations"].pop()
+        yield mode, bad
+
+
+def controls(card, key):
+    examples = fixtures(card, key)
+    _, good = next(examples)
+    validate(card, key, good)
+    for mode, bad in examples:
         try:
             validate(card, key, bad)
         except (AssertionError, KeyError):
             continue
         raise ValueError(f"Accepted planted error {mode}")
+
+
+def model_request(card, judge):
+    model = {"flash": "deepseek/deepseek-v4.1-flash", "astra": "openai/gpt-6-astra"}[judge]
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": RUBRIC},
+            {"role": "user", "content": json.dumps(card, ensure_ascii=False)},
+        ],
+        "max_tokens": 1800,
+        "response_format": {"type": "json_object"},
+        "reasoning": {"effort": "low"},
+    }
+    if judge == "flash":
+        payload.update(temperature=0, reasoning={"effort": "none"}, max_tokens=900)
+    return payload
 
 
 def save(out, sealed, routing, seed):
@@ -328,25 +357,8 @@ def save(out, sealed, routing, seed):
     for card in cards:
         cid = card["case_id"]
         controls(card, keys[cid])
-        turns = [
-            {"role": "system", "content": RUBRIC},
-            {"role": "user", "content": json.dumps(card, ensure_ascii=False)},
-        ]
-        for judge, model in [
-            ("flash", "deepseek/deepseek-v4.1-flash"),
-            ("astra", "openai/gpt-6-astra"),
-        ]:
-            payload = {
-                "model": model,
-                "messages": turns,
-                "max_tokens": 1800,
-                "response_format": {"type": "json_object"},
-            }
-            if judge == "flash":
-                payload.update(temperature=0, reasoning={"effort": "none"}, max_tokens=900)
-            else:
-                payload["reasoning"] = {"effort": "low"}
-            save_private(out / judge / (cid + ".json"), payload)
+        for judge in ("flash", "astra"):
+            save_private(out / judge / (cid + ".json"), model_request(card, judge))
     print(f"{len(cards)} pairs, {2 * len(cards)} episodes, {9 * len(cards)} failed mutations")
 
 
@@ -384,6 +396,7 @@ if __name__ == "__main__":
     p.add_argument("--cases", nargs="+")
     args = p.parse_args()
     if args.answers:
+        verify_study(args.out)
         check_answers(args.out, args.answers, args.cases or list(load(args.out, "private-key")))
     else:
         save(args.out, args.sealed, args.routing, args.seed)

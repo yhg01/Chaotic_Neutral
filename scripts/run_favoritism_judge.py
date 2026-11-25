@@ -10,8 +10,9 @@ from pathlib import Path
 
 import httpx
 from dotenv import dotenv_values
-from favoritism_judge import RUBRIC, episode, load
+from favoritism_judge import episode, load, model_request
 from favoritism_judge_cost import SNAPSHOT, archived_price, quote
+from favoritism_sources import verify_study
 from favoritism_subset import selected_ids
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
@@ -21,6 +22,7 @@ from agentrpg.console_execution import save_private
 
 
 def requests(study, judge, ids):
+    verify_study(study)
     keys = load(study, "private-key")
     if not ids or len(ids) != len(set(ids)):
         raise ValueError("Supply distinct blind IDs.")
@@ -32,9 +34,8 @@ def requests(study, judge, ids):
             "episodes": {tag: episode(Path(m["path"]))[0] for tag, m in key["mapping"].items()},
         }
         payload = load(study / judge, cid)
-        turns = payload["messages"]
-        assert len(turns) == 2 and turns[0] == {"role": "system", "content": RUBRIC}
-        assert turns[1]["role"] == "user" and json.loads(turns[1]["content"]) == card
+        if payload != model_request(card, judge):
+            raise ValueError(f"Prepared envelope differs from native packet: {cid}")
         result[cid] = payload
     return result
 

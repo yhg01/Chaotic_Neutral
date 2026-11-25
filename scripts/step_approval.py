@@ -28,7 +28,7 @@ def describe(judge, provider, ids, payloads, cost, reserve, count, kind, **detai
         "maximum_reservation_usd": str(reserve),
         "campaign_balance_usd": balance["remaining_usd"],
         "saved_ledger": str(LEDGER),
-        "payload_sha256": digest([kind, judge, list(ids), payloads]),
+        "payload_sha256": digest(payloads),
         "individual_sha256": [digest(p) for p in payloads],
         **details,
     }

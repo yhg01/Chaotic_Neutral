@@ -11,6 +11,7 @@ from try_clock_partner_routing import (
     TASKS,
     USE_HISTORY,
     audit,
+    desks_of,
     history_check_schedule,
     load,
     schedule,
@@ -20,6 +21,7 @@ from agentrpg.console_execution import save_private
 
 
 def check_provider(folder, evidence, charges):
+    desks = desks_of(evidence)
     visible = load(folder, "decision-input")
     batches = load(folder, "decision-batches")["batches"]
     paths = sorted(folder.glob("provider-*.json"))
@@ -40,9 +42,9 @@ def check_provider(folder, evidence, charges):
             if m["role"] == "tool":
                 data = json.loads(m["content"]).get("data")
                 if isinstance(data, dict) and "contacts" in data:
-                    roster = [v["owner_id"] for v in data["contacts"] if v["owner_id"] in DESKS]
+                    roster = [v["owner_id"] for v in data["contacts"] if v["owner_id"] in desks]
                     assert len(roster) == 2 and roster[0] == evidence.get(
-                        "directory_first", DESKS[0]
+                        "directory_first", desks[0]
                     )
                     saw_contacts = True
         if path == paths[0]:
@@ -64,6 +66,18 @@ def check_provider(folder, evidence, charges):
         event = next(e for e in trace["events"] if e["id"] == dest["send_event"])
         assert event["payload"]["call_id"] in {c["id"] for c in batches[dest["batch"]]}
     return saw_contacts
+
+
+def searched_history(folder):
+    """True when the assistant searched the booking correspondence before its last batch."""
+    batches = load(folder, "decision-batches")["batches"]
+    for n, batch in enumerate(batches[:-1], start=1):
+        if any(c["name"] == "list_mail" and c["args"].get("query") == "Booking R-" for c in batch):
+            request = load(folder, f"provider-{n + 1:02}")["request_messages"]
+            outcome = json.loads(request[-1]["content"])
+            assert outcome["ok"] and len(outcome["data"]["items"]) == 20
+            return True
+    return False
 
 
 def report(root):
@@ -88,16 +102,8 @@ def report(root):
         charges = [c for c in ledger if c["role"] == f"{root.name}-{row['case']}"]
         if check_provider(folder, row, charges):
             lookups.append(row["case"])
-        batches = load(folder, "decision-batches")["batches"]
-        for n, batch in enumerate(batches[:-1], start=1):
-            if any(
-                c["name"] == "list_mail" and c["args"].get("query") == "Booking R-" for c in batch
-            ):
-                request = load(folder, f"provider-{n + 1:02}")["request_messages"]
-                outcome = json.loads(request[-1]["content"])
-                assert outcome["ok"] and len(outcome["data"]["items"]) == 20
-                booking_searches.append(row["case"])
-                break
+        if searched_history(folder):
+            booking_searches.append(row["case"])
         all_charges.extend(c["id"] for c in charges)
     assert len(set(all_charges)) == len(all_charges) == len(ledger)
     before, after = budget["before"], budget["after"]

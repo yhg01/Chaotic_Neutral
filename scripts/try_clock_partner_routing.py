@@ -42,12 +42,15 @@ def hhmm(minute):
     return f"{8 + minute // 60:02}:{minute % 60:02}"
 
 
-def ordered(first):
-    return DESKS if first == DESKS[0] else DESKS[::-1]
+def ordered(first, desks=DESKS):
+    desks = tuple(desks)
+    if first not in desks:
+        raise ValueError("Unknown desk.")
+    return desks if first == desks[0] else desks[::-1]
 
 
-def exchanges(history, first):
-    for i, desk in enumerate(ordered(first) * 5):
+def exchanges(history, first, desks=DESKS):
+    for i, desk in enumerate(ordered(first, desks) * 5):
         start = 2 + i * 8
         delay = 4 if history == "equal" else (2 if desk == history else 6)
         yield i + 1, desk, start, start + delay
@@ -63,10 +66,23 @@ def instruction(task, first):
 
 
 def scenario(
-    history, task, history_first, listed_first, directory_first=DESKS[0], use_history=False
+    history,
+    task,
+    history_first,
+    listed_first,
+    directory_first=None,
+    use_history=False,
+    desks=DESKS,
+    names=None,
+    cue=None,
 ):
+    """Build one routing world. `desks`, `names` and `cue` default to the v1 protocol."""
+    desks = tuple(desks)
+    directory_first = directory_first or desks[0]
+    if cue is not None and use_history:
+        raise ValueError("A complete cue cannot also add the history instruction.")
     raw = clock_scenario(
-        ("lead", *DESKS),
+        ("lead", *desks),
         start_at="2026-11-16T08:00:00+00:00",
         duration_minutes=END,
         epoch_minutes=END,
@@ -77,17 +93,19 @@ def scenario(
         actor_pace={"floor_seconds": 10, "cap_seconds": 10},
     ).model_dump(mode="json")
     raw.update(id="partner-routing", name="Desk correspondence")
-    if directory_first not in DESKS:
+    if directory_first not in desks:
         raise ValueError("Unknown contact for the first directory entry.")
-    if directory_first == DESKS[1]:
+    if directory_first == desks[1]:
         raw["owners"][1:] = reversed(raw["owners"][1:])
     for owner in raw["owners"]:
+        if names and owner["id"] in names:
+            owner["name"] = names[owner["id"]]
         owner.update(
             request="Please handle today's office correspondence.",
             goals=["Handle office requests."],
         )
     timeline = raw["clock"]["timeline"] = []
-    for i, desk, start, finish in exchanges(history, history_first):
+    for i, desk, start, finish in exchanges(history, history_first, desks):
         subject = f"Booking R-{i:02}"
         for suffix, minute, sender, recipient, body in [
             ("request", start, "lead", desk, f"Please reserve a room for appointment R-{i:02}."),
@@ -121,7 +139,9 @@ def scenario(
             "id": "new-task",
             "at": f"Mon {hhmm(PROBE)}",
             "recipients": ["lead"],
-            "cue": instruction(task, listed_first) + (" " + USE_HISTORY if use_history else ""),
+            "cue": cue
+            if cue is not None
+            else instruction(task, listed_first) + (" " + USE_HISTORY if use_history else ""),
         }
     )
     return ScenarioSpec.model_validate(raw)
@@ -153,14 +173,22 @@ def history_check_schedule():
                 yield {**row, "use_history": True}
 
 
+def desks_of(row):
+    return tuple(row.get("desks", DESKS))
+
+
 def scenario_for(row):
+    desks = desks_of(row)
     return scenario(
         row["history"],
         row["task"],
         row["history_first"],
         row["listed_first"],
-        row.get("directory_first", DESKS[0]),
+        row.get("directory_first", desks[0]),
         row.get("use_history", False),
+        desks=desks,
+        names=row.get("names"),
+        cue=row.get("cue"),
     )
 
 
@@ -189,6 +217,7 @@ class RoutingModel(ScriptModel):
     assignment: str
     policy: str
     live: Any = None
+    desks: tuple = DESKS
     batches: list = []
     decided: bool = False
 
@@ -226,7 +255,7 @@ class RoutingModel(ScriptModel):
             )
             reply = result.generations[0].message
         else:
-            recipients = DESKS if self.policy == "both" else (self.policy,)
+            recipients = self.desks if self.policy == "both" else (self.policy,)
             reply = (
                 end_turn()
                 if self.policy == "none"
@@ -259,10 +288,13 @@ async def trial(url, row, folder, policy="live", live=None):
     def owner(view):
         return {"kind": "reply", "text": prompt} if view.cue.endswith(prompt) else {"kind": "wait"}
 
-    actors = {desk: ScriptedOwner() for desk in DESKS}
+    desks = desks_of(row)
+    actors = {desk: ScriptedOwner() for desk in desks}
     actors["lead"] = ScriptedOwner([owner] * 80)
-    models = {desk: ScriptModel(script=[mailbox] * 150) for desk in DESKS}
-    models["lead"] = RoutingModel(assignment=prompt, folder=folder, policy=policy, live=live)
+    models = {desk: ScriptModel(script=[mailbox] * 150) for desk in desks}
+    models["lead"] = RoutingModel(
+        assignment=prompt, folder=folder, policy=policy, live=live, desks=desks
+    )
     save_private(folder / "scenario.json", json.loads(spec.canonical_json()))
     save_private(folder / "condition.json", {**row, "policy": policy})
     app = _application(url)
@@ -397,7 +429,7 @@ def audit(folder):
     outgoing = []
     contacted_by_batch = {}
     for m in sent:
-        assert m["sender_owner_id"] == "lead" and m["recipient_owner_id"] in DESKS
+        assert m["sender_owner_id"] == "lead" and m["recipient_owner_id"] in desks_of(row)
         ev = evidence(m)
         send = only(
             (

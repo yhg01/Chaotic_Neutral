@@ -1,4 +1,8 @@
-"""Run the matched routing pilot using the existing native DeepSeek campaign adapter."""
+"""Run the matched routing pilot using the existing native DeepSeek campaign adapter.
+
+Without `--phase` this reproduces the v1 protocol (temperature 0). With `--phase`
+it runs one phase of the v2 plan in docs/PARTNER_ROUTING_V2_PLAN.md.
+"""
 
 import argparse
 import asyncio
@@ -10,6 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import httpx
+import try_clock_partner_routing_v2 as v2
 from dotenv import dotenv_values
 from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
@@ -29,13 +34,15 @@ from agentrpg.console_execution import save_private
 from agentrpg.migrate import migrate
 
 
-async def run(adapters, out, preflight, control_dir, directory_first, history_check):
+async def run(adapters, out, preflight, control_dir, directory_first, history_check, phase=None):
     # Use the installed campaign's ledger and tariff adapter, including its uncertain reserves.
     sys.path.insert(0, str(adapters.resolve()))
     from clock_group_buy_live import CAMPAIGN, CEILING, ROOT, bind_models, load_main_budget
     from clock_group_buy_native import CNY_PER_USD, DEEPSEEK, MODEL, NativeDeepSeek, native_price
 
     tokens, call_cap = 900, 6
+    temperature = 0 if phase is None else v2.TEMPERATURE
+    desks = DESKS if phase is None else v2.DESKS
     budget = load_main_budget()
     price = native_price(budget)
     reserve = price.maximum(price.context_length, tokens)
@@ -70,7 +77,7 @@ async def run(adapters, out, preflight, control_dir, directory_first, history_ch
         async def handle_async_request(self, request):
             self.count += 1
             payload = json.loads(await request.aread())
-            assert payload["temperature"] == 0
+            assert payload["temperature"] == temperature
             response = await super().handle_async_request(request)
             record = {"http_status": response.status_code, "request_messages": payload["messages"]}
             if response.is_success:
@@ -90,18 +97,39 @@ async def run(adapters, out, preflight, control_dir, directory_first, history_ch
             f"maximum single reservation USD {reserve}",
             flush=True,
         )
+        if phase is not None:
+            # Refuse a phase that may stop partway at the reservation guard.
+            need = v2.phase_cost(phase)
+            left = Decimal(str(before["remaining_usd"])) - need
+            print(f"Phase {phase} estimate USD {need}; after it USD {left}", flush=True)
+            assert left >= Decimal(str(reserve)), "Phase does not fit above the reservation."
         if preflight:
             return
         controls = load(control_dir, "results")
-        assert {r["first"] for r in controls} == {"desk-a", "desk-b", "both", "none"}
+        assert {r["first"] for r in controls} == {*desks, "both", "none"}
         for control in controls:
-            assert control.get("directory_first", DESKS[0]) == directory_first
+            assert control.get("version", 1) == (1 if phase is None else 2)
+            if phase is None:
+                assert control.get("directory_first", DESKS[0]) == directory_first
             assert audit(control_dir / control["policy"]) == control
         out.mkdir(mode=0o700, parents=True, exist_ok=False)
-        plan = list(history_check_schedule() if history_check else schedule(directory_first))
+        if phase is not None:
+            plan = list(v2.schedule(phase))
+        else:
+            plan = list(history_check_schedule() if history_check else schedule(directory_first))
         scripts = [
             Path(__file__),
             Path(__file__).with_name("try_clock_partner_routing.py"),
+            *(
+                [Path(__file__).with_name("try_clock_partner_routing_v2.py")]
+                if phase is not None
+                else []
+            ),
+            *(
+                [Path(__file__).parents[1] / "docs" / "PARTNER_ROUTING_V2_PLAN.md"]
+                if phase is not None
+                else []
+            ),
             adapters / "clock_group_buy_live.py",
             adapters / "clock_group_buy_native.py",
         ]
@@ -112,7 +140,9 @@ async def run(adapters, out, preflight, control_dir, directory_first, history_ch
             "tariff": price.snapshot(),
             "maximum_per_request_usd": reserve,
             "model": MODEL,
-            "temperature": 0,
+            "temperature": temperature,
+            "version": 1 if phase is None else 2,
+            "phase": phase,
             "thinking": "disabled",
             "judge": None,
             "tokens": tokens,
@@ -156,6 +186,7 @@ async def run(adapters, out, preflight, control_dir, directory_first, history_ch
                         call_cap,
                         role,
                     )
+                    model.temperature = temperature
                     transport = model._budget_clients[1]._transport
                     await transport.transport.aclose()
                     transport.transport = Recorded(folder)
@@ -196,9 +227,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--history-check", action="store_true", help="eight matched instructed choices"
     )
+    parser.add_argument("--phase", type=int, choices=sorted(v2.PHASES), help="v2 plan phase")
     args = parser.parse_args()
     if args.out and not args.controls:
         parser.error("--out requires --controls with verified free controls")
+    if args.phase is not None and (args.history_check or args.directory_first != DESKS[0]):
+        parser.error("--phase cannot be combined with v1 options")
     os.umask(0o077)
     asyncio.run(
         run(
@@ -208,5 +242,6 @@ if __name__ == "__main__":
             args.controls,
             args.directory_first,
             args.history_check,
+            args.phase,
         )
     )

@@ -295,98 +295,102 @@ OPERATOR_AUTH = Annotated[Principal, Depends(authenticate_operator)]
 async def write_message(
     pool, principal: Principal, cluster_id: UUID, payload, parent_id: UUID | None
 ) -> tuple[dict, bool]:
+    async with pool.connection() as connection:
+        return await write_message_in_transaction(
+            connection, principal, cluster_id, payload, parent_id
+        )
+
+
+async def write_message_in_transaction(connection, principal, cluster_id, payload, parent_id):
     author = require_agent(principal)
     title = getattr(payload, "title", None)
     replay = False
-    async with pool.connection() as connection:
-        await require_cluster(connection, principal, cluster_id)
-        recipients = getattr(payload, "to", None)
-        audience = (
-            None
-            if recipients is None
-            else await resolve_audience(connection, cluster_id, author["id"], recipients)
-        )
-        payload_hash = payload_digest(parent_id, title, payload.body, audience)
-        existing = await one(
-            connection,
-            "SELECT id, payload_hash FROM messages WHERE author_id = %s AND request_id = %s",
-            (author["id"], payload.request_id),
-        )
-        run = await one(
-            connection,
-            "SELECT id,current_window,status FROM environment_runs WHERE cluster_id=%s FOR SHARE",
-            (cluster_id,),
-        )
-        if existing is None:
-            if run is not None and run["status"] != "running":
-                raise HTTPException(409, "The environment run is not running.")
-            if parent_id is not None:
-                root = await one(
-                    connection,
-                    "SELECT id, author_id, audience FROM messages "
-                    "WHERE cluster_id = %s AND id = %s AND is_root",
-                    (cluster_id, parent_id),
-                )
-                if root is None or not can_see(root, author["id"]):
-                    raise HTTPException(404, "Thread not found.")
-            inserted = await one(
+    await require_cluster(connection, principal, cluster_id)
+    recipients = getattr(payload, "to", None)
+    audience = (
+        None
+        if recipients is None
+        else await resolve_audience(connection, cluster_id, author["id"], recipients)
+    )
+    payload_hash = payload_digest(parent_id, title, payload.body, audience)
+    existing = await one(
+        connection,
+        "SELECT id, payload_hash FROM messages WHERE author_id = %s AND request_id = %s",
+        (author["id"], payload.request_id),
+    )
+    run = await one(
+        connection,
+        "SELECT id,current_window,status FROM environment_runs WHERE cluster_id=%s FOR SHARE",
+        (cluster_id,),
+    )
+    if existing is None:
+        if run is not None and run["status"] != "running":
+            raise HTTPException(409, "The environment run is not running.")
+        if parent_id is not None:
+            root = await one(
                 connection,
-                """INSERT INTO messages
-                   (id, cluster_id, author_id, parent_id, title, body, request_id, payload_hash,
-                    audience)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (author_id, request_id) DO NOTHING RETURNING id""",
-                (
-                    uuid4(),
-                    cluster_id,
-                    author["id"],
-                    parent_id,
-                    title,
-                    payload.body,
-                    payload.request_id,
-                    payload_hash,
-                    audience,
-                ),
+                "SELECT id, author_id, audience FROM messages "
+                "WHERE cluster_id = %s AND id = %s AND is_root",
+                (cluster_id, parent_id),
             )
-            if inserted is None:
-                # A separate statement gets a new READ COMMITTED snapshot after
-                # a concurrent insert with this operation ID has committed.
-                existing = await one(
-                    connection,
-                    "SELECT id, payload_hash FROM messages "
-                    "WHERE author_id = %s AND request_id = %s",
-                    (author["id"], payload.request_id),
-                )
-            else:
-                message_id = inserted["id"]
-        if existing is not None:
-            if existing["payload_hash"] != payload_hash:
-                raise HTTPException(409, "The request ID was already used for a different write.")
-            message_id = existing["id"]
-            replay = True
-        result = await one(connection, MESSAGE_SELECT + " WHERE m.id = %s", (message_id,))
-        await add_participants(connection, [result])
-        # Shared run locks allow concurrent posts and fence a clock/stop change.
-        # The message and its durable notification commit in this same transaction.
-        from agentrpg.director import emit
+            if root is None or not can_see(root, author["id"]):
+                raise HTTPException(404, "Thread not found.")
+        inserted = await one(
+            connection,
+            """INSERT INTO messages
+               (id, cluster_id, author_id, parent_id, title, body, request_id, payload_hash,
+                audience)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT (author_id, request_id) DO NOTHING RETURNING id""",
+            (
+                uuid4(),
+                cluster_id,
+                author["id"],
+                parent_id,
+                title,
+                payload.body,
+                payload.request_id,
+                payload_hash,
+                audience,
+            ),
+        )
+        if inserted is None:
+            # A separate statement gets a new READ COMMITTED snapshot after
+            # a concurrent insert with this operation ID has committed.
+            existing = await one(
+                connection,
+                "SELECT id, payload_hash FROM messages WHERE author_id = %s AND request_id = %s",
+                (author["id"], payload.request_id),
+            )
+        else:
+            message_id = inserted["id"]
+    if existing is not None:
+        if existing["payload_hash"] != payload_hash:
+            raise HTTPException(409, "The request ID was already used for a different write.")
+        message_id = existing["id"]
+        replay = True
+    result = await one(connection, MESSAGE_SELECT + " WHERE m.id = %s", (message_id,))
+    await add_participants(connection, [result])
+    # Shared run locks allow concurrent posts and fence a clock/stop change.
+    # The message and its durable notification commit in this same transaction.
+    from agentrpg.director import emit
 
-        if run is not None:
-            # This event is run data, so it never holds a body or a direct thread's subject.
-            await emit(
-                connection,
-                run["id"],
-                "board_posted",
-                run["current_window"],
-                {
-                    "message_id": str(message_id),
-                    "thread_id": str(result["thread_id"]),
-                    "author_id": str(author["id"]),
-                    "title": None if result["audience"] is not None else result["title"],
-                    "audience": event_audience(result),
-                },
-                f"board:{message_id}",
-            )
-    # Exiting the connection context commits before the route reports success.
+    if run is not None:
+        # This event is run data, so it never holds a body or a direct thread's subject.
+        await emit(
+            connection,
+            run["id"],
+            "board_posted",
+            run["current_window"],
+            {
+                "message_id": str(message_id),
+                "thread_id": str(result["thread_id"]),
+                "author_id": str(author["id"]),
+                "title": None if result["audience"] is not None else result["title"],
+                "audience": event_audience(result),
+            },
+            f"board:{message_id}",
+        )
     return message(result), replay
 
 

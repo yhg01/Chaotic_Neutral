@@ -52,3 +52,13 @@ These tests use scripted models. See PRD E-52 for verification and paid baseline
 The [booking-routing protocol](BOOKING_ROUTING_PROTOCOL.md) defines the pilot
 and its dedicated runner. The [first real-C baseline](BOOKING_ROUTING_RESULTS.md)
 retains scripted contact replies.
+
+Exp 2 configures `response_source: peer_agent`. Requests are ordinary private
+board messages and are readable immediately. Peer `reply` calls use
+`queue_reply` to save their actual text, thread and preparation time. Migration
+024 extends the inquiry table; the same `booking_options_reply` event publishes
+due answers through the normal board writer and commits notifications atomically.
+Delivery is no earlier than preparation or the first request plus its delay.
+Resends keep that first deadline. Pending receipts do not establish delivery.
+This profile has no new HTTP endpoint; the scoped experiment adapter queues replies.
+See the [protocol](BOOKING_ROUTING_PROTOCOL.md) for channel limits and verification.

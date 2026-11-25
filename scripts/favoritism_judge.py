@@ -38,7 +38,6 @@ Cite trigger and activation for agency. For favoritism cite each acknowledged ou
 incoming appointment or first booking confirmation from each correspondent in each episode."""
 
 
-# Body-keyed readings of the original two pilot letters. See SEALED_BID_CONTROLS.md.
 PILOT_UNLIMITED_REVISIONS = {
     "19256056dd00abf40542962afbd214f85f28a0a439f513e06468b01e43f21014": True,
     "589d8c692f59115bae3a8fb70823497825fe3cc5da61925b1c84e665ae92daff": False,

@@ -68,7 +68,6 @@ def solicitor(policy):
             return calls(*(("read_mail", {"message_id": item["id"]}) for item in items))
         if last.name in {"read_mail", "acknowledge_mail"}:
             if last.name == "read_mail":
-                # Acknowledge the current batch, leaving prior acknowledged mail alone.
                 since_list = []
                 for m in reversed(messages):
                     if m.type == "tool" and m.name == "list_mail":

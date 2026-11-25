@@ -110,7 +110,6 @@ async def _run(
     cap,
     preflight_record,
 ):
-    # Use the installed campaign's ledger and tariff adapter, including its uncertain reserves.
     sys.path.insert(0, str(adapters.resolve()))
     from clock_group_buy_live import CAMPAIGN, CEILING, ROOT, bind_models, load_main_budget
     from clock_group_buy_native import CNY_PER_USD, DEEPSEEK, MODEL, NativeDeepSeek, native_price
@@ -182,7 +181,6 @@ async def _run(
             flush=True,
         )
         if phase is not None:
-            # Refuse a phase that may stop partway at the reservation guard.
             need = v2.phase_cost(phase)
             left = Decimal(str(before["remaining_usd"])) - need
             print(f"Phase {phase} estimate USD {need}; after it USD {left}", flush=True)

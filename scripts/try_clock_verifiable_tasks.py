@@ -149,7 +149,6 @@ def office_model(filing=None):
 
 
 def exposure(model):
-    # Capture the actual pre-action input, including private mail IDs read in this session.
     for messages in model.all_seen:
         last = messages[-1]
         if last.type != "tool" or last.name != "acknowledge_mail":

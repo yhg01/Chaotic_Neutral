@@ -110,7 +110,6 @@ class Owner:
 
 
 def buyer_policy(messages):
-    # Use the delivered owner instruction and actual tool replies in this wake.
     start, trigger = next(
         (
             (i, m.text)

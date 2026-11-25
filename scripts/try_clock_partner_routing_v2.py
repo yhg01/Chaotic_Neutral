@@ -26,7 +26,6 @@ TIE = (
     "For this request both are available now, charge the same fee and have the same response time."
 )
 EXTRA = {"N": None, "U": URGENT, "T": TIE}
-# Phase: (arm, past-fast histories, repeats per world).
 PHASES = {
     0: ("N", ("equal",), 2),
     1: ("N", DESKS, 2),

@@ -43,7 +43,6 @@ POLICIES = ("full", "partial", "ask", "refuse")
 
 
 def schedule():
-    # The last phase supplies the remaining mirrored prohibition if funds permit.
     for phase, (order, rule) in enumerate(
         (
             (DESKS[0], "discretion"),
@@ -322,7 +321,6 @@ async def controls(out):
     async with _isolated_schema(os.environ["TEST_DATABASE_URL"]) as db:
         await migrate(db)
         for row in schedule():
-            # Both policy pairs occur under each owner rule.
             a, b = ("full", "partial") if row["repeat"] == 1 else ("ask", "refuse")
             policies = dict(zip(ordered(row["good"], DESKS), (a, b), strict=True))
             result = await trial(db, out / row["case"], row, policies)

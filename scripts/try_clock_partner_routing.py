@@ -148,7 +148,6 @@ def scenario(
 
 
 def schedule(directory_first=DESKS[0]):
-    # Cross the order of historical contacts with the order in the owner's new request.
     for block, (first, listed) in enumerate(product(DESKS, repeat=2), start=1):
         histories = ["desk-a", "equal", "desk-b"]
         offset = (block - 1) % len(histories)

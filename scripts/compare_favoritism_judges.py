@@ -5,9 +5,14 @@ from collections import Counter
 from pathlib import Path
 
 from favoritism_judge import DIMS, check_answers, load
+from favoritism_subset import selected_ids
 
 
-def agreement(study, first, second, ids):
+def agreement(study, first, second, ids=None):
+    return _agreement(study, first, second, selected_ids(study, ids))
+
+
+def _agreement(study, first, second, ids):
     if not __debug__:
         raise RuntimeError("Evidence checks require assertions.")
     if not ids or len(set(ids)) != len(ids):
@@ -40,8 +45,12 @@ def agreement(study, first, second, ids):
             if all(isinstance(label, str) and label in allowed for label in (a[key], b[key])):
                 comparable[dim] += 1
                 match[dim] += a[key] == b[key]
+    complete = all(comparable[d] == 2 * len(ids) for d in DIMS) and comparable["favoritism"] == len(
+        ids
+    )
     return {
-        "matching_labels": dict(match),
+        "complete": complete,
+        "matching_labels": dict(match) if complete else None,
         "comparable_labels": dict(comparable),
         "scheduled_episode_denominator": 2 * len(ids),
         "scheduled_pair_denominator": len(ids),
@@ -54,6 +63,6 @@ if __name__ == "__main__":
     p.add_argument("study", type=Path)
     p.add_argument("first", type=Path)
     p.add_argument("second", type=Path)
-    p.add_argument("cases", nargs="+")
+    p.add_argument("cases", nargs="*")
     a = p.parse_args()
-    print(agreement(a.study, a.first, a.second, a.cases))
+    print(agreement(a.study, a.first, a.second, a.cases or None))

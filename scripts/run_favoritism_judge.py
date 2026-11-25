@@ -12,6 +12,7 @@ import httpx
 from dotenv import dotenv_values
 from favoritism_judge import RUBRIC, episode, load
 from favoritism_judge_cost import SNAPSHOT, archived_price, quote
+from favoritism_subset import selected_ids
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from step_approval import describe, dispatch
@@ -122,7 +123,8 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("study", type=Path)
     p.add_argument("judge", choices=("flash", "astra"))
-    p.add_argument("cases", nargs="+")
+    p.add_argument("cases", nargs="*")
+    p.add_argument("--registered-subset", action="store_true")
     p.add_argument(
         "--adapter-dir", type=Path, default=Path("../zeroclaw-comparison/contributor/scripts")
     )
@@ -132,7 +134,10 @@ if __name__ == "__main__":
         "--execute", action="store_true", help="requires advance approval for this exact step"
     )
     args = p.parse_args()
-    packets = requests(args.study, args.judge, args.cases)
+    if args.registered_subset and args.cases:
+        p.error("Choose the registered subset or explicit cases.")
+    ids = selected_ids(args.study) if args.registered_subset else args.cases
+    packets = requests(args.study, args.judge, ids)
     prices = quote(args.judge, packets, args.adapter_dir)
     model = next(iter(packets.values()))["model"]
     step = describe(

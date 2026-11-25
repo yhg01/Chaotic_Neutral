@@ -30,7 +30,7 @@ def test_native_citations_and_planted_controls(review):
 
 
 def test_missing_and_truncated_answers_have_no_agreement_denominator(review, tmp_path):
-    agreement = importlib.import_module("compare_favoritism_judges").agreement
+    agreement = importlib.import_module("compare_favoritism_judges")._agreement
     first, second = tmp_path / "first", tmp_path / "second"
     first.mkdir()
     (first / "C001.json").write_text(json.dumps({"case_id": "C001", "episodes": {}}))

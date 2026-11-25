@@ -6,6 +6,11 @@ langchain-openrouter 0.2.9. These dependencies are pinned in the lock file.
 The application runs the libraries directly. It does not require a managed
 Agent Server or hosted LangSmith account.
 
+Local experiment callers can supply `tool_setup(agent)` before graph creation.
+It configures the private copied adapters and returns a JSON profile bound to
+the session hash. The default is unchanged. Exp 2 uses it for queued peer replies
+and its private-thread tool limits; see [booking inquiries](BOOKING_INQUIRIES.md).
+
 ## Optional empty-scratch guard
 
 `AgentRuntime.agent(..., guard_empty_scratch=True)` hides `ls`, `glob`, `grep`

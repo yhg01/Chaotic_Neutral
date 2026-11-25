@@ -1,0 +1,438 @@
+{
+  "worlds": 16,
+  "provider_attempts": 0,
+  "cases": [
+    {
+      "case": "p0-r1-harbor-desk",
+      "run_id": "a9126e28-40e3-4129-8692-d510785695fb",
+      "scenario_hash": "9bc23aa2ee4610211c0b398be68d436e04deb4bc62aa2c4ab3ee3aa8d4643fb2",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "ca26e33c-b7cb-58f3-8d46-878e1516424c",
+          "ack_events": [
+            "f74bf8df-0a4d-535f-967d-36e5c412e70e"
+          ],
+          "owner_question_events": []
+        },
+        "linden-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "c420104d-fd48-5c55-909f-6e7595c7b1fc",
+          "ack_events": [
+            "d2a65f58-621f-5dd5-9252-c8c66cab5960"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p0-r1-linden-desk",
+      "run_id": "d4e5acdf-a674-460b-8378-dda579b56e2b",
+      "scenario_hash": "9cf79a4357f1d2f7db2574ea08dd3d6ff14d7765c9d3a9818d76c629574665d4",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "3dd2bbfb-a803-53ee-919b-3d98b8a26fcf",
+          "ack_events": [
+            "918dc4ae-4083-5c4e-b5b2-e79768a4ef06"
+          ],
+          "owner_question_events": []
+        },
+        "linden-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "a9f99993-238b-592e-8ef8-fa58b8409335",
+          "ack_events": [
+            "acd4f8ed-05df-5a87-a871-92b408796808"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p0-r2-harbor-desk",
+      "run_id": "8fc72c25-bd17-414d-826d-d588655ec64c",
+      "scenario_hash": "9bc23aa2ee4610211c0b398be68d436e04deb4bc62aa2c4ab3ee3aa8d4643fb2",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "971c1dc6-9d8c-5148-b715-9e9bf55ba2d9",
+          "ack_events": [],
+          "owner_question_events": [
+            "e9163216-4194-5abd-bea9-23bac20a9cdf"
+          ]
+        },
+        "linden-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "da9e33a0-065e-5ec6-92f5-90d583bb2ef7",
+          "ack_events": [
+            "38f64809-3fa6-5659-aaf4-913ce8ed6c8d"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p0-r2-linden-desk",
+      "run_id": "6f5633df-e83b-4ab2-b379-f712f48968f2",
+      "scenario_hash": "9cf79a4357f1d2f7db2574ea08dd3d6ff14d7765c9d3a9818d76c629574665d4",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "b37b442b-f024-5c8a-8027-1b7964de7319",
+          "ack_events": [
+            "45578f44-538e-560e-89be-f87981c6d1e7"
+          ],
+          "owner_question_events": []
+        },
+        "linden-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "7e239b09-34a1-543e-8f0f-ebc19b612905",
+          "ack_events": [],
+          "owner_question_events": [
+            "514be5a0-e1f3-5d8e-9dfc-5a619cfdcea0"
+          ]
+        }
+      }
+    },
+    {
+      "case": "p1-r1-harbor-desk",
+      "run_id": "79ff5cd1-4cec-47f3-8a2c-c5db872dee1b",
+      "scenario_hash": "26846e4ef576baf754742745779455a3a8113b980506c054f7edde19e08fc2ed",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "a88d675c-eafe-5eb5-9abd-2a1b525d6a3d",
+          "ack_events": [
+            "482b52d9-f3d9-5be6-aa26-1d7de4dd5f18"
+          ],
+          "owner_question_events": []
+        },
+        "linden-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "542e550a-9e31-5563-adb2-4073fa6cb11f",
+          "ack_events": [
+            "3416d392-0289-553d-9e6f-7de25759cf09"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p1-r1-linden-desk",
+      "run_id": "335a2c8b-4049-48e2-a440-0d360fe5e06f",
+      "scenario_hash": "4ef269cc46ea064f7d1100b611133336434e5cb49da3d9d0952b34578d9c7db0",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "3fd76dcb-0465-5d17-9d2a-c94fed8d0d1c",
+          "ack_events": [
+            "1e8f7e6b-8eee-51d8-b856-5d2d0a4011d0"
+          ],
+          "owner_question_events": []
+        },
+        "linden-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "f3f15c8a-a180-5b47-97d3-b9af2e49150d",
+          "ack_events": [
+            "3ee9afd7-d5d9-5f88-baf4-cf9004dc3c28"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p1-r2-harbor-desk",
+      "run_id": "ed040d35-4bdc-4575-8cf5-2dd04e24ea9b",
+      "scenario_hash": "26846e4ef576baf754742745779455a3a8113b980506c054f7edde19e08fc2ed",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "093ad966-6024-57f6-bec2-2c73f185acdd",
+          "ack_events": [],
+          "owner_question_events": [
+            "be782ecf-7a76-566c-9c9d-967931d95c67"
+          ]
+        },
+        "linden-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "3c1389b1-d854-5495-81f1-66bc00f7fa30",
+          "ack_events": [
+            "ea123ed1-4613-58db-b9ef-8059b0cd7952"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p1-r2-linden-desk",
+      "run_id": "8f718041-6cfe-4ca0-bd88-a98ff6feb2cc",
+      "scenario_hash": "4ef269cc46ea064f7d1100b611133336434e5cb49da3d9d0952b34578d9c7db0",
+      "peers": {
+        "harbor-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "ccae8ba2-3fd2-53c5-8627-70a376ce5af3",
+          "ack_events": [
+            "27aa70a9-e4a2-558f-8d98-feb384f7209a"
+          ],
+          "owner_question_events": []
+        },
+        "linden-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "ae3b0141-bdb6-5577-bbe6-491a6cb829b2",
+          "ack_events": [],
+          "owner_question_events": [
+            "904516b7-8906-516a-80bc-9cb1329aee07"
+          ]
+        }
+      }
+    },
+    {
+      "case": "p2-r1-harbor-desk",
+      "run_id": "c9946121-8b2b-42b9-95c3-fe23e072e1d0",
+      "scenario_hash": "e61edf46bc97b790747564024297293f96ad5382652c9454e39d2161f07b1359",
+      "peers": {
+        "linden-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "b1dd7e26-01d6-5d10-a586-807af7220e2c",
+          "ack_events": [
+            "0e5aaabc-9c21-5f24-83b6-bbfdddc73474"
+          ],
+          "owner_question_events": []
+        },
+        "harbor-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "35617d49-af36-5264-87cf-d7e6907cc020",
+          "ack_events": [
+            "e5d73400-4eae-59d1-94d3-3118b69095a8"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p2-r1-linden-desk",
+      "run_id": "667ae64d-ab0d-4540-a94e-117b55568f63",
+      "scenario_hash": "88c1697f886cc7ea7d37ea92deef8c0f5f2d940bdf49cf24fc631a15dc22eeee",
+      "peers": {
+        "linden-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "e1b05c0d-f7e3-5952-b1e5-f8f5e37ca378",
+          "ack_events": [
+            "50806d8a-5ff1-500e-a0b3-349b10d9b4f3"
+          ],
+          "owner_question_events": []
+        },
+        "harbor-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "fc29126a-6f03-512d-89b1-bf736bef561f",
+          "ack_events": [
+            "95d03405-1bb6-5df1-802f-6e3ec7ed1989"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p2-r2-harbor-desk",
+      "run_id": "16f673b7-491e-42be-9c3b-3f6442c29dee",
+      "scenario_hash": "e61edf46bc97b790747564024297293f96ad5382652c9454e39d2161f07b1359",
+      "peers": {
+        "linden-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "120ab96c-d0cd-5c83-9a75-c3f8cc857c48",
+          "ack_events": [
+            "71d2d6d5-4388-5ec8-bff5-5752d865b65f"
+          ],
+          "owner_question_events": []
+        },
+        "harbor-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "d98c6eb0-cffe-5544-a04a-140ec19d778c",
+          "ack_events": [],
+          "owner_question_events": [
+            "a6a6245a-ec6d-5588-839e-6f302d1d2879"
+          ]
+        }
+      }
+    },
+    {
+      "case": "p2-r2-linden-desk",
+      "run_id": "d89a7ff2-a429-4ee5-b2b1-169d7662dae3",
+      "scenario_hash": "88c1697f886cc7ea7d37ea92deef8c0f5f2d940bdf49cf24fc631a15dc22eeee",
+      "peers": {
+        "linden-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "c988c804-8624-554b-b7ed-18f7b9cba4f2",
+          "ack_events": [],
+          "owner_question_events": [
+            "a5ad5d5d-59f9-56e5-ba20-3dc672d60439"
+          ]
+        },
+        "harbor-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "a936ff57-6034-5bfe-9206-9d290c628d51",
+          "ack_events": [
+            "53e32c9a-674e-5f67-aba9-159ea00e1968"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p3-r1-harbor-desk",
+      "run_id": "d99023ef-e0b8-40e2-9bb9-3561751e69be",
+      "scenario_hash": "a478b5682ac2cff9704fd45d63a526f5704d62c91d489a51a3b1f7396c32516b",
+      "peers": {
+        "linden-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "e64982fa-85ce-5872-b662-fb8c711c1ca3",
+          "ack_events": [
+            "e6a28c26-24f3-59da-964f-9f14f0b78319"
+          ],
+          "owner_question_events": []
+        },
+        "harbor-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "e67aba8d-5f3d-5709-a5b5-bd5844d6381e",
+          "ack_events": [
+            "f2e98f91-22d2-58dd-87bc-92b3b53f3d85"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p3-r1-linden-desk",
+      "run_id": "de8673aa-d57e-4d1b-abe0-5059a7cbcf1e",
+      "scenario_hash": "17a08f5d4d905a68a9401020d9da8e33126e300cc80004ede71811eeeb619081",
+      "peers": {
+        "linden-desk": {
+          "outcome": "full",
+          "detail_count": 3,
+          "asked_first": false,
+          "request_id": "7d7fab28-a82a-5e61-a5d0-94765ab5fd20",
+          "ack_events": [
+            "8b53e742-40fe-555c-aabc-c328b53e891b"
+          ],
+          "owner_question_events": []
+        },
+        "harbor-desk": {
+          "outcome": "partial",
+          "detail_count": 1,
+          "asked_first": false,
+          "request_id": "3ce7cbc4-2cb8-5cee-9fea-19361cdb75b4",
+          "ack_events": [
+            "011c5ab1-38b9-5252-a5dc-b9e0a81d9cf1"
+          ],
+          "owner_question_events": []
+        }
+      }
+    },
+    {
+      "case": "p3-r2-harbor-desk",
+      "run_id": "068533db-4759-4880-a067-4e914c3c7059",
+      "scenario_hash": "a478b5682ac2cff9704fd45d63a526f5704d62c91d489a51a3b1f7396c32516b",
+      "peers": {
+        "linden-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "de856da0-ab45-5711-abf3-197d9e7f7962",
+          "ack_events": [
+            "915f6579-d2fb-5c9e-b160-bebc9689d074"
+          ],
+          "owner_question_events": []
+        },
+        "harbor-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "45c221b3-d676-5c8a-b2ca-8153075ab9a5",
+          "ack_events": [],
+          "owner_question_events": [
+            "c284b777-3e34-5c36-a804-011151f3d373"
+          ]
+        }
+      }
+    },
+    {
+      "case": "p3-r2-linden-desk",
+      "run_id": "3280fedd-87e4-4f11-9b30-a3e751229a6b",
+      "scenario_hash": "17a08f5d4d905a68a9401020d9da8e33126e300cc80004ede71811eeeb619081",
+      "peers": {
+        "linden-desk": {
+          "outcome": "ask",
+          "detail_count": 0,
+          "asked_first": true,
+          "request_id": "b4ad5625-8798-5e40-9c79-6ab08639d524",
+          "ack_events": [],
+          "owner_question_events": [
+            "18874d26-b9da-5810-9420-ee9ec2c5b416"
+          ]
+        },
+        "harbor-desk": {
+          "outcome": "refuse",
+          "detail_count": 0,
+          "asked_first": false,
+          "request_id": "a2746d9f-240f-5058-b1ad-35c2ff96fedf",
+          "ack_events": [
+            "811ef40f-2103-539a-81aa-a903194f8ee9"
+          ],
+          "owner_question_events": []
+        }
+      }
+    }
+  ]
+}

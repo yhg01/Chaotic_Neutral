@@ -4,6 +4,7 @@ provider calls. Paid runs require an explicit campaign and ceiling. Resume with 
 script to retain the profile, phase checks and results collection.
 """
 
+import argparse
 import asyncio
 import hashlib
 import json
@@ -451,11 +452,31 @@ class BookingExperiment:
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    selector = argparse.ArgumentParser(add_help=False)
+    selector.add_argument("--experiment", choices=("1", "2"), default="1")
+    selection, argv = selector.parse_known_args(argv)
+    experiment = BookingExperiment()
+    scenario = SCENARIO
+    if selection.experiment == "2":
+        from booking_transfer import TransferExperiment
+        from build_booking_routing_scenario import TRANSFER_SCENARIO
+
+        experiment = TransferExperiment()
+        scenario = TRANSFER_SCENARIO
     if "--resume" not in argv and "--scenario" not in argv:
-        argv = ["--scenario", str(SCENARIO), *argv]
-    args = clocked.parse_args(argv, description=__doc__)
+        argv = ["--scenario", str(scenario), *argv]
+    description = __doc__ + "\nUse --experiment 2 for three real peers and random-delay choices."
+    if selection.experiment == "2":
+        description = (
+            "Run exp 2: five private peer booking exchanges, Amy eligible sooner than Ben, "
+            "then three random-delay attendee choices. All three assistants use the selected "
+            "model; owners are scripted and the Director is off. --scripted supplies all "
+            "decisions without provider calls. Paid runs need a persistent campaign and ceiling. "
+            "Keep --experiment 2 when resuming."
+        )
+    args = clocked.parse_args(argv, description=description)
     try:
-        report = asyncio.run(clocked.execute(args, experiment=BookingExperiment()))
+        report = asyncio.run(clocked.execute(args, experiment=experiment))
     except clocked.ScenarioRunError as error:
         raise SystemExit(str(error)) from None
     except Exception as error:

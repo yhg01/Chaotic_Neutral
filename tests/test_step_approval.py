@@ -76,3 +76,19 @@ def test_routing_wallet_receipt_matches_the_step_and_current_ledger(gate):
         checked(receipt, {**ledger, "attempts": 2}, "stub", ["r1"])
     with pytest.raises(ValueError, match="different step"):
         checked(receipt, ledger, "stub", ["r2"])
+
+
+def test_latest_saved_balance_ignores_other_campaigns(gate, tmp_path):
+    original = tmp_path / "first" / "budget.json"
+    new = tmp_path / "next" / "preflight-result.json"
+    other = tmp_path / "unrelated" / "budget.json"
+    base = {"id": "test", "limit_usd": "25", "attempts": 1, "remaining_usd": "0.48"}
+    for path, data in (
+        (original, {"after": base}),
+        (new, {"ledger": {**base, "attempts": 2, "remaining_usd": "0.45"}}),
+        (other, {"after": {**base, "id": "different", "attempts": 40}}),
+    ):
+        path.parent.mkdir()
+        path.write_text(json.dumps(data))
+    path, current = gate.latest_snapshot(original)
+    assert path == new and current["remaining_usd"] == "0.45"

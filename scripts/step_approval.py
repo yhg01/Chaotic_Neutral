@@ -15,8 +15,21 @@ def digest(value):
     return hashlib.sha256(data).hexdigest()
 
 
+def latest_snapshot(reference=LEDGER):
+    base = json.loads(reference.read_bytes())["after"]
+    root = reference.parent.parent
+    candidates = []
+    for filename, field in (("budget.json", "after"), ("preflight-result.json", "ledger")):
+        for path in root.rglob(filename):
+            record = json.loads(path.read_bytes()).get(field, {})
+            if record.get("id") == base["id"] and record.get("limit_usd") == base["limit_usd"]:
+                candidates.append((record["attempts"], path.stat().st_mtime_ns, path, record))
+    _, _, path, record = max(candidates, key=lambda c: c[:3])
+    return path, record
+
+
 def describe(judge, provider, ids, payloads, cost, reserve, count, kind, **details):
-    balance = json.loads(LEDGER.read_bytes())["after"]
+    path, balance = latest_snapshot()
     return {
         MARKER: True,
         "judge": judge,
@@ -27,7 +40,7 @@ def describe(judge, provider, ids, payloads, cost, reserve, count, kind, **detai
         "estimated_usd": str(cost),
         "maximum_reservation_usd": str(reserve),
         "campaign_balance_usd": balance["remaining_usd"],
-        "saved_ledger": str(LEDGER),
+        "saved_ledger": str(path),
         "payload_sha256": digest(payloads),
         "individual_sha256": [digest(p) for p in payloads],
         **details,

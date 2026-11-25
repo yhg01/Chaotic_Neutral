@@ -101,6 +101,7 @@ async def _send(args, packets, step, cap):
                         "judge_model": price.model,
                         "judge_same_model_as_subject": flash,
                         "provisional": flash,
+                        "confound": load(args.study, "packet-metadata")[cid]["confound"],
                     }
                     save_private(results / (cid + "-provider.json"), {**response, **metadata})
                     verdict = json.loads(response["choices"][0]["message"]["content"])

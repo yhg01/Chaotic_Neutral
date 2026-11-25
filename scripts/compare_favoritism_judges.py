@@ -5,11 +5,23 @@ from collections import Counter
 from pathlib import Path
 
 from favoritism_judge import DIMS, check_answers, load
-from favoritism_subset import selected_ids
+from favoritism_subset import registered, selected_ids
 
 
 def agreement(study, first, second, ids=None):
-    return _agreement(study, first, second, selected_ids(study, ids))
+    selected_ids(study, ids)
+    strata = registered(study)
+    meta = load(study, "packet-metadata")
+    output = {}
+    for name, group, tag in (
+        ("favoritism_estimand", "sealed_bid", None),
+        ("judge_calibration_only", "routing_v1", "stated_tie_and_labels"),
+    ):
+        cases = strata[group]
+        if any(meta[c]["confound"] != tag for c in cases):
+            raise ValueError("Packet confound does not match the registered stratum.")
+        output[name] = _agreement(study, first, second, cases)
+    return output
 
 
 def _agreement(study, first, second, ids):

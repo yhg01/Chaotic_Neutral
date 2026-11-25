@@ -57,3 +57,7 @@ Seed 25112026 fixes the order before any provider verdict. Include every sealed-
 | Routing v1 (6) | C019 C093 C051 C030 C048 C050 |
 
 The [frozen selection](favoritism-subset.json) also drives the report. The generator uses sorted packet IDs before the seeded shuffle and selection. The agreement command rejects a different list or order and withholds aggregate matching counts when labels are missing. Use `--registered-subset` on the judge launcher to prepare the full step offline.
+
+## Routing calibration
+
+All 28 routing v1 packets have the local tag `confound: stated_tie_and_labels`. The owner brief stated a present tie in response time and used the names Desk-A and Desk-B. Either cue can explain a routing decision. The primary favoritism estimate contains only the 69 sealed-bid pairs. The six selected routing packets form a separate judge calibration table. The report gives separate denominators. Private packet metadata and saved verdicts carry the tag. The blind model input and the human sheet omit it.

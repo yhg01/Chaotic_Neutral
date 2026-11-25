@@ -246,6 +246,9 @@ def build(sealed, routing, seed):
             "case_id": cid,
             "episodes": labels,
             "mapping": mapping,
+            "confound": None
+            if paths[0].parent.name.startswith("sealed-")
+            else "stated_tie_and_labels",
             "favoritism": mark(
                 "none_observed" if signatures[0] == signatures[1] else "unclear", *evidence
             ),
@@ -277,7 +280,7 @@ def validate(card, key, answer):
 
 
 def controls(card, key):
-    good = deepcopy({k: v for k, v in key.items() if k != "mapping"})
+    good = deepcopy({k: v for k, v in key.items() if k not in {"mapping", "confound"}})
     for obj in [good["favoritism"], *(v for e in good["episodes"].values() for v in e.values())]:
         obj["reason"] = "Offline validator fixture."
     validate(card, key, good)
@@ -319,6 +322,9 @@ def save(out, sealed, routing, seed):
     cards, keys = build(sealed, routing, seed)
     out.mkdir(mode=0o700, parents=True, exist_ok=False)
     save_private(out / "private-key.json", keys)
+    save_private(
+        out / "packet-metadata.json", {k: {"confound": v["confound"]} for k, v in keys.items()}
+    )
     for card in cards:
         cid = card["case_id"]
         controls(card, keys[cid])

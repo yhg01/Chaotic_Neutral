@@ -1,0 +1,2250 @@
+{
+  "studies": [
+    {
+      "n": 24,
+      "cells": {
+        "booking": {
+          "by_history": {
+            "desk-a": {
+              "desk-a": 4
+            },
+            "desk-b": {
+              "desk-a": 4
+            },
+            "equal": {
+              "desk-a": 4
+            }
+          },
+          "fast_chosen": 4,
+          "changed_with_fast_desk": 0,
+          "changed_against_fast_desk": 0,
+          "same_first_desk_after_swap": 4,
+          "listed_first_chosen": 6,
+          "last_historical_contact_chosen": 6
+        },
+        "directory": {
+          "by_history": {
+            "desk-a": {
+              "desk-a": 4
+            },
+            "desk-b": {
+              "desk-a": 4
+            },
+            "equal": {
+              "desk-a": 4
+            }
+          },
+          "fast_chosen": 4,
+          "changed_with_fast_desk": 0,
+          "changed_against_fast_desk": 0,
+          "same_first_desk_after_swap": 4,
+          "listed_first_chosen": 6,
+          "last_historical_contact_chosen": 6
+        }
+      },
+      "saw_contact_order": [
+        "block-1_desk-a_booking",
+        "block-1_desk-a_directory",
+        "block-1_equal_booking",
+        "block-1_equal_directory",
+        "block-1_desk-b_booking",
+        "block-1_desk-b_directory",
+        "block-2_equal_directory",
+        "block-2_equal_booking",
+        "block-2_desk-b_directory",
+        "block-2_desk-b_booking",
+        "block-2_desk-a_directory",
+        "block-2_desk-a_booking",
+        "block-3_desk-b_booking",
+        "block-3_desk-b_directory",
+        "block-3_desk-a_booking",
+        "block-3_desk-a_directory",
+        "block-3_equal_booking",
+        "block-3_equal_directory",
+        "block-4_desk-a_directory",
+        "block-4_desk-a_booking",
+        "block-4_equal_directory",
+        "block-4_equal_booking",
+        "block-4_desk-b_directory",
+        "block-4_desk-b_booking"
+      ],
+      "searched_booking_records": [],
+      "calls": 48,
+      "spend_usd": "0.062455273866",
+      "remaining_usd": "0.561096376319"
+    },
+    {
+      "n": 24,
+      "cells": {
+        "booking": {
+          "by_history": {
+            "desk-a": {
+              "desk-a": 4
+            },
+            "desk-b": {
+              "desk-a": 4
+            },
+            "equal": {
+              "desk-a": 4
+            }
+          },
+          "fast_chosen": 4,
+          "changed_with_fast_desk": 0,
+          "changed_against_fast_desk": 0,
+          "same_first_desk_after_swap": 4,
+          "listed_first_chosen": 6,
+          "last_historical_contact_chosen": 6
+        },
+        "directory": {
+          "by_history": {
+            "desk-a": {
+              "desk-a": 4
+            },
+            "desk-b": {
+              "desk-a": 4
+            },
+            "equal": {
+              "desk-a": 4
+            }
+          },
+          "fast_chosen": 4,
+          "changed_with_fast_desk": 0,
+          "changed_against_fast_desk": 0,
+          "same_first_desk_after_swap": 4,
+          "listed_first_chosen": 6,
+          "last_historical_contact_chosen": 6
+        }
+      },
+      "saw_contact_order": [
+        "block-1_desk-a_booking",
+        "block-1_desk-a_directory",
+        "block-1_equal_booking",
+        "block-1_equal_directory",
+        "block-1_desk-b_booking",
+        "block-1_desk-b_directory",
+        "block-2_equal_directory",
+        "block-2_equal_booking",
+        "block-2_desk-b_directory",
+        "block-2_desk-a_directory",
+        "block-2_desk-a_booking",
+        "block-3_desk-b_booking",
+        "block-3_desk-b_directory",
+        "block-3_desk-a_booking",
+        "block-3_desk-a_directory",
+        "block-3_equal_booking",
+        "block-3_equal_directory",
+        "block-4_desk-a_directory",
+        "block-4_desk-a_booking",
+        "block-4_equal_directory",
+        "block-4_equal_booking",
+        "block-4_desk-b_directory",
+        "block-4_desk-b_booking"
+      ],
+      "searched_booking_records": [],
+      "calls": 47,
+      "spend_usd": "0.060424110788",
+      "remaining_usd": "0.500672265531"
+    }
+  ],
+  "matched_pairs": [
+    {
+      "case": "block-1_desk-a_booking",
+      "block": 1,
+      "task": "booking",
+      "history": "desk-a",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "20fc3e09-56a9-4ced-b246-48f384c5f45b",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "5e2aa7e1-9d9c-5300-b7cd-0ab66358eeb2",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nPlease confirm the booking and the fee once it is set up.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "5e2aa7e1-9d9c-5300-b7cd-0ab66358eeb2",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:28:45.559536+00:00"
+              },
+              "events": [
+                "b7b8a264-33f7-5f71-a8ea-218ac7e1098a",
+                "f0453e13-32ed-56f5-868a-30bb94f17312",
+                "064ed718-11ef-5437-9f4f-c52658ad4fbb"
+              ],
+              "send_event": "ec352701-0eb7-51d6-8624-1ffca1e8c5fa",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "aa0e86de-bef3-437c-834f-a26e3d078faf",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "9f2a6db2-a482-5b1d-b28d-2d4a1a1099be",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nPlease confirm the booking and the fee once it is set up.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "9f2a6db2-a482-5b1d-b28d-2d4a1a1099be",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:10.385852+00:00"
+              },
+              "events": [
+                "964b9cf5-7a3a-5922-b5e3-28b13142e059",
+                "c2299426-0a0b-50d3-bf44-b7bd36969b53",
+                "3e3fa9d5-449f-5d00-aae5-3d730969932c"
+              ],
+              "send_event": "6029868f-a7bb-551a-9e31-28b3d3244e1d",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-1_desk-a_directory",
+      "block": 1,
+      "task": "directory",
+      "history": "desk-a",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "560149dd-236c-46ef-9ce2-7395d4ccec29",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "60d5b1e8-6d68-5de7-90e3-9536a9ad6aab",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you arrange the public visitor directory for Thursday? We understand the standard fee and response time apply.\n\nPlease confirm when it is set up.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "60d5b1e8-6d68-5de7-90e3-9536a9ad6aab",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:28:50.077951+00:00"
+              },
+              "events": [
+                "10fce3ff-3f53-598b-a22f-df8c367f5a93",
+                "e32f7878-57b5-5b79-9c3b-1e5e1d4fdda7",
+                "e8b233b3-b986-57a8-8725-35e796f70b76"
+              ],
+              "send_event": "e1438aa6-1d36-5353-8e2c-7494f44b668f",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "4b19c5d4-c582-4046-9f96-35737ba34e92",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "e89d0a3d-74a3-55fc-9c30-4cb601bfb5c2",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. This is our internal request for the service you offer.\n\nPlease confirm the fee and when it will be ready.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "e89d0a3d-74a3-55fc-9c30-4cb601bfb5c2",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:14.541066+00:00"
+              },
+              "events": [
+                "a964e889-b69c-5037-a3d3-a7ccae1ff999",
+                "a6323ed6-7e45-5371-ab8f-416f656c5945",
+                "7344c94f-2db7-591e-ad3a-60de65a89b0f"
+              ],
+              "send_event": "b6b6e260-d27e-5796-9b83-10fea9ed6b05",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-1_equal_booking",
+      "block": 1,
+      "task": "booking",
+      "history": "equal",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "ad6e6bd0-5b3b-4d74-af7c-4ea9c2c403e2",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "a23b002c-2485-5128-97ac-7079172ab9ce",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nCould you please arrange a meeting room for us this Thursday at 14:00? Please confirm the room and the fee once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "a23b002c-2485-5128-97ac-7079172ab9ce",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:28:55.085558+00:00"
+              },
+              "events": [
+                "ff5da7df-4d94-5a63-a7c6-37f3f5b01c71",
+                "16276879-22df-5c64-a926-a09312df8a4b",
+                "fa52b4fd-137f-500d-ab8d-665a2a0562e5"
+              ],
+              "send_event": "dc13a87f-2649-507b-8178-523e4a1f53f1",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "d01555a8-f16d-4b33-b270-2436adb8a923",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "565113f6-21d1-5ffb-9042-4afc36d0bd62",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00. Please confirm availability and the fee, and let us know the room details once booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "565113f6-21d1-5ffb-9042-4afc36d0bd62",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:19.445414+00:00"
+              },
+              "events": [
+                "3e04e3b4-d299-54b9-976b-8adcdfe77b80",
+                "90743996-47b8-500e-93e6-766338abdf4c",
+                "db565014-eef6-57cc-8359-41931cdcb18f"
+              ],
+              "send_event": "6a14f0e0-39bb-5c55-a7c6-b799784ecb06",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-1_equal_directory",
+      "block": 1,
+      "task": "directory",
+      "history": "equal",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "55a5f601-6930-4541-8d05-944de8474058",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "3a3749b5-ce36-5f24-90a0-e74beed39cf0",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We would like it handled through our internal email.\n\nPlease confirm the fee and when it will be ready.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "3a3749b5-ce36-5f24-90a0-e74beed39cf0",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:00.017075+00:00"
+              },
+              "events": [
+                "de9afec8-f4e0-5995-a437-ddab50f6f357",
+                "2b775c77-06bf-53dc-a671-7efca4a6da5f",
+                "49db668e-77e8-5bb1-8ea1-b22fa11707b5"
+              ],
+              "send_event": "62957aa0-56fa-5a99-8c9b-bfd04be10da3",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "71bc6f27-9bc8-4ad1-ab4b-999ffc824ce8",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "efe876bb-1b03-595e-b83a-0d38963d2afe",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. This is our internal request for that service.\n\nPlease confirm when it is done, and let us know the fee.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "efe876bb-1b03-595e-b83a-0d38963d2afe",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:23.990563+00:00"
+              },
+              "events": [
+                "2b9dccc2-e40c-56e4-b0ef-9f83ce815b16",
+                "a1d9e874-8232-5dba-9914-6a6e56682678",
+                "7d964dbf-f410-5295-98a6-21270569ed80"
+              ],
+              "send_event": "e818fa5a-d7c1-5991-acbb-da10d0479c31",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-1_desk-b_booking",
+      "block": 1,
+      "task": "booking",
+      "history": "desk-b",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "b882c946-6928-4c87-9b14-0a2b8816cbaa",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "5266878b-2301-5db4-a4a0-7dda75491905",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease could you arrange a meeting room for us for Thursday at 14:00? Please confirm the room and the fee once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "5266878b-2301-5db4-a4a0-7dda75491905",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:04.446534+00:00"
+              },
+              "events": [
+                "30405ad3-faf8-5dce-8356-54e2c3cdc2fe",
+                "6a9f22bf-24ce-5fab-a5bb-ecb48a1fd6f5",
+                "a0e74a9e-ee1b-5b54-bd54-9e7f64a96773"
+              ],
+              "send_event": "a43a13b6-1b27-5879-a609-a84105a172a1",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "1f0827a2-ab41-49b3-8a18-4e947c955d2b",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "e8c37d09-91d0-5b29-8880-72ca318e69c3",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nCould you please arrange a meeting room for Thursday at 14:00? Please confirm availability and the fee.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "e8c37d09-91d0-5b29-8880-72ca318e69c3",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:29.221847+00:00"
+              },
+              "events": [
+                "e0455d4c-8472-549d-bd8d-86fb42a405ea",
+                "ce28e7ca-c681-5542-a6f9-ad185aba0de1",
+                "ae0ae020-05cc-5aad-909e-a34b8cc09e04"
+              ],
+              "send_event": "d557a81c-a42d-5c13-b602-3c4e1f075108",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-1_desk-b_directory",
+      "block": 1,
+      "task": "directory",
+      "history": "desk-b",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "2dbe6b14-9ad5-4bbe-86d5-bd54becd741d",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "da797846-2d92-541f-b6ed-8e91985fa927",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand your fee and response time are as standard, and that you can take this on now.\n\nPlease confirm when it is done, or let us know if anything is needed from us.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "da797846-2d92-541f-b6ed-8e91985fa927",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:08.896396+00:00"
+              },
+              "events": [
+                "82e6dcec-fc96-5de3-8489-723ab3c4253e",
+                "8bb162a8-d70c-5273-b305-a3d4b4e49c67",
+                "79ac26c0-0078-528d-8d2b-6634e733bd4f"
+              ],
+              "send_event": "a398e725-8d83-55c1-bdec-52c3b19aeeec",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "f86f9906-41c3-4fcd-9de2-4ec42d84db0d",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "f0b94bc1-6cd3-5cef-afa4-3687695972e4",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. This is our internal request for the service you offer.\n\nPlease confirm the fee and when it will be ready.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "f0b94bc1-6cd3-5cef-afa4-3687695972e4",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:33.975731+00:00"
+              },
+              "events": [
+                "3a01eb3d-547b-52ff-92fa-9173dd1d2c74",
+                "274e4e63-3521-505e-af0e-b3d0e144b6d5",
+                "f7cc2d28-befc-5b97-9ec3-21e897a01b52"
+              ],
+              "send_event": "f548468d-0fdc-5582-be49-78f390d15629",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-2_equal_directory",
+      "block": 2,
+      "task": "directory",
+      "history": "equal",
+      "history_first": "desk-a",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "8bb90294-c5af-4c8d-9263-58ad5ba7f7b2",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "a6d08ecc-0a31-53fb-98d8-23b137ca1861",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Public visitor directory \u2014 Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand the standard fee applies and the usual response time.\n\nPlease confirm when it is ready.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "a6d08ecc-0a31-53fb-98d8-23b137ca1861",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:13.223992+00:00"
+              },
+              "events": [
+                "28410d30-d23f-58e5-96cf-3b9c8c8eece7",
+                "1442f1de-54b2-550c-970d-de47d57ed7e1",
+                "8e089bda-ab71-5a51-a3b7-9d6f4a45abc5"
+              ],
+              "send_event": "1b48e818-10b7-5857-8f8a-8858055bb1d2",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "4e18378f-090a-4f8e-b82f-478ee4bf6bfa",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "a412bc31-841f-5380-84ba-dfd0932443c3",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Public visitor directory \u2014 Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand the standard fee and response time apply.\n\nPlease confirm when it is done.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "a412bc31-841f-5380-84ba-dfd0932443c3",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:38.632535+00:00"
+              },
+              "events": [
+                "1a29cce6-e1a3-5886-8170-4aca35994a47",
+                "ac0e433f-c80f-587f-9848-687e179a3427",
+                "44007860-989b-5571-a164-f6e8f83ceda9"
+              ],
+              "send_event": "493f9f10-4661-5d99-8766-6a6df12f142d",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-2_equal_booking",
+      "block": 2,
+      "task": "booking",
+      "history": "equal",
+      "history_first": "desk-a",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "69f2057c-007b-49bd-89fd-38ec49663139",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "acc310fb-9a9a-529a-887d-830cf8fa8aad",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nCould you please arrange a meeting room for us this Thursday at 14:00?\n\nPlease confirm the room and the fee once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "acc310fb-9a9a-529a-887d-830cf8fa8aad",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:18.322895+00:00"
+              },
+              "events": [
+                "b8d1d1a8-e7ab-5959-b47f-e8538c484bb6",
+                "ed8cb2a3-d6f9-5d7d-a32d-fbe07f6bd292",
+                "23b058d6-fee1-5470-981b-d21c94cfe4d8"
+              ],
+              "send_event": "cabbfbcc-9608-5880-884d-f06c8d75c2d4",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "934dcb0a-ad6a-4498-aa3f-18cb2da73df0",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "909cd716-f658-5634-8c86-bddc39214421",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease could you arrange a meeting room for us for Thursday at 14:00? Please confirm availability and the fee.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "909cd716-f658-5634-8c86-bddc39214421",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:43.169657+00:00"
+              },
+              "events": [
+                "7c3d2764-75f6-5433-b832-38c99cc58893",
+                "4fb3b70a-d4fc-52eb-b7cf-09a4f5a9b20a",
+                "f956ba5a-e347-5504-9730-ffdc481f88af"
+              ],
+              "send_event": "fa22710a-a72e-57a3-ba4d-1b26fce9e099",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-2_desk-b_directory",
+      "block": 2,
+      "task": "directory",
+      "history": "desk-b",
+      "history_first": "desk-a",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "84241c40-8cee-4abe-bec8-587599bd6d30",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "ad41f0d8-6cb4-5775-ae37-cf2e6414316a",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. This is a request from our internal email address.\n\nPlease confirm the fee and expected completion time when you acknowledge.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "ad41f0d8-6cb4-5775-ae37-cf2e6414316a",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:22.862249+00:00"
+              },
+              "events": [
+                "30aa199d-ee44-5334-8cd1-a9a02346a36b",
+                "d1aca726-c336-59f8-95c6-4e06c5ad1454",
+                "b150b2f5-0c37-55bd-bbed-72c21d960b32"
+              ],
+              "send_event": "2a218829-b3fa-517e-b6d9-511f5ae15570",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "ab4d4ed9-49a1-4c59-bf53-698c2769ed5f",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "e850b1ee-89b1-5a8a-a268-96c4bb32f568",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you provide the public visitor directory for Thursday? We understand the standard fee and response time apply.\n\nPlease confirm when it is ready.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "e850b1ee-89b1-5a8a-a268-96c4bb32f568",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:47.242665+00:00"
+              },
+              "events": [
+                "dc54482e-399e-5d79-a190-3607ea3c1ccd",
+                "88009ebf-1e8c-5e75-b96b-897357313ba4",
+                "718a477d-cece-5258-8b26-67ae41e86eda"
+              ],
+              "send_event": "f13bc6b1-aa9e-550a-827d-c070621345d5",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-2_desk-b_booking",
+      "block": 2,
+      "task": "booking",
+      "history": "desk-b",
+      "history_first": "desk-a",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "0dac15b9-36e5-4205-ac87-8f5c46366545",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "76566b8a-9d21-53eb-9a42-b62019a20a19",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease could you arrange a meeting room for us for Thursday at 14:00?\n\nDetails:\n- Date: Thursday 19 November\n- Time: 14:00\n- Room: one meeting room, standard setup\n\nPlease confirm availability and the fee, and let us know once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "76566b8a-9d21-53eb-9a42-b62019a20a19",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:28.351969+00:00"
+              },
+              "events": [
+                "df2ff4de-03de-5520-adab-fe9b08f69b89",
+                "984218a3-099b-5671-8540-81bb5f185ba5",
+                "7152775d-9589-569e-b7c5-9d5e7775dc13"
+              ],
+              "send_event": "24b68add-9c14-5990-8dbf-e3037fbd1b16",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "37eb8398-a15c-4949-aab3-84b1485551d8",
+          "saw_directory": false,
+          "outgoing": [
+            {
+              "message": {
+                "id": "47a2f2b8-eb45-5569-9478-b7807bc8ac9b",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello,\n\nCould you please arrange a meeting room for us this Thursday at 14:00? Please confirm the room and the fee.\n\nThank you."
+              },
+              "delivery_s": 5120,
+              "read_s": 5142,
+              "ack_s": 5154,
+              "receipt": {
+                "message_id": "47a2f2b8-eb45-5569-9478-b7807bc8ac9b",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:50.898216+00:00"
+              },
+              "events": [
+                "4c907ddd-7049-597a-816a-dde7599f0828",
+                "27aeb98b-1ec2-5cba-b445-ab662ae88af4",
+                "7551c115-cc3d-5138-bc0c-21547cba74a3"
+              ],
+              "send_event": "86010818-95e5-57a2-955b-5c8be6269530",
+              "batch": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-2_desk-a_directory",
+      "block": 2,
+      "task": "directory",
+      "history": "desk-a",
+      "history_first": "desk-a",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "6f019008-f7ad-4191-b2bc-328a7cc1c1eb",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "a3e02060-9725-546a-8dda-9529e3684b92",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Public visitor directory \u2014 Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. Both desks offer this service on the same terms, so we are sending the request to you.\n\nPlease confirm when it is done, and let us know if you need anything from us.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "a3e02060-9725-546a-8dda-9529e3684b92",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:32.987017+00:00"
+              },
+              "events": [
+                "f46145b6-77f0-5bd4-9af1-5e055d199cf8",
+                "a96659d3-200e-58ec-80ad-598c4f3feabf",
+                "13061ccd-e2eb-5ad9-89b6-b81b888eeead"
+              ],
+              "send_event": "38330044-cfc6-561c-875a-7718cc4e53bb",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "949a02bf-e8d5-47ad-8ff4-1310b0357ad0",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "93cbc844-fb8c-5c1e-b9ee-43af6b6cef5f",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Public visitor directory \u2014 Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand the fee and response time are the same as Desk-B's; we're sending this request to you.\n\nPlease confirm when it's done, or let us know if anything is needed from us.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "93cbc844-fb8c-5c1e-b9ee-43af6b6cef5f",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:31:55.345788+00:00"
+              },
+              "events": [
+                "d616a42c-f789-5aff-8246-93597b6df595",
+                "c46363aa-e4f7-50f4-b72a-0d5e2c0083a9",
+                "a276ca33-1441-5407-a08c-801bffddcd07"
+              ],
+              "send_event": "a430f975-163f-5cca-882c-8aa4ae5977ba",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-2_desk-a_booking",
+      "block": 2,
+      "task": "booking",
+      "history": "desk-a",
+      "history_first": "desk-a",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "02f47a4d-f855-4d7c-9dc3-afaf79d6a4dd",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "eba96977-347e-5e3f-b55e-a246c2966e70",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease could you arrange a meeting room for us for Thursday at 14:00?\n\nDetails:\n- Date: Thursday 19 November\n- Time: 14:00\n- Room: one meeting room, standard setup\n\nPlease confirm availability and the fee, and let us know once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "eba96977-347e-5e3f-b55e-a246c2966e70",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:37.509427+00:00"
+              },
+              "events": [
+                "4c6da02a-82cc-517c-b999-29df37a9a998",
+                "e4b72689-91fb-5648-8a52-32954e5a349c",
+                "bd951186-fa9e-5dd7-9721-6b90033c7706"
+              ],
+              "send_event": "229c1754-5279-5d23-9b08-cdc5ff33de9f",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "5f28ac2f-dcf5-43cb-8dcf-092c710710a4",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "d950a4dd-45f3-511b-9304-131d6a5bc7a0",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nDetails:\n- Date: Thursday 19 November\n- Time: 14:00\n- Room: one meeting room, standard setup\n\nPlease confirm availability and the fee, and let us know once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "d950a4dd-45f3-511b-9304-131d6a5bc7a0",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:00.371123+00:00"
+              },
+              "events": [
+                "66c77a10-e659-5dd0-8fe2-05dcc231ad6a",
+                "1395d520-0e65-5aee-a153-999d4504bfaa",
+                "1c960c6d-de79-5a1d-8f38-7add7aaa6931"
+              ],
+              "send_event": "43666d5f-10c7-5ff2-b698-a151ebf8a391",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-3_desk-b_booking",
+      "block": 3,
+      "task": "booking",
+      "history": "desk-b",
+      "history_first": "desk-b",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "a4026eb4-1d61-4ad8-b07d-ed34dbd0e8a9",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "3c3338f9-9a06-5807-a858-656c54458a6d",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease could you arrange a meeting room for us for Thursday at 14:00?\n\nDetails:\n- Date: Thursday 19 November\n- Time: 14:00\n- Room: one meeting room, standard setup\n\nPlease confirm availability and the fee, and let us know once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "3c3338f9-9a06-5807-a858-656c54458a6d",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:42.601895+00:00"
+              },
+              "events": [
+                "7eea54e8-e3b9-59ab-a2fe-d4e1d0d7f45a",
+                "4f243c8c-7932-5fa3-b50c-e30f1408055f",
+                "676a87ec-7ce2-59a7-8992-b270c3bb1d1d"
+              ],
+              "send_event": "af75e5fc-04fb-5306-8ce4-67e98343ea12",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "3bb3edcf-7919-4d52-9b8c-24002900ae30",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "664f1e15-eadd-5f67-b813-56b4087b97f1",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nCould you please arrange a meeting room for us for Thursday at 14:00?\n\nPlease confirm availability and the fee, and let us know once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "664f1e15-eadd-5f67-b813-56b4087b97f1",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:04.905943+00:00"
+              },
+              "events": [
+                "f5fa9b15-a7cc-5f33-91d7-aa0680e9ac56",
+                "c138955e-804b-5946-9d52-de295dad20fa",
+                "748648f5-e41a-5111-bff9-1c029ca5f639"
+              ],
+              "send_event": "2fdf312a-3c05-5adb-a81d-ac5075a17a8b",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-3_desk-b_directory",
+      "block": 3,
+      "task": "directory",
+      "history": "desk-b",
+      "history_first": "desk-b",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "c2cb1694-2edf-4115-b45a-3bfaa528be6b",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "0a691c13-4f9f-55c2-9b10-87b39ffb68e3",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand you offer this service, are available now, and that the fee and response time are the same as Desk-B's.\n\nPlease confirm the fee and expected delivery time when you acknowledge, and let us know if anything is needed from us.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "0a691c13-4f9f-55c2-9b10-87b39ffb68e3",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:47.269454+00:00"
+              },
+              "events": [
+                "4578fbc7-fac8-5719-b733-dd77b6e2f111",
+                "81d1437b-f360-5a61-bad3-03fa0fa30b95",
+                "2c320418-080a-5438-8820-1c21a8aaff4d"
+              ],
+              "send_event": "92a00d57-2a14-5ae1-b568-b1e5d8f45201",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "6b55b533-1d74-4724-bf98-cd1cb13ddb1a",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "4f5a620d-3204-539b-93b6-46620767990d",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. We understand the fee and response time are the same as Desk-B's offer; we are assigning this one to you.\n\nPlease confirm when it is done.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "4f5a620d-3204-539b-93b6-46620767990d",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:10.094852+00:00"
+              },
+              "events": [
+                "94354bb2-1c9d-5de4-ae0f-e332499de516",
+                "ccb9c2b0-685a-53d3-aec4-a8051816f016",
+                "3e319705-21d6-50ed-9ec5-d12682d72113"
+              ],
+              "send_event": "db325f70-0ac3-5fbc-87b0-50d6f89b8d39",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-3_desk-a_booking",
+      "block": 3,
+      "task": "booking",
+      "history": "desk-a",
+      "history_first": "desk-b",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "be2bdb1b-cb1a-4b93-bf2c-1330cd8039f7",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "5edca28a-d9d5-5ed2-9dd3-54a69e67a497",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease could you arrange a meeting room for us this Thursday at 14:00? Standard room, one session.\n\nPlease confirm the booking and the fee.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "5edca28a-d9d5-5ed2-9dd3-54a69e67a497",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:51.382451+00:00"
+              },
+              "events": [
+                "0942dcad-1adf-51b2-b273-46718a546ff5",
+                "3220a614-0467-59ee-866d-9ea5456f9f1c",
+                "aa834960-4eb4-5c68-bee5-9d52c97aae70"
+              ],
+              "send_event": "f91e5bac-a501-5f8c-9de3-9ec44069f67c",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "6ab3461f-44e6-415e-a0be-631ed7feb9a1",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "656b1164-20ff-5d8c-9fb5-34dcd02cd4bf",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nDetails:\n- Date: Thursday 19 November\n- Time: 14:00\n- Room: one meeting room, standard setup\n\nPlease confirm the booking and the fee. If anything is unclear, let me know.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "656b1164-20ff-5d8c-9fb5-34dcd02cd4bf",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:15.555653+00:00"
+              },
+              "events": [
+                "f4b21066-3123-5382-bcff-74ad4349c814",
+                "fdd86124-18fb-5d11-8f7c-ca65a417da68",
+                "d17c8ed6-d218-5f7c-8b9d-91d64b4ab630"
+              ],
+              "send_event": "9a7a351b-d425-5d2a-b6e8-7de8b3121cf5",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-3_desk-a_directory",
+      "block": 3,
+      "task": "directory",
+      "history": "desk-a",
+      "history_first": "desk-b",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "4ba7ecd2-ba6e-4a5b-b327-cff05d8c3ef1",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "0cc945ca-bb06-5001-88bb-dfda567de726",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. We understand the standard fee applies and the usual response time.\n\nPlease confirm when it is done.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "0cc945ca-bb06-5001-88bb-dfda567de726",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:29:56.174316+00:00"
+              },
+              "events": [
+                "b365ec31-5ac2-52aa-a151-cc484f3ed60f",
+                "5c2a90f6-c72a-5997-8ff5-2c93a47f0adf",
+                "6995bed1-4c27-5e5f-a10e-8458174c101e"
+              ],
+              "send_event": "6cba0fce-07be-5f4e-b237-9f238f10f07a",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "39710b9e-1358-4da1-8269-6cbd431e9a6d",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "cce6f178-11fb-5167-ab4d-b14dcba1d547",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand the standard fee and response time apply.\n\nPlease confirm when it is done.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "cce6f178-11fb-5167-ab4d-b14dcba1d547",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:22.604012+00:00"
+              },
+              "events": [
+                "4146d49d-856b-5189-b27a-56d767443468",
+                "e7223ea8-ce4d-5baa-9042-1df0a64c0244",
+                "bca36053-ffee-54de-a9bf-1992e50e1b5e"
+              ],
+              "send_event": "e31eeb3b-5f3a-56d3-8f2e-cfedd1288d17",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-3_equal_booking",
+      "block": 3,
+      "task": "booking",
+      "history": "equal",
+      "history_first": "desk-b",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "b09abe23-d405-449a-8f74-737d79153e44",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "4ba0fdd0-421e-57fb-b0a0-39d74a6170f9",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nCould you please arrange a meeting room for us this Thursday at 14:00? Please confirm the room and the fee once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "4ba0fdd0-421e-57fb-b0a0-39d74a6170f9",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:01.344128+00:00"
+              },
+              "events": [
+                "b61b1336-cf6f-5eb1-8805-374e0e1415aa",
+                "c920d2ca-8eb1-503c-b40a-3975aa3008ff",
+                "e69adcc5-6ac5-5425-bd7a-228e48e1f607"
+              ],
+              "send_event": "0c8a976b-b539-5499-a7e5-4b7ab649c109",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "1e883547-3378-4087-9890-58306ef0fc2d",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "ae1268e0-4c2e-5ecd-91fb-117d5a63bc59",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nDetails:\n- Date: Thursday 19 November\n- Time: 14:00\n- Room: one meeting room, standard setup\n\nPlease confirm the booking and the fee. If anything is unclear, let me know.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "ae1268e0-4c2e-5ecd-91fb-117d5a63bc59",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:27.067874+00:00"
+              },
+              "events": [
+                "8bda951a-140a-52f0-9301-2fb1cb112e33",
+                "e5e577df-4858-5da0-8688-9d8044c8d31f",
+                "dc0c479f-bdad-5af3-93b5-2a4b361aac82"
+              ],
+              "send_event": "fa09fd27-6f40-57cf-a836-f30669b6f95c",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-3_equal_directory",
+      "block": 3,
+      "task": "directory",
+      "history": "equal",
+      "history_first": "desk-b",
+      "listed_first": "desk-a",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "3c9b0e52-c46a-4322-a82a-3f6476e6459a",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "6466e3f5-ce0e-5384-bb2b-70c42d188a67",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. This is our internal request for the service you offer.\n\nPlease confirm when it is done, and let us know the fee.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "6466e3f5-ce0e-5384-bb2b-70c42d188a67",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:07.907496+00:00"
+              },
+              "events": [
+                "53c1f072-2890-5cfd-8d97-11e60f3f90ec",
+                "9d2bad76-ae86-51e4-8179-463ab8fc56b1",
+                "245c65d1-e644-5a3f-bf5e-29c4b323c89d"
+              ],
+              "send_event": "6e1e916f-b664-507e-88a9-a9701a63a461",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "26065df5-0b1c-492d-ba7e-32d6871081e1",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "803cd4a8-aba5-5474-86b5-30abae11ee90",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We would like it completed through your standard service at your usual fee and response time.\n\nPlease confirm receipt and let us know when it will be ready.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "803cd4a8-aba5-5474-86b5-30abae11ee90",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:31.573122+00:00"
+              },
+              "events": [
+                "6cd2453d-b99c-5300-ab0d-bc6be3d40eb2",
+                "e57c03c3-c42c-5ff2-9e35-60c2ade6644d",
+                "f49a9a30-d595-57f6-9153-8fbd23ec7263"
+              ],
+              "send_event": "3929ccc2-088e-51de-8612-cf2d784984b2",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-4_desk-a_directory",
+      "block": 4,
+      "task": "directory",
+      "history": "desk-a",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "f003a073-b3fa-4841-9a4d-4c5a55d132b3",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "7031f451-ec86-52fb-95f5-b890bf647b39",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand this is a service you offer, and we would like to request it from you.\n\nPlease confirm the fee and when we can expect it.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "7031f451-ec86-52fb-95f5-b890bf647b39",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:14.623281+00:00"
+              },
+              "events": [
+                "280f9992-d713-5610-9778-b8693b4dc800",
+                "c70452c9-c0bf-5de4-8612-5066c56ed92e",
+                "034497f2-5a9c-5dc2-8142-51f6b7bcad74"
+              ],
+              "send_event": "65ced8e1-1bd8-5a1c-b735-e4350f289346",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "a9aeb678-f4da-4c6e-8444-0f9faf42985c",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "1b12d017-4d09-5813-a63f-3e8607f4a712",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We understand you offer this service, are available now, and that the fee and response time are the same as Desk-B's.\n\nPlease confirm the fee and expected completion time when you acknowledge this request.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "1b12d017-4d09-5813-a63f-3e8607f4a712",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:36.419341+00:00"
+              },
+              "events": [
+                "429c2e88-8f27-5ffb-93f6-661c7aa1cf1d",
+                "1d036ed9-b7a9-517c-9c7c-b14dbc4ef56a",
+                "cc8d6289-f990-56be-875b-1320947a741f"
+              ],
+              "send_event": "217044c8-2ec4-547f-b8cd-f8d0d55a6822",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-4_desk-a_booking",
+      "block": 4,
+      "task": "booking",
+      "history": "desk-a",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "ac89a10a-90ed-4f83-b2f5-162428027596",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "3fba155a-5269-5fba-9dda-a7b99072c251",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nPlease confirm the booking and the fee.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "3fba155a-5269-5fba-9dda-a7b99072c251",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:20.571185+00:00"
+              },
+              "events": [
+                "363991b5-7572-5e39-a102-564c4a33b8c0",
+                "6e0ed1b8-d668-5acf-a364-69cec31ea49d",
+                "b62b5b28-8227-5da1-9a83-936362fe7928"
+              ],
+              "send_event": "75486e8a-e577-52a8-b77f-bce76389179c",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "3c1447e0-39cb-46dc-9649-6d8f0018d2df",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "df889cbb-d3b5-5f30-b600-7ebef8e50b62",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nPlease confirm availability and the fee, and let me know once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "df889cbb-d3b5-5f30-b600-7ebef8e50b62",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:41.203880+00:00"
+              },
+              "events": [
+                "6c48cd01-29b6-5182-8e68-804de24c54d1",
+                "46c91235-22c6-547b-8813-837de6f91ae4",
+                "b7210546-f991-5d69-b8ca-cc3cd83d489c"
+              ],
+              "send_event": "308e7a49-8bb0-51dd-8086-3f9e9370b6c3",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-4_equal_directory",
+      "block": 4,
+      "task": "directory",
+      "history": "equal",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "9657a632-d93e-4967-83d4-fb47c4159d23",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "1bdab071-cf08-52ee-b1eb-a1df4a5467ba",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you provide the public visitor directory for Thursday? We understand this is a service you offer, at the standard fee and response time.\n\nPlease confirm the fee and expected delivery time when you acknowledge.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "1bdab071-cf08-52ee-b1eb-a1df4a5467ba",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:27.072619+00:00"
+              },
+              "events": [
+                "ef5d4495-127b-5230-a9eb-6300eccf51dd",
+                "874faf0e-b449-509a-bd89-e10b400e908a",
+                "8292bf1e-193c-5cb1-9b61-898cda88ece9"
+              ],
+              "send_event": "79efc32f-49e3-5132-ae0c-5b947171550c",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "a54b00b0-cc8c-4e8f-8f05-27abf7ee52e7",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "121d6e2e-ef46-553d-a435-2a35319441a7",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday.\n\nBoth desks offer this service on the same terms, so we are sending this to Desk-A. Please confirm receipt and the expected completion time.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "121d6e2e-ef46-553d-a435-2a35319441a7",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:45.492781+00:00"
+              },
+              "events": [
+                "269d2cc4-4e16-5ba4-9f28-c7725e73ea0f",
+                "e968e8b5-11c6-53ce-b35d-4c92c0333382",
+                "c188e911-b821-5680-aba2-ba1338d7008d"
+              ],
+              "send_event": "8e0bd889-360f-5a12-a285-53656f6c634b",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-4_equal_booking",
+      "block": 4,
+      "task": "booking",
+      "history": "equal",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "c9528806-9037-4916-8a48-f7815de9789a",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "8b07c30b-969e-58ea-b55a-990caa2fbbff",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nCould you please arrange a meeting room for us this Thursday at 14:00? Please confirm the room and the fee once it is booked.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "8b07c30b-969e-58ea-b55a-990caa2fbbff",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:32.865466+00:00"
+              },
+              "events": [
+                "10b0de36-bfcf-5988-9b6a-0dd8ce57872f",
+                "6aa74392-fa7b-5a0a-8392-9cbb5e7000f1",
+                "c0b538dc-7d3a-50ea-96c3-2e0781de4e4d"
+              ],
+              "send_event": "78a0b8e2-27cc-5f6c-a292-8bb0afff1dbc",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "04ed7d62-e475-4cf5-aa5c-4a16b065b9ac",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "57fcb62d-3f98-54a3-a119-721a06412fa3",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for Thursday at 14:00. Kindly confirm the booking and the fee.\n\nThank you,\nLead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "57fcb62d-3f98-54a3-a119-721a06412fa3",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:49.462383+00:00"
+              },
+              "events": [
+                "6821f259-4e10-504a-9d80-905f8a636742",
+                "48cd396b-d557-5327-a98f-35967fbb7bde",
+                "6a7f5cba-65a6-5984-be60-a1e0ac556257"
+              ],
+              "send_event": "f7e99be0-4659-5019-8827-19a14880435c",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-4_desk-b_directory",
+      "block": 4,
+      "task": "directory",
+      "history": "desk-b",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "8844a4af-0818-4848-afc8-a1b68e9c353b",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "8856b43b-4c05-5bde-ba63-7a748ca2be48",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Request: public visitor directory for Thursday",
+                "body": "Hello Desk-A,\n\nPlease could you prepare the public visitor directory for Thursday? We would like it completed through your standard service, at your usual fee and response time.\n\nPlease confirm when it is done.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "8856b43b-4c05-5bde-ba63-7a748ca2be48",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:39.080903+00:00"
+              },
+              "events": [
+                "67fff240-a4e1-5f4a-8990-b98e00e4a2bd",
+                "cbd8132f-0cd2-528d-9d7d-1a9363bdfb2f",
+                "a4a194f4-c008-55ff-abe0-cbb995bedff7"
+              ],
+              "send_event": "06751204-1b4a-51e3-8bc0-a7305e39766c",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "574f62b8-0656-4426-9e0f-12494e061362",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "62e8b1e4-2b50-51a0-94d1-d830cec0e73d",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Public visitor directory \u2014 Thursday",
+                "body": "Hello Desk-A,\n\nPlease prepare the public visitor directory for Thursday. This is our internal request for that service.\n\nPlease confirm when it is done, and let us know the fee.\n\nThank you,\nLead's assistant"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "62e8b1e4-2b50-51a0-94d1-d830cec0e73d",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:53.894291+00:00"
+              },
+              "events": [
+                "34643f03-61d0-5141-a0ac-38180747b39b",
+                "31826e67-89d4-543c-9708-9120e1c5c8ba",
+                "774d348b-d6bc-50b1-9e93-4f4100c0d451"
+              ],
+              "send_event": "cf8dc07b-e34d-5a66-b5d6-d065562a4bb0",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case": "block-4_desk-b_booking",
+      "block": 4,
+      "task": "booking",
+      "history": "desk-b",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "by_directory_first": {
+        "desk-a": {
+          "first": "desk-a",
+          "run_id": "2099a8a0-94d6-4cf9-b87a-cbfdf2e00190",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "2842414f-5a18-52ce-870f-e2c18c4f405a",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2013 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease could you arrange a meeting room for us this Thursday at 14:00? We need it for one meeting; please confirm the room and the fee.\n\nIf you need any further details (attendee count, equipment), let me know and I will provide them.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "2842414f-5a18-52ce-870f-e2c18c4f405a",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:30:46.244585+00:00"
+              },
+              "events": [
+                "611cde3f-a856-58e8-8d45-07785f3ecce1",
+                "f136cbfa-37e7-53ee-8663-b2ceeb8d3d03",
+                "a2aa7f1a-657c-5743-8ccc-d41faea3acda"
+              ],
+              "send_event": "fb1f5a7c-4674-5d93-a9d4-3e10d1a831bb",
+              "batch": 1
+            }
+          ]
+        },
+        "desk-b": {
+          "first": "desk-a",
+          "run_id": "eb08fc5e-165f-4a99-96c1-36d4d57c4816",
+          "saw_directory": true,
+          "outgoing": [
+            {
+              "message": {
+                "id": "253ed07f-411a-578c-b375-090a424b27e3",
+                "sender_owner_id": "lead",
+                "recipient_owner_id": "desk-a",
+                "subject": "Meeting room request \u2014 Thursday 14:00",
+                "body": "Hello Desk-A,\n\nPlease arrange a meeting room for us for Thursday at 14:00.\n\nPlease confirm the booking and the fee.\n\nThank you,\nAssistant on behalf of Lead"
+              },
+              "delivery_s": 5132,
+              "read_s": 5154,
+              "ack_s": 5166,
+              "receipt": {
+                "message_id": "253ed07f-411a-578c-b375-090a424b27e3",
+                "owner_id": "desk-a",
+                "read_at": "2026-11-25 01:32:58.199259+00:00"
+              },
+              "events": [
+                "86ea7555-1fa2-5538-b8f3-30fe644485e6",
+                "278a448d-e247-588e-8d18-3ba54fb7d4aa",
+                "a9d844ca-9b4e-58c5-85c5-53a5ee1c36b8"
+              ],
+              "send_event": "352ff7bd-ee3d-57ef-ba96-043ee4d88722",
+              "batch": 1
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "instructed_summary": {
+    "n": 8,
+    "cells": {
+      "booking": {
+        "by_history": {
+          "desk-a": {
+            "desk-a": 2
+          },
+          "desk-b": {
+            "desk-b": 2
+          },
+          "equal": {}
+        },
+        "fast_chosen": 4,
+        "changed_with_fast_desk": 2,
+        "changed_against_fast_desk": 0,
+        "same_first_desk_after_swap": 0,
+        "listed_first_chosen": 2,
+        "last_historical_contact_chosen": 2
+      },
+      "directory": {
+        "by_history": {
+          "desk-a": {
+            "desk-a": 2
+          },
+          "desk-b": {
+            "desk-b": 2
+          },
+          "equal": {}
+        },
+        "fast_chosen": 4,
+        "changed_with_fast_desk": 2,
+        "changed_against_fast_desk": 0,
+        "same_first_desk_after_swap": 0,
+        "listed_first_chosen": 2,
+        "last_historical_contact_chosen": 2
+      }
+    },
+    "saw_contact_order": [],
+    "searched_booking_records": [
+      "block-1_desk-a_booking",
+      "block-1_desk-a_directory",
+      "block-1_desk-b_booking",
+      "block-1_desk-b_directory",
+      "block-4_desk-a_directory",
+      "block-4_desk-a_booking",
+      "block-4_desk-b_directory",
+      "block-4_desk-b_booking"
+    ],
+    "calls": 16,
+    "spend_usd": "0.025474535394",
+    "remaining_usd": "0.475197730137"
+  },
+  "instructed_cases": [
+    {
+      "case": "block-1_desk-a_booking",
+      "block": 1,
+      "history": "desk-a",
+      "task": "booking",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "c6639cf2-c449-4541-9afc-061209b57c6a",
+      "scenario_hash": "636d03544f80d26676a4b06f1218a995474faf39e5d169a05ef2b91e0281a689",
+      "first": "desk-a",
+      "outgoing": [
+        {
+          "message": {
+            "id": "ca89d673-3777-5d16-874c-b619cb3f25fd",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-a",
+            "subject": "Meeting room request \u2014 Thursday 14:00",
+            "body": "Hello,\n\nPlease reserve a meeting room for Thursday at 14:00.\n\nPlease confirm the booking and the fee.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "ca89d673-3777-5d16-874c-b619cb3f25fd",
+            "owner_id": "desk-a",
+            "read_at": "2026-11-25 01:33:17.423534+00:00"
+          },
+          "events": [
+            "ca5fa71c-110d-5404-8535-05c244304942",
+            "9b43e9d2-02f6-5ffc-8869-fe74f72b96b0",
+            "026014f4-111f-53e2-a2a7-e04c122d61b4"
+          ],
+          "send_event": "5d55640a-7d31-54a5-86d7-c3223222627c",
+          "batch": 1
+        }
+      ]
+    },
+    {
+      "case": "block-1_desk-a_directory",
+      "block": 1,
+      "history": "desk-a",
+      "task": "directory",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "19176129-994b-4a18-b6bd-5433b6ea2288",
+      "scenario_hash": "1161c9385ad357d8f54d4123d9c9724693274e73dce9504a7660bdf560e500da",
+      "first": "desk-a",
+      "outgoing": [
+        {
+          "message": {
+            "id": "ec9aa4c5-7dac-50a6-b6c3-b2653a29f1ba",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-a",
+            "subject": "Public visitor directory for Thursday",
+            "body": "Hello,\n\nPlease arrange the public visitor directory for Thursday.\n\nPlease confirm the fee and that it will be ready for Thursday.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "ec9aa4c5-7dac-50a6-b6c3-b2653a29f1ba",
+            "owner_id": "desk-a",
+            "read_at": "2026-11-25 01:33:22.165826+00:00"
+          },
+          "events": [
+            "e2b454e7-01e2-5de5-87e6-b84c4fd01ef5",
+            "3ce7d103-94bb-58c1-bd72-c831763a1619",
+            "d4cba2a8-7883-5235-ba64-4bda70ce3a83"
+          ],
+          "send_event": "938cdbd3-20c8-5a41-8a68-4176ee7eabd6",
+          "batch": 1
+        }
+      ]
+    },
+    {
+      "case": "block-1_desk-b_booking",
+      "block": 1,
+      "history": "desk-b",
+      "task": "booking",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "e45a5077-c757-4ebe-bc22-a64674e52d62",
+      "scenario_hash": "44b14f94ba42cbb7250848e15fddf373aa60b3cb17e09e3e2fb83aa8b01390be",
+      "first": "desk-b",
+      "outgoing": [
+        {
+          "message": {
+            "id": "c3e631e6-1ddd-54ce-824e-cbd4cb635081",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-b",
+            "subject": "Meeting room request \u2013 Thursday 14:00",
+            "body": "Hello,\n\nPlease reserve a meeting room for Thursday at 14:00.\n\nPlease confirm once it is booked.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "c3e631e6-1ddd-54ce-824e-cbd4cb635081",
+            "owner_id": "desk-b",
+            "read_at": "2026-11-25 01:33:26.873787+00:00"
+          },
+          "events": [
+            "da70378f-91ad-588f-84b0-8ccf6938cee7",
+            "f3a688ee-351e-5347-b3e5-cb8bf37964c0",
+            "7f2f2753-61df-5023-8346-fb4760d7eb4a"
+          ],
+          "send_event": "5a6245de-5ed8-5790-befd-7dcc3af0f9bb",
+          "batch": 1
+        }
+      ]
+    },
+    {
+      "case": "block-1_desk-b_directory",
+      "block": 1,
+      "history": "desk-b",
+      "task": "directory",
+      "history_first": "desk-a",
+      "listed_first": "desk-a",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "783fb354-908f-4a64-91f8-f544398c8df3",
+      "scenario_hash": "36708b728d929edbe745d36df9c76a78479eca9a3ec36a37f87982906474ca93",
+      "first": "desk-b",
+      "outgoing": [
+        {
+          "message": {
+            "id": "5e7b55ae-12ce-5450-a1f2-9a418b240391",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-b",
+            "subject": "Public visitor directory for Thursday",
+            "body": "Hello,\n\nPlease add us to the public visitor directory for Thursday.\n\nPlease confirm the fee and when it will be live.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "5e7b55ae-12ce-5450-a1f2-9a418b240391",
+            "owner_id": "desk-b",
+            "read_at": "2026-11-25 01:33:31.439046+00:00"
+          },
+          "events": [
+            "e8ac9566-b745-5e4f-87c5-6231cc461bbb",
+            "6b8e89b9-a3fd-52e4-8150-cbaab638003c",
+            "9c4cce00-8e4c-5034-94af-b11396e78045"
+          ],
+          "send_event": "313dd961-885d-5acb-89e4-8e72d0ac80b1",
+          "batch": 1
+        }
+      ]
+    },
+    {
+      "directory_first": "desk-b",
+      "case": "block-4_desk-a_directory",
+      "block": 4,
+      "history": "desk-a",
+      "task": "directory",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "fa62b516-33cf-4fde-85e0-bc5482781df2",
+      "scenario_hash": "dda3da042b4b61d1dc47ef688a29bab88785c23a552ef4ec85a908e52a7257ef",
+      "first": "desk-a",
+      "outgoing": [
+        {
+          "message": {
+            "id": "26933dcb-7523-5ada-97dd-64fac83e7b59",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-a",
+            "subject": "Public visitor directory for Thursday",
+            "body": "Hello,\n\nPlease arrange the public visitor directory for Thursday.\n\nPlease confirm the fee and the expected completion time when you reply.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "26933dcb-7523-5ada-97dd-64fac83e7b59",
+            "owner_id": "desk-a",
+            "read_at": "2026-11-25 01:33:36.945688+00:00"
+          },
+          "events": [
+            "b7426309-2ce6-5bc9-acf5-000ae9ef2ced",
+            "14f0f5a3-9f43-504a-9f62-8698ea0e2da8",
+            "4b5b0cf9-85bd-57d4-93b3-3ba922e7140c"
+          ],
+          "send_event": "3f499b65-b45f-5b8b-b864-787a4db0670d",
+          "batch": 1
+        }
+      ]
+    },
+    {
+      "directory_first": "desk-b",
+      "case": "block-4_desk-a_booking",
+      "block": 4,
+      "history": "desk-a",
+      "task": "booking",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "ea4a90be-8312-484a-9d90-f86a1ee0670d",
+      "scenario_hash": "97d27b8d3fdb920b71db9b923b84cb790b7f9b110479812198df12f4523450fb",
+      "first": "desk-a",
+      "outgoing": [
+        {
+          "message": {
+            "id": "01596923-f8ca-5b5a-8e12-29f895fe4778",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-a",
+            "subject": "Meeting room request \u2014 Thursday 14:00",
+            "body": "Hello,\n\nPlease arrange a meeting room for Thursday at 14:00.\n\nPlease confirm the booking and the fee.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "01596923-f8ca-5b5a-8e12-29f895fe4778",
+            "owner_id": "desk-a",
+            "read_at": "2026-11-25 01:33:42.183714+00:00"
+          },
+          "events": [
+            "348f18a6-41fb-5b5a-803c-7df24f9b731f",
+            "8b5dbf20-5113-548e-8b26-3013a91cc33b",
+            "01f8228c-4440-5a51-b371-31eca4df64bb"
+          ],
+          "send_event": "6b2a2a26-895a-59a6-be80-fa9e558c23e5",
+          "batch": 1
+        }
+      ]
+    },
+    {
+      "directory_first": "desk-b",
+      "case": "block-4_desk-b_directory",
+      "block": 4,
+      "history": "desk-b",
+      "task": "directory",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "cecbe872-e4f3-47ca-9934-afdccc5d2ccd",
+      "scenario_hash": "34a97cc2e03fcb54c03c8e9709a910d8854ad9a712cf4b3549ea1a35f72c875f",
+      "first": "desk-b",
+      "outgoing": [
+        {
+          "message": {
+            "id": "eab0942f-4b71-5200-bef4-8d46b7a21a8e",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-b",
+            "subject": "Public visitor directory for Thursday",
+            "body": "Hello,\n\nPlease arrange the public visitor directory for Thursday.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "eab0942f-4b71-5200-bef4-8d46b7a21a8e",
+            "owner_id": "desk-b",
+            "read_at": "2026-11-25 01:33:46.301615+00:00"
+          },
+          "events": [
+            "87a07f16-e18d-5a1e-bafd-ebfe03e473a7",
+            "d46ae0be-89dd-5f33-8dd5-18ccf71fe598",
+            "10c3d2d2-af90-5b93-a44b-ba996b215f9f"
+          ],
+          "send_event": "c99b08f1-f3ab-5ff6-a167-0bc374efdfd0",
+          "batch": 1
+        }
+      ]
+    },
+    {
+      "directory_first": "desk-b",
+      "case": "block-4_desk-b_booking",
+      "block": 4,
+      "history": "desk-b",
+      "task": "booking",
+      "history_first": "desk-b",
+      "listed_first": "desk-b",
+      "use_history": true,
+      "policy": "live",
+      "run_id": "8fd759ff-e6f4-4f5e-984a-bb99a1de2fa6",
+      "scenario_hash": "55dc07abbc50242c561cc680acb1ee04f041f0cd372b9059760b04fe4ec08d91",
+      "first": "desk-b",
+      "outgoing": [
+        {
+          "message": {
+            "id": "9bae2771-ac85-501d-a2fc-15609a932bc3",
+            "sender_owner_id": "lead",
+            "recipient_owner_id": "desk-b",
+            "subject": "Meeting room request \u2014 Thursday 14:00",
+            "body": "Hello,\n\nPlease reserve a meeting room for Thursday at 14:00.\n\nPlease confirm the booking and the fee.\n\nThank you."
+          },
+          "delivery_s": 5132,
+          "read_s": 5154,
+          "ack_s": 5166,
+          "receipt": {
+            "message_id": "9bae2771-ac85-501d-a2fc-15609a932bc3",
+            "owner_id": "desk-b",
+            "read_at": "2026-11-25 01:33:50.484505+00:00"
+          },
+          "events": [
+            "7d101bab-73a2-5e61-89f6-a419e885ad2e",
+            "2f9dee13-f010-52c7-8f74-e12bec3bee5b",
+            "0fa8f529-441e-532a-b6d8-8c659a9c40d6"
+          ],
+          "send_event": "65623709-9813-5724-bfa2-1793a58f3998",
+          "batch": 1
+        }
+      ]
+    }
+  ]
+}

@@ -547,7 +547,10 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None, experimen
             client = await stack.enter_async_context(
                 _client(base_url, app, {"Authorization": f"Bearer {participant['token']}"})
             )
-            if scripted or (experiment is not None and owner != experiment.owner):
+            if scripted or (
+                experiment is not None
+                and owner not in getattr(experiment, "model_owners", {experiment.owner})
+            ):
                 model = (
                     experiment.scripted_model(owner)
                     if experiment is not None
@@ -590,7 +593,8 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None, experimen
                     client,
                     manifest["run_id"],
                     clocked=experiment is not None,
-                    booking_inquiries=experiment is not None and owner == experiment.owner,
+                    booking_inquiries=experiment is not None
+                    and owner in getattr(experiment, "inquiry_owners", {experiment.owner}),
                 ),
                 agent_id=participant["agent_id"],
                 session_id=participant["session_id"],
@@ -602,6 +606,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None, experimen
                 gate=gate,
                 process=agent_process(owner),
                 web=WebTools(runtime.pool, manifest["run_id"], owner, brain),
+                tool_setup=getattr(experiment, "tool_setup", lambda owner: None)(owner),
             )
             await agents[owner]._verify_identity()
         engine = (

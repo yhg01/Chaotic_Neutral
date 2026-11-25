@@ -763,6 +763,7 @@ class AgentRuntime:
         gate=None,
         process: str | None = None,
         web=None,
+        tool_setup=None,
     ) -> PersonalAgent:
         if not self._open:
             raise AgentRuntimeError("Open the Agent runtime before creating an Agent.")
@@ -785,6 +786,7 @@ class AgentRuntime:
             gate=gate,
             process=process,
             web=web,
+            tool_setup=tool_setup,
         )
         if agent.environment is not None and agent.environment.shop_browser is not None:
             self._browser_adapters.append(agent.environment.shop_browser)
@@ -815,6 +817,7 @@ class PersonalAgent:
         gate=None,
         process: str | None = None,
         web=None,
+        tool_setup=None,
     ) -> None:
         if gate is not None and (environment is None or not process):
             raise ValueError("A clock gate needs a run-bound environment and a process name.")
@@ -864,6 +867,7 @@ class PersonalAgent:
             if environment is not None
             else None
         )
+        tool_profile = tool_setup(self) if tool_setup is not None else None
         self.instructions = instructions
         if not isinstance(require_explicit_finish, bool):
             raise ValueError("require_explicit_finish must be a boolean.")
@@ -888,9 +892,11 @@ class PersonalAgent:
             if environment is None
             and not guard_empty_scratch
             and not include_previous_activation_context
+            and tool_profile is None
             else session_hash(
                 {
                     "instructions": instructions,
+                    **({"tool_profile": tool_profile} if tool_profile is not None else {}),
                     **({"guard_transfer_task_yield": True} if guard_transfer_task_yield else {}),
                     **({"clocked": True} if gate is not None else {}),
                     **({"web": True} if web is not None else {}),

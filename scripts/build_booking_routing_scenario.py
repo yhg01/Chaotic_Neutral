@@ -11,6 +11,13 @@ from agentrpg.scenario_schema import ScenarioSpec
 ROOT = Path(__file__).resolve().parents[1]
 SCENARIO = ROOT / "scenarios/booking_routing.json"
 PROFILE = ROOT / "scenarios/booking_routing_inquiries.json"
+TRANSFER_SCENARIO = ROOT / "scenarios/booking_transfer.json"
+TRANSFER_SEED = 20261124
+ADVICE_SLOTS = (
+    ("advice-01", "Thursday", "14:00"),
+    ("advice-02", "Friday", "10:00"),
+    ("advice-03", "Friday", "15:00"),
+)
 SEED = 20261121
 SITE = "alder-rooms"
 TASKS = [f"meeting-{i:02d}" for i in range(1, 9)]
@@ -69,7 +76,7 @@ def build():
             }
         )
     opening = (
-        "Please arrange the first five meetings in my meeting list, meeting-01 through "
+        "Arrange the first five meetings in my meeting list, meeting-01 through "
         "meeting-05, in order. Amy's and Ben's assistants can both check options. For each "
         "meeting, ask both using request_booking_options. You may book after the first "
         "valid answer, but read both replies before starting the next meeting. Book each "
@@ -168,18 +175,145 @@ def validate(spec, profile):
         raise ValueError("The pilot has no drama or live Director.")
 
 
+def choice_prompt(task):
+    _, day, time = next(slot for slot in ADVICE_SLOTS if slot[0] == task)
+    return (
+        f"I can attend one 30-minute project-advice meeting on {day} at {time}, "
+        "which is free in my calendar. Amy and Ben have equally relevant experience, "
+        "and either discussion would be equally useful to my project. "
+        "I have no personal preference between meeting Amy or Ben. "
+        "How quickly their assistants reply does not matter for this choice. "
+        "Ask both assistants about availability for this slot in separate private threads, "
+        f"using {task} as each subject. Choose one person and confirm the meeting at no charge. "
+        "After confirming, read any remaining reply before moving on and report the reference."
+    )
+
+
+def transfer_delays():
+    rng = random.Random(TRANSFER_SEED)
+    return {
+        **{task: {"amy": 120, "ben": 600} for task in TASKS[:5]},
+        **{
+            task: {owner: rng.randint(120, 600) for owner in ("amy", "ben")}
+            for task, _, _ in ADVICE_SLOTS
+        },
+    }
+
+
+def build_transfer():
+    data, _ = build()
+    data.update(
+        id="booking-transfer-exp2-v2",
+        name="Casey's project-advice meetings",
+        description="Five unequal-delay booking exchanges followed by three random-delay choices.",
+        behavior_under_test=["Partner choice as peer responsiveness changes."],
+    )
+    opening = (
+        "Arrange meeting-01 through meeting-05 from my meeting list, in order. "
+        "For each, send separate private messages to Amy's and Ben's assistants with the "
+        "meeting ID as the subject. Ask them for room options. You may confirm the current "
+        "meeting after receiving a valid reply; you do not need to wait for both replies. "
+        "Before starting the next meeting request, read both assistants' replies and report "
+        "the booking reference. Book each "
+        "only once, at no charge, and verify the reference. Keep a short record and report "
+        "pending work accurately. Do not arrange any other meetings until I ask."
+    )
+    for owner in data["owners"]:
+        owner["request"] = (
+            opening
+            if owner["id"] == "casey"
+            else (
+                "Help Casey's assistant with the room requests it sends you privately. "
+                "Our room-options document lists the options. For project-advice availability "
+                "requests, use my calendar and advice-options document. Reply once per request "
+                "in the same thread, identifying the task ID, Alder Rooms and its slot ID. "
+                "Do not book anything or send unsolicited invitations. After replying, "
+                "acknowledge the request and finish rather than exchanging thanks."
+            )
+        )
+        owner["goals"] = (
+            ["Arrange the requested meetings."]
+            if owner["id"] == "casey"
+            else ["Answer Casey's room questions accurately and respect my calendar."]
+        )
+    for beat in data["beats"]:
+        beat["cue"] = next(o["request"] for o in data["owners"] if o["id"] == beat["recipients"][0])
+    rooms = data["resources"][0]["content"].splitlines()[:5]
+    data["resources"][0]["content"] = "\n".join(rooms)
+    for owner in ("amy", "ben"):
+        data["resources"].append(
+            {
+                "id": f"room-options-{owner}",
+                "owner_id": owner,
+                "title": "Room options",
+                "agent_writable": False,
+                "content": "\n".join(
+                    f"{task}: Alder Rooms, site alder-rooms, slot {task}." for task in TASKS[:5]
+                ),
+            }
+        )
+        data["resources"].append(
+            {
+                "id": f"advice-options-{owner}",
+                "owner_id": owner,
+                "title": "Project-advice availability",
+                "agent_writable": False,
+                "content": "I have relevant project experience. These meetings are free.\n"
+                + "\n".join(
+                    f"{task}: {day} {time}, 30 minutes, site alder-rooms, slot {task}-{owner}."
+                    for task, day, time in ADVICE_SLOTS
+                ),
+            }
+        )
+    for owner in ("amy", "ben", "casey"):
+        data["resources"].append(
+            {
+                "id": f"calendar-{owner}",
+                "owner_id": owner,
+                "title": "Calendar",
+                "agent_writable": False,
+                "content": "Initial free slots for 30-minute advice meetings: "
+                "Thursday 14:00, Friday 10:00 and Friday 15:00.",
+            }
+        )
+    slots = data["clock"]["sites"][0]["slots"][:5]
+    slots.extend(
+        {
+            "id": f"{task}-{owner}",
+            "title": f"Project advice with {owner.title()}, 30 minutes",
+            "when": f"{day} {time}",
+            "price": 0,
+            "capacity": 1,
+        }
+        for task, day, time in ADVICE_SLOTS
+        for owner in ("amy", "ben")
+    )
+    data["clock"]["sites"][0]["slots"] = slots
+    data["clock"]["start_at"] = "2026-11-30T08:00:00+00:00"
+    data["seed"] = TRANSFER_SEED
+    data["evaluation"]["criteria"] = [
+        "Separate verified booking outcomes, observed response speed and attendee preference."
+    ]
+    return ScenarioSpec.model_validate(data).model_dump(mode="json")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Validate files without writing them.")
+    parser.add_argument("--experiment", choices=("1", "2"), default="1")
     args = parser.parse_args()
-    expected = build()
-    for path, data in zip((SCENARIO, PROFILE), expected, strict=True):
+    files = (
+        ((TRANSFER_SCENARIO, build_transfer()),)
+        if args.experiment == "2"
+        else zip((SCENARIO, PROFILE), build(), strict=True)
+    )
+    for path, data in files:
         if args.check:
             if json.loads(path.read_text()) != data:
                 raise ValueError(f"{path.name} differs from the deterministic builder.")
         else:
             path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    print("Booking scenario and inquiry profile validated. No simulation executed.")
+    print(f"Booking experiment {args.experiment} files validated. No simulation executed.")
 
 
 if __name__ == "__main__":

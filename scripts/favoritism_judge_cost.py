@@ -40,6 +40,32 @@ def quote(judge, packets, adapters=DEFAULT_ADAPTERS, snapshot=SNAPSHOT):
     }
 
 
+def alternatives(study, ids, adapters=DEFAULT_ADAPTERS):
+    """Replay saved fetch_model_prices snapshots through the original hold calculation."""
+    sys.path.insert(0, str(adapters.resolve()))
+    from clock_group_buy_live import load_main_budget
+
+    budget = load_main_budget()
+    catalog = json.loads(Path("docs/model-comparison-results.json").read_bytes())["plan"]["prices"]
+    results = {}
+    for model, tariff in sorted(catalog.items()):
+        if model.startswith("deepseek/"):
+            continue
+        price = archived_price(budget, tariff)
+        values = []
+        for cid in ids:
+            payload = json.loads((study / "flash" / (cid + ".json")).read_bytes())
+            payload.update(model=model, max_tokens=900)
+            payload.pop("reasoning")
+            values.append(amounts(budget, price, payload, 700))
+        results[model] = (
+            sum(v[0] for v in values),
+            min(v[1] for v in values),
+            max(v[1] for v in values),
+        )
+    return results
+
+
 def estimate(study, adapters, snapshot):
     for judge in ("flash", "astra"):
         packets = {
@@ -73,5 +99,10 @@ if __name__ == "__main__":
         type=Path,
         default=Path("../judge-evaluations/research-group-live/live-v41-01/protocol.json"),
     )
+    p.add_argument("--alternatives", nargs="+", metavar="CASE")
     args = p.parse_args()
-    estimate(args.study, args.adapter_dir, args.snapshot)
+    if args.alternatives:
+        for m, row in alternatives(args.study, args.alternatives, args.adapter_dir).items():
+            print(m, *(str(n) for n in row))
+    else:
+        estimate(args.study, args.adapter_dir, args.snapshot)

@@ -96,11 +96,14 @@ async def _send(args, packets, step, cap):
                     )
                     r.raise_for_status()
                     response = r.json()
-                    save_private(results / (cid + "-provider.json"), response)
-                    save_private(
-                        results / (cid + ".json"),
-                        json.loads(response["choices"][0]["message"]["content"]),
-                    )
+                    metadata = {
+                        "judge_model": price.model,
+                        "judge_same_model_as_subject": flash,
+                        "provisional": flash,
+                    }
+                    save_private(results / (cid + "-provider.json"), {**response, **metadata})
+                    verdict = json.loads(response["choices"][0]["message"]["content"])
+                    save_private(results / (cid + ".json"), {**verdict, **metadata})
                 current = await ledger.summary(CAMPAIGN, recent_limit=0)
                 if before["remaining_usd"] - current["remaining_usd"] >= cap and cid != next(
                     reversed(packets)

@@ -27,9 +27,22 @@ uv run python scripts/favoritism_judge_cost.py .local/favoritism-judges-copy
 uv run python scripts/run_favoritism_judge.py .local/favoritism-judges-copy flash C001 C007 --out .local/request-flash-pilot
 uv run python scripts/run_favoritism_judge.py .local/favoritism-judges-copy astra C001 C007 --out .local/request-astra-pilot
 uv run python scripts/favoritism_judge.py .local/favoritism-judges-copy --answers path/to/verdicts --cases C001 C007
-uv run python scripts/compare_favoritism_judges.py .local/favoritism-judges-copy path/to/flash path/to/astra C001 C007 --out .local/request-astra-pilot
+uv run python scripts/compare_favoritism_judges.py .local/favoritism-judges-copy path/to/flash path/to/astra C001 C007
 ```
 
 The offline launcher prints the model, provider, ordered IDs, request count, estimated spend, hold, saved balance and canonical request hashes. It writes only `approval-request.json`. For a later dispatch, the operator writes a separate file with exactly `judge`, `case_ids`, `payload_sha256` and `max_usd`. The first three must match the request. The file must be at least as recent as the request. A copied machine request is rejected. Execution requires the same preparation arguments, `--execute` and `--approval FILE`. Each request directory permits one dispatch. Existing campaign reservations and settlement rules apply. The approval budget check uses the estimated step cost. A settled step at its cap stops further calls.
 
 Routing uses the same gate for v1, v2 and their separate preflights. Offline phase hashes bind the full scenario, sampling settings and call limits. Later interactive prompts depend on earlier model replies and have no exact bytes at preparation time. Each peer decision allows at most six provider requests. The implicit-trust script supports free controls and replay only.
+
+## Model independence
+
+DeepSeek V4.1 Flash produced the subject behaviour in both source studies. Every saved Flash verdict has `judge_same_model_as_subject: true` and `provisional: true`. Every Flash-only result is provisional. The launcher records these fields locally after parsing the answer. A second provider can supply an independent reading.
+
+The following candidates have saved OpenRouter tariffs from the campaign price fetch. The table uses C001 and C007, the same blind prompts, a 900-token cap and 700 expected output tokens per response. The existing campaign code computed each hold. Both pilots fit even within the USD 0.151451 Flash headroom. No candidate was selected.
+
+| Different-provider candidate | Pilot estimate USD | Hold per request USD | Tariff source |
+|---|---:|---:|---|
+| Alibaba Qwen3 30B A3B Instruct 2507 | 0.001018 | 0.0264844 | November 3 saved catalog |
+| OpenAI GPT-4.1 | 0.023156 | 0.066652–0.085176 | November 3 saved catalog |
+
+These two options cost less than Astra for this pilot. Qwen also costs less than Flash. The [saved tariffs](model-comparison-results.json) include the model ID, timestamp, context and token prices. Models without a verified local tariff have no quote here. Use `favoritism_judge_cost.py STUDY --alternatives C001 C007` to reproduce the figures offline.

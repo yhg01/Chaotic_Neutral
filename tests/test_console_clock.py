@@ -472,7 +472,6 @@ async def test_agent_credential_sees_only_time_and_its_own_process(client, pool)
     stranger = other["participants"][0]["token"]
     foreign = await client.get(f"/api/v1/runs/{run_id}/clock", headers=bearer(stranger))
     assert foreign.status_code == 404
-    # A participant from this run also keeps away from the research reads.
     for route in ("timeline", "board"):
         path = f"/api/v1/runs/{run_id}/{route}"
         assert (await client.get(path, headers=bearer(bob["token"]))).status_code == 403
@@ -552,7 +551,6 @@ async def test_timeline_pages_by_keyset_and_merges_in_story_order(client, pool):
     types = {item["type"] for item in seen}
     assert types == {"action", "job", "event", "chat", "perturbation", "board", "direct"}
     assert not {item["title"] for item in seen} & {"owner_message", "board_posted", "trial_started"}
-    # One read returns the same order as the paged reads.
     whole = (await client.get(f"/api/v1/runs/{run_id}/timeline", params={"limit": 500})).json()
     assert [(item["type"], item["id"]) for item in whole["items"]] == ids
 
@@ -628,7 +626,6 @@ async def test_board_read_labels_public_and_direct_with_participants(client, poo
     assert [person["owner_id"] for person in items[3]["participants"]] == owners
     assert all("seq" not in item for item in items)
 
-    # A participant's own board read still hides the thread that does not name them.
     seen = await client.get(f"/api/v1/clusters/{cluster}/threads", headers=bearer(carol["token"]))
     assert secret["id"] not in {item["id"] for item in seen.json()["items"]}
 
@@ -665,7 +662,6 @@ async def test_clock_view_before_start_and_on_a_window_run(client, pool):
     assert len(view["processes"]) == 4 and {item["state"] for item in view["processes"]} == {"idle"}
     assert view["blocks"] == [] and view["perturbations"] == [] and view["sites"] == []
     assert view["interference"]["rate"] is None and view["interference"]["drawn"] == 0
-    # The seeded future is queued in the pop order of rule R2.
     assert view["queue"][0]["kind"] == "boundary" and view["queue"][0]["at"] == "Mon 08:00"
     assert view["queue"][0]["payload"] == {"window": 0}
     assert [item["status"] for item in view["assistants"]] == ["active", "active"]
@@ -907,8 +903,6 @@ async def test_pages_show_every_saved_row_of_a_real_engine_run(
     assert next(item for item in seen if item["type"] == "action")["detail"]
 
 
-# The browser checks below use the real API in this process through route interception, so no
-# server starts. They run when the optional browser extra and a Chromium build are present.
 async def open_browser():
     pytest.importorskip("playwright.async_api", reason="Install the browser extra.")
     from playwright.async_api import Error, async_playwright
@@ -1031,7 +1025,6 @@ async def test_browser_clock_panel_board_and_refusal_on_a_clocked_run(client, po
         page, errors, requests = await browser_page(browser, client)
         await page.goto(f"http://portal.test/console?run={run_id}&turn=1")
         await ready_page(page, "Mon 08:00")
-        # The story time replaces Turn NN, and the turn parameter still opens the page.
         assert await page.locator("#turn-word").text_content() == "PAGE"
         assert "turn=1" in page.url
         assert "Turn" not in await page.locator("#turn-heading").text_content()
@@ -1053,7 +1046,6 @@ async def test_browser_clock_panel_board_and_refusal_on_a_clocked_run(client, po
         assert await link.get_attribute("href") == f"/sim/{run_id}/agentcare/"
         assert await link.get_attribute("rel") == "noopener noreferrer"
 
-        # Each record kind is on the page, in story order, with a story time.
         assert (await page.locator("#log-list .log-time").first.text_content()).startswith("Mon")
         await page.locator('[data-channel="jobs"]').click()
         assert await page.locator("#log-list .log-row").count() == 6
@@ -1072,7 +1064,6 @@ async def test_browser_clock_panel_board_and_refusal_on_a_clocked_run(client, po
         )
         assert all(text.startswith("Mon") for text in times)
 
-        # The first-match inspector is gone: every Actor and Agent job can be selected.
         persona = page.locator(".job-picker button")
         assert await persona.count() == 3
         await persona.nth(2).click()
@@ -1082,19 +1073,16 @@ async def test_browser_clock_panel_board_and_refusal_on_a_clocked_run(client, po
         await page.locator(".job-picker button").nth(1).click()
         assert "agent output 11" in await page.locator("#inspector-body").text_content()
 
-        # Selecting a point on a lane opens that page.
         await page.locator(".clock-track").nth(1).click(position={"x": 1, "y": 9})
         await ready_page(page, "Mon 06:00")
         assert "turn=0" in page.url
 
-        # A perturbation mark opens its page and its saved draw.
         await extreme.click()
         await ready_page(page, "Mon 08:00")
         await page.wait_for_selector("#detail-dialog[open]")
         assert '"extreme"' in await page.locator("#detail-content").text_content()
         await page.locator("#close-detail").click()
 
-        # The Board tab names who took part. Text stays text.
         await page.locator('[data-clock-tab="board"]').click()
         await page.wait_for_selector(".board-thread")
         assert await page.locator(".board-thread").count() == 2
@@ -1117,7 +1105,6 @@ async def test_browser_clock_panel_board_and_refusal_on_a_clocked_run(client, po
         assert await page.locator("#clock-perturbations .log-row").count() == 2
         await page.locator('[data-clock-tab="week"]').click()
 
-        # Hiding the clock leaves the replay, and the language switch keeps the panel.
         await page.locator("#clock-collapse").click()
         assert await page.locator("#clock-body").is_hidden()
         assert await page.locator("#clock-collapse").text_content() == "Show clock"
@@ -1127,7 +1114,6 @@ async def test_browser_clock_panel_board_and_refusal_on_a_clocked_run(client, po
         await page.locator("#language-toggle").click()
         assert await page.locator(".clock-lanes .clock-lane").count() == 5
 
-        # Step and Continue are disabled with a note. Pause stays with its own rule.
         await page.locator("#mode-live").click()
         await page.wait_for_function(
             """document.querySelector("#execution-reason").textContent.includes("run script")"""
@@ -1206,7 +1192,6 @@ async def test_browser_fifteen_owners_and_a_full_week_fit_the_panel(client, pool
                         )
             for seq in range(12):
                 await add_job(conn, run_id, "owner-3", "agent", 60, seq, now - 500 + seq)
-        # The panel follows a running clock without losing its scroll position.
         follower, errors, _ = await browser_page(browser, client)
         await follower.goto(f"http://portal.test/console?run={run_id}&turn=60")
         await ready_page(follower, "Sat 06:00")
@@ -1256,10 +1241,8 @@ async def test_browser_reads_every_page_of_a_real_engine_run(app, client, test_d
         await page.wait_for_selector(".clock-lane .clock-track")
         assert await page.locator(".clock-lanes .clock-lane").count() == 6
         assert await page.locator(".clock-track .clock-block").count() > 0
-        # This control has one-hour pages. The labels follow the saved clock section.
         assert await page.locator("#turn-note").text_content() == "Replay · one-hour pages"
         assert "6 one-hour pages" in await page.locator("#run-summary").text_content()
-        # A real Actor view holds a clock object. It must read as text, not as an object name.
         persona = await page.locator("#inspector-body").text_content()
         assert "[object Object]" not in persona and "now:" in persona
         rows = 0
@@ -1346,7 +1329,6 @@ async def test_browser_empty_and_error_states_read_sensibly(client, pool):
         assert errors == []
         await page.context.close()
 
-        # A failed clock read leaves the replay usable and says what happened.
         failing, errors, _ = await browser_page(
             browser, client, failures={"/clock": 500, "/board": 500}
         )

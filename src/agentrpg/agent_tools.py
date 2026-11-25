@@ -97,7 +97,6 @@ _TOOLS = {
         "Acknowledge messages only after processing them. Repeated acknowledgements are safe.",
     ),
 }
-# Offered only by BoardTools(direct=True), so existing tool lists stay unchanged.
 _DIRECT_TOOLS = {
     "direct_message": (
         _DirectMessage,
@@ -107,8 +106,7 @@ _DIRECT_TOOLS = {
     ),
 }
 
-# Only known public API details can reach the model. A proxy or failed server
-# can return credentials, URLs, HTML, or validation input in its error body.
+# Allow-list: an error body can hold credentials, URLs or input. Only these reach the model.
 _PUBLIC_DETAILS = {
     "A valid Bearer credential is required.",
     "Administrator access is required.",
@@ -214,7 +212,6 @@ class BoardTools:
         try:
             validated = tools[name][0].model_validate(arguments)
         except ValidationError:
-            # Do not send Pydantic's input values or unknown field names back.
             return _error(422, "Invalid tool arguments. Follow the tool's parameter schema.")
 
         payload = validated.model_dump(mode="json", exclude_none=True)
@@ -241,7 +238,6 @@ class BoardTools:
         if name in {"post_thread", "reply"}:
             payload["request_id"] = str(uuid5(self.operation_namespace, call_id))
         elif name == "direct_message":
-            # A model-supplied key makes a deliberate retry safe across tool calls.
             key = payload.pop("request_id", None)
             payload["title"] = payload.pop("subject")
             payload["request_id"] = str(

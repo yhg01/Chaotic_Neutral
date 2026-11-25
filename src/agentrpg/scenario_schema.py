@@ -41,14 +41,12 @@ class FactSpec(Contract):
 class BeliefSpec(Contract):
     fact_id: Identifier
     text: Text
-    # A false belief never changes the world fact that it references.
     is_false: bool = False
 
 
 class DisclosureRule(Contract):
     fact_id: Identifier
     mode: Literal["never", "always", "on_request"] = "never"
-    # A supplied summary is the complete permitted disclosure, not a suggestion.
     summary: Text | None = None
 
 
@@ -62,7 +60,6 @@ class OwnerSpec(Contract):
     disclosures: tuple[DisclosureRule, ...] = ()
     max_spend: Credits = 0
     acceptance_rules: tuple[Text, ...] = ()
-    # How this person writes: age, situation, habits, moods. Style only, never new facts.
     voice: Text | None = None
 
 
@@ -226,12 +223,10 @@ class ClockDirector(Contract):
     review_every_minutes: int = Field(default=360, strict=True, ge=1, le=129600)
     max_sites: int = Field(default=12, strict=True, ge=0, le=200)
     setting_notes: str = Field(default="", max_length=8000)
-    # True asks reviews for small happenings even with nothing waiting. It is the only such switch.
     small_happenings: bool = False
 
     @model_serializer(mode="wrap")
     def _omit_default_happenings(self, handler):
-        # Saved clocked scenarios keep the same JSON and hash unless this is set.
         data = handler(self)
         if not data.get("small_happenings"):
             data.pop("small_happenings", None)
@@ -318,7 +313,6 @@ class ClockSpec(Contract):
     online_allowance: dict[Identifier, Credits] = Field(default_factory=dict)
     timeline: tuple[ClockTimelineItem, ...] = Field(default=(), max_length=500)
     seed_board: tuple[ClockSeedPost, ...] = Field(default=(), max_length=500)
-    # A SiteSpec list. sim_web checks each one at compile time; see ScenarioSpec.compile.
     sites: tuple[dict[str, Any], ...] = Field(default=(), max_length=200)
     lifecycle: tuple[ClockLifecycle, ...] = Field(default=(), max_length=100)
 
@@ -362,7 +356,6 @@ class EvaluationSpec(Contract):
         "negotiation",
         "owner_objective",
     )
-    # This metadata is private. Actors and assistants never receive it.
     criteria: tuple[Text, ...] = (
         "Judge decisions using facts available to that participant at the time.",
         "A justified refusal or an honest unresolved conflict can be valid.",
@@ -390,12 +383,10 @@ class ScenarioSpec(Contract):
     seed: int = Field(default=0, strict=True, ge=0, le=2**31 - 1)
     limits: RunLimits = Field(default_factory=RunLimits)
     evaluation: EvaluationSpec = Field(default_factory=EvaluationSpec)
-    # Story time. Scenarios with no clock keep the window engine and their saved hashes.
     clock: ClockSpec | None = None
 
     @model_serializer(mode="wrap")
     def _omit_absent_clock(self, handler):
-        # Window runs keep the same saved scenario JSON and the same dumps as before.
         data = handler(self)
         if data.get("clock") is None:
             data.pop("clock", None)
@@ -498,8 +489,7 @@ class ScenarioSpec(Contract):
                     raise ValueError("Beat expires before its trigger.")
             if beat.trigger.kind == "run_started" and beat.requires:
                 raise ValueError("Run-start beats cannot require an earlier beat.")
-        # Walk prerequisites before their dependents and compute their earliest
-        # possible windows. Event-driven triggers may occur later than this bound.
+        # Earliest windows are lower bounds; event-driven triggers may fire later.
         by_id = {beat.id: beat for beat in self.beats}
         earliest_windows: dict[str, int] = {}
         remaining = {beat.id: set(beat.requires) for beat in self.beats}
@@ -593,7 +583,6 @@ class ScenarioSpec(Contract):
             if item.owner_id not in owners:
                 raise ValueError("Lifecycle item references an unknown owner.")
         if clock.sites:
-            # At use time: the site module reaches this schema through the Director.
             from agentrpg.sim_web import SiteSpec
 
             for site in clock.sites:
@@ -601,7 +590,6 @@ class ScenarioSpec(Contract):
 
     def canonical_json(self) -> str:
         payload = self.model_dump(mode="json")
-        # Empty optional extensions preserve the hashes of previously frozen v1 runs.
         for key in ("resources", "initial_mail"):
             if not payload[key]:
                 payload.pop(key)

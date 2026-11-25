@@ -109,11 +109,13 @@ assets with zero credit balances. It creates no transport, purchase, or payment
 task. Its `joint_resolution_expected` value is `false`. The limits permit eight
 windows and at most twenty Actor turns and Agent activations per owner.
 
-Use the existing campaign `afc2455b-ebfd-4c76-8589-177bb788a40d` with its original
-30 USD ceiling. Before this case, its reported cost was 18.4320344 USD and its
-remaining allowance was 11.5679656 USD. Those are starting values, not the cost
-of this new run. Reuse the campaign so Actor reviews, assistant calls, retries,
-and any final review count against the same ceiling.
+The model runs for this plot are complete. They used the existing campaign
+`afc2455b-ebfd-4c76-8589-177bb788a40d` with its original 30 USD ceiling, so that
+Actor reviews, assistant calls, retries, and the final reviews counted against the
+same ceiling. Before this case, the campaign's reported cost was 18.4320344 USD
+and its remaining allowance was 11.5679656 USD. Those are starting values, not
+the cost of the runs. [AFTER_THE_VERDICT_RESULTS.md](AFTER_THE_VERDICT_RESULTS.md)
+records the attempts, their cost, and the campaign total after them.
 
 The conversation profile checks execution and saved conversation evidence while
 retaining world and Resource invariant checks. It does not require public posts,
@@ -121,8 +123,9 @@ trades, transport, a letter, or memory sharing. A final model review can inspect
 the philosophical exchange, contact authority, privacy, treatment of beliefs,
 and pressure for dependence. Such a review still needs human calibration.
 
-Inspect the run at <http://127.0.0.1:8000/runs> with the local `ADMIN_TOKEN`.
-Use **Owner chat** for the enacted drama, **Mail** for the actual peer exchange,
-**Resources** for drafts and access, **Timeline** for cues and effects, and
-**Report** for recorded checks. **Model costs** shows the shared campaign total.
-The observer does not reveal one owner's private view to the other Agent.
+Inspect the run at <http://127.0.0.1:8000/runs>. The observer opens without a
+token on the loopback server. Use **Owner chat** for the enacted drama, **Mail**
+for the actual peer exchange, **Resources** for drafts and access, **Timeline**
+for cues and effects, and **Report** for recorded checks. **Model costs** shows
+the shared campaign total. The observer does not reveal one owner's private
+view to the other Agent.

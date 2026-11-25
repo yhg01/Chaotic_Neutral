@@ -20,7 +20,6 @@ def source_fingerprint(root):
 
 async def begin_trial(pool, run_id, *, profile, configuration, root):
     invocation = uuid4()
-    # Only hashes leave the runner. Do not save prompts or credentials in audit events.
     configuration = {
         k: v for k, v in configuration.items() if k not in {"campaign_id", "budget_usd"}
     }

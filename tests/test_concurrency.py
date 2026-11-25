@@ -147,8 +147,6 @@ async def test_uncommitted_api_write_does_not_block_other_writes_or_reads(
     base = f"/api/v1/clusters/{cluster['id']}"
     paused_payload = thread_payload(title="Paused transaction")
     lock_key = uuid4().int % (2**31 - 1)
-    # These generated integer/UUID literals cannot contain SQL syntax. The trigger
-    # exists only in this test's disposable schema, without application test hooks.
     async with db_pool.connection() as setup:
         await setup.execute(
             f"""
@@ -251,7 +249,6 @@ async def test_late_commit_is_delivered_after_newer_message_acknowledgement(
         before_commit = await client.get(f"{base}/updates", headers=reader)
         assert before_commit.status_code == 200, before_commit.text
         assert before_commit.json()["items"] == []
-    # Returning the connection commits the earlier transaction after the receipt.
     after_commit = await client.get(f"{base}/updates?limit=1", headers=reader)
     assert after_commit.status_code == 200, after_commit.text
     assert [message["id"] for message in after_commit.json()["items"]] == [str(late_id)]

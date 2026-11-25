@@ -73,9 +73,6 @@ def actor_model(*answers):
     return GenericFakeChatModel(messages=iter([AIMessage(json.dumps(a)) for a in answers]))
 
 
-# The booking yes. ------------------------------------------------------------------------------
-
-
 def test_only_a_clocked_day_with_things_to_book_shows_the_booking_field():
     schema = _candidate_schema(view()).model_json_schema()
     assert "booking_approval" in schema["properties"]
@@ -102,7 +99,6 @@ def test_a_booking_yes_is_checked_and_a_saved_turn_keeps_its_bytes():
         )
     cancel = said("Cancel the car.", booking_approval={"booking": "car", "action": "cancel"})
     validate_actor_output(view(), cancel)
-    # An unset field stays out of the saved turn, so older saved turns load byte for byte.
     assert "booking_approval" not in said("Thanks.").model_dump(mode="json")
     assert ActorOutput.model_validate(grant.model_dump(mode="json")) == grant
 
@@ -147,7 +143,6 @@ async def test_a_booking_yes_adds_to_what_the_owner_allowed_and_a_booking_settle
         run_id = UUID(created["run_id"])
         director = Director(pool)
         await director.control(run_id, "start")
-        # The van was allowed earlier. The car yes must keep it.
         await engine.world.set_consent(run_id, "dan", 7, ["van"], uuid4())
         await engine.advance(created["run_id"], max_sim_minutes=20)
         async with pool.connection() as conn:
@@ -188,7 +183,46 @@ async def test_a_booking_yes_adds_to_what_the_owner_allowed_and_a_booking_settle
     assert [item["asset_id"] for item in held] == ["car"]
 
 
-# A yes in words only. --------------------------------------------------------------------------
+async def test_a_second_yes_to_the_same_booking_adds_no_money(app, pool, test_database_url):
+    spec = two_assets(("dan",))
+    yes = {
+        "kind": "reply",
+        "text": "Yes, book the car.",
+        "booking_approval": {"booking": "car", "up_to": 5},
+    }
+    actors = {"dan": control.ScriptedOwner([{**yes, "next_action": NEXT}, yes])}
+    model = control.ScriptModel(
+        script=[
+            control.calls(("send_owner_message", {"content": "Shall I book the car for $5?"})),
+            control.end_turn(status="waiting", wait_for=["owner_message"]),
+        ]
+    )
+    async with control.clocked_run(app, test_database_url, spec, {"dan": model}, actors) as (
+        engine,
+        created,
+        _runtime,
+        _agents,
+    ):
+        run_id = UUID(created["run_id"])
+        await Director(pool).control(run_id, "start")
+        await engine.advance(created["run_id"], max_sim_minutes=120)
+        async with pool.connection() as conn:
+            account = await (
+                await conn.execute(
+                    "SELECT consent_budget,consent_assets,consent_version FROM world_accounts "
+                    "WHERE run_id=%s AND owner_id='dan'",
+                    (run_id,),
+                )
+            ).fetchone()
+            grants = await (
+                await conn.execute(
+                    "SELECT count(*) AS n FROM run_events WHERE run_id=%s "
+                    "AND kind='consent_changed'",
+                    (run_id,),
+                )
+            ).fetchone()
+    assert grants["n"] == 2
+    assert account["consent_budget"] == 5 and account["consent_assets"] == ["car"]
 
 
 @pytest.mark.parametrize(
@@ -223,14 +257,10 @@ async def test_a_yes_in_words_is_asked_about_once_and_the_next_answer_stands():
     output = await actor.respond(asked)
     assert output.booking_approval.booking == "van"
     assert "fill booking_approval instead" in actor.last_attempts[0]["reason"]
-    # Asked once: the same words again are their answer.
     actor = ModelActor(actor_model(words, words), max_repairs=2, natural=True)
     output = await actor.respond(asked)
     assert output.text == "yes go ahead" and output.booking_approval is None
     assert len(actor.last_attempts) == 2
-
-
-# Other people's deeds. -------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

@@ -41,9 +41,7 @@ from agentrpg.scenario_schema import ScenarioSpec
 
 _UUID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b")
 _MOMENT = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?")
-# A paging cursor encodes a hash of the cluster's random ID and a shared row number.
 _CURSOR = re.compile(r'"((?:next_)?cursor)": "[A-Za-z0-9_=-]+"')
-# Failed attempts depend on real time. They are diagnostics, not story.
 _NOT_STORY = {"job_failure"}
 
 
@@ -60,7 +58,6 @@ class ScriptModel(BaseChatModel):
     seen: list[Any] = Field(default_factory=list)
     all_seen: list[Any] = Field(default_factory=list)
     latency: Any = None
-    # finished needs every notified email read first. A model with no script cannot do that.
     resting_status: str = "finished"
 
     @property
@@ -120,7 +117,6 @@ class ScriptedOwner:
         self.latency = latency
         self.last_attempts = []
         self.assigned = {}
-        # Choose by what this person has already said, so a new process picks the same turn.
         self.by_spoken = by_spoken
 
     async def respond(self, view):

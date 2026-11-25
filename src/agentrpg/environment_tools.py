@@ -9,6 +9,7 @@ from pydantic import Field, ValidationError
 
 from agentrpg.agent_tools import Identifier, _Arguments, _error
 from agentrpg.inbox_tools import INBOX_TOOLS, InboxTools, _ClockedSendMail
+from agentrpg.resource_schema import SHARED_READ_ONLY
 from agentrpg.resource_tools import RESOURCE_TOOLS, resource_route
 from agentrpg.schemas import Body
 from agentrpg.shop_browser import SHOP_BROWSER_TOOLS
@@ -141,8 +142,6 @@ class EnvironmentTools:
             )
         self.shop_browser = shop_browser
         if shop_browser is not None:
-            # This opt-in buyer uses the website for commerce. Existing seller
-            # and legacy environments retain their direct market tools.
             self.tools = {
                 name: value
                 for name, value in self.tools.items()
@@ -266,6 +265,22 @@ class EnvironmentTools:
                                         "status": 403,
                                         "code": task_code,
                                         "detail": task_details[task_code],
+                                    },
+                                }
+                        if name == "write_resource" and response.status_code == 403:
+                            try:
+                                shared = response.json().get("detail") == SHARED_READ_ONLY
+                            except (ValueError, AttributeError):
+                                shared = False
+                            if shared:
+                                return {
+                                    "ok": False,
+                                    "error": {
+                                        "status": 403,
+                                        "code": "shared_read_only",
+                                        "detail": "This record belongs to someone else. You can "
+                                        "read it, but only its owner's assistant can change it. "
+                                        "Ask them to make the change.",
                                     },
                                 }
                         # Server errors may include secrets. Return only a local message.

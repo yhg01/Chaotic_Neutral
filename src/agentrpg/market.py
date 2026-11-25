@@ -319,9 +319,6 @@ class MarketService:
                     **payload,
                 }
                 if expected_version is not None and expected_version != target_row["version"]:
-                    # A known mismatch cannot improve by waiting for settlement. Save
-                    # a final receipt but no intent, so a new corrected request can
-                    # succeed in this window. Retried IDs retain this exact result.
                     result.update(
                         status="rejected",
                         reason="stale_version",
@@ -585,8 +582,7 @@ class MarketService:
             return "buy_budget_exceeded", {}
         if amount > account["balance"]:
             return "insufficient_balance", {}
-        # All checks precede effects. The run transaction makes credits, stock,
-        # permission budgets, receipts, ledger, and delivery events atomic.
+        # All checks precede effects: a rejection returns without rolling back this transaction.
         buyer_account = await _one(
             conn,
             (
@@ -630,7 +626,6 @@ class MarketService:
             (quantity, run_id, listing["listing_id"]),
         )
         holding = str(uuid5(UUID(str(run_id)), f"holding:{buyer}:{listing['origin_id']}"))
-        # Ownership of an item transfers. Private notes and sharing permissions do not.
         await conn.execute(
             (
                 """INSERT INTO owner_resources(run_id, resource_id, owner_id, origin_id, title,
@@ -660,7 +655,6 @@ class MarketService:
                 intent["window_index"],
             ),
         )
-        # Journal both accounts through the existing transport journal as well.
         await self.world._journal(conn, run_id, "market_purchase", buyer)
         await self.world._journal(conn, run_id, "market_sale", seller)
         await self.resources._journal(conn, run_id, "purchase")

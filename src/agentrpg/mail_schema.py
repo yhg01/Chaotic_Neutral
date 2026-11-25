@@ -9,7 +9,6 @@ from pydantic import ConfigDict, Field, StringConstraints
 from agentrpg.schemas import Payload
 
 MailOwner = Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$")]
-# On a clocked run an assistant can write to anyone: an owner_id, a name, or an address.
 MailAddress = Annotated[
     str,
     StringConstraints(

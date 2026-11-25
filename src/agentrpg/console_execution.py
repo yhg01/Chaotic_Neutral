@@ -80,8 +80,7 @@ def lock_key(run_id):
 async def external_worker_active(conn, run_id):
     for prefix in ("scenario-runner", "director"):
         key = int.from_bytes(hashlib.sha256(f"{prefix}:{run_id}".encode()).digest()[:8], "big")
-        # Observe locks without briefly claiming one. A read must not make a
-        # newly launched worker fail its nonblocking conductor acquisition.
+        # Read pg_locks. A try-lock here could make a new worker fail its nonblocking acquisition.
         active = await row(
             conn,
             """SELECT EXISTS(SELECT 1 FROM pg_locks
@@ -219,8 +218,6 @@ async def checked_manifest(conn, root, run):
 
 
 async def campaign_totals(conn, campaign_id):
-    # Keep the full uncertain reservation. A breach also retains whichever
-    # amount is larger, consistent with the provider reservation ledger.
     return await row(
         conn,
         """SELECT COALESCE(sum(reported_usd),0) AS spent,
@@ -322,7 +319,6 @@ async def recover_stale(conn, run_id):
     )
     if stale is None:
         return
-    # A surviving worker retains its session lock across an API restart.
     acquired = await row(conn, "SELECT pg_try_advisory_xact_lock(%s) AS ok", (lock_key(run_id),))
     if acquired["ok"]:
         await conn.execute(
@@ -616,8 +612,7 @@ class ExecutionSupervisor:
                     stderr=stream,
                 )
             self.processes[operation_id] = process
-            # Register the process before any database await. A failed PID write
-            # must not leave a running child outside lifecycle supervision.
+            # Start the watcher before any database await, or a failed write orphans the child.
             task = asyncio.create_task(self._watch(operation_id, process))
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
@@ -627,8 +622,6 @@ class ExecutionSupervisor:
                 )
         except Exception:
             if process is not None:
-                # The worker also records its PID and durable status itself.
-                # Keep its watcher when only this supplementary write failed.
                 return
             async with self.pool.connection() as conn:
                 await conn.execute(
@@ -650,8 +643,7 @@ class ExecutionSupervisor:
             )
 
     async def close(self):
-        # Only terminate process handles created by this supervisor, never a
-        # stored PID which may now identify a different operating-system process.
+        # Terminate only handles this supervisor made. A stored PID may now be another process.
         for process in list(self.processes.values()):
             with suppress(ProcessLookupError):
                 process.terminate()

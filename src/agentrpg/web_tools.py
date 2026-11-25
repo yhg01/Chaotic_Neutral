@@ -115,7 +115,6 @@ class WebTools:
         self.director_brain = director_brain
         if operation_namespace is not None and not isinstance(operation_namespace, UUID):
             raise ValueError("The operation namespace must be a UUID.")
-        # A stable default keeps tool-call request IDs across a resume.
         self.operation_namespace = operation_namespace or uuid5(
             self.run_id, f"web-tools:{owner_id}"
         )
@@ -163,7 +162,6 @@ class WebTools:
 
     @staticmethod
     def _detail(error: WorldError) -> str:
-        # Run-level errors use internal words. The assistant only needs to know to try later.
         detail = str(error)
         return _NOT_RUNNING if detail in _INTERNAL_ERRORS else detail
 
@@ -229,8 +227,6 @@ class WebTools:
                 await sim_web.release_search_ask(conn, self.run_id, key)
             raise
         if getattr(plan, "_fell_back", False):
-            # No decision was made, so this is not an answer. The claim stays open, and a later
-            # search can ask again up to the attempt limit.
             return []
         created = None
         async with self.pool.connection() as conn, conn.transaction():
@@ -240,7 +236,6 @@ class WebTools:
                         conn, self.run_id, spec, operation_key=f"search:{key}"
                     )
                 except WorldError:
-                    # The address is taken, the limit was reached or the spec is not valid.
                     created = None
             await sim_web.finish_search_ask(
                 conn, self.run_id, key, created["site_id"] if created else None

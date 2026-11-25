@@ -15,7 +15,6 @@ TITLE_LIMIT = 300
 BODY_LIMIT = 4000
 QUERY_LIMIT = 2000
 MAX_RESULTS = 100
-# Relevance decides first. Recency moves a score by at most 30 percent.
 RECENCY_WEIGHT = 0.3
 RECENCY_HALF_LIFE_S = 2 * 24 * 3600
 COLUMNS = "l.id,l.seq,l.run_id,l.sim_s,l.kind,l.owner_id,l.title,l.body,l.meta"

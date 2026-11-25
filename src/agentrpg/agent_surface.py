@@ -29,7 +29,6 @@ TOOL_ALIASES = {
     "search_environment": "search_records",
     "finish_activation": "end_turn",
 }
-# Clocked sessions only. Window runs keep the names their saved evidence and prompts use.
 CLOCKED_TOOL_ALIASES = {
     "transfer_credits": "send_payment",
     "inspect_transfer_account": "check_payments",
@@ -207,8 +206,6 @@ nothing has happened yet; the result reaches you later.
 - Only tool results tell you what actually happened. Give your owner an accurate status, and if \
 something cannot be done, say so plainly."""
 
-# New runs of scenarios with no clock section keep this exact text, because they do not offer
-# direct messages. Saved runs keep the instructions saved in their own configuration.
 WINDOW_INSTRUCTIONS = """You are a personal assistant working for one person, your owner. Call \
 get_my_info to see who your owner is and who else you can contact.
 
@@ -344,7 +341,6 @@ _HIDDEN_KEYS = {
     "updated_at",
     "request_id",
 }
-# Clocked sessions only. Window runs keep the fields their prompts already show.
 _CLOCKED_HIDDEN_KEYS = {"consent_version"}
 _SENDER_TYPES = {"director": "outside contact", "actor": "person", "agent": "assistant"}
 
@@ -360,7 +356,6 @@ def _scrub(value, time_text=None):
         sender = mail_sender(value.get("body"))
     for key, item in value.items():
         if key == "created_at" and time_text is not None and isinstance(item, str):
-            # Story time on a clocked session, in plain speech. Other sessions hide it.
             try:
                 result["time"] = time_text(item)
             except ValueError:
@@ -369,7 +364,6 @@ def _scrub(value, time_text=None):
         if key in _HIDDEN_KEYS or (time_text is not None and key in _CLOCKED_HIDDEN_KEYS):
             continue
         if sender is not None and key in {"sender_source", "sender_owner_id"}:
-            # Mail from outside says who it is from, as any mailbox does.
             result["from"] = sender
             continue
         if key == "sender_source":
@@ -395,7 +389,6 @@ _ERROR_WORDS = (
     (re.compile(r"The Agent credential"), "Your access"),
     (re.compile(r"The run is not running\.?"), "The service is not available now."),
 )
-# Clocked sessions only. Window runs keep the wording their prompts already show.
 _CLOCKED_ERROR_WORDS = (
     (
         re.compile(r"The (?:environment|service) record was not found\.?"),
@@ -421,7 +414,6 @@ _CLOCKED_ERROR_WORDS = (
 )
 
 
-# What a model is told when an end_turn call does not fit together. Each rule of ActivationResult.
 _END_TURN_RULES = (
     ("pending ids", "pending_ids goes only with status waiting."),
     ("expected events", "wait_for goes only with status waiting."),
@@ -445,7 +437,6 @@ def end_turn_error(error: Exception) -> str:
     )
 
 
-# The tool message a clocked session reads when it finishes with mail it has not opened.
 UNREAD_MAIL_CODE = "unread_mail"
 UNREAD_MAIL_DETAIL = (
     "You have new mail you have not opened. Read it with read_mail before you finish. If it has to "

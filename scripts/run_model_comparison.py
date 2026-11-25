@@ -253,7 +253,6 @@ async def main(args):
                     save_private(progress_path, progress)
                     raise
                 log = folder / f"{key.replace(':', '-')}.attempt-{uuid4()}.log"
-                # Private files may include synthetic dialogue and tracebacks. Do not print them.
                 log.touch(mode=0o600, exist_ok=False)
                 log.write_bytes(raw)
                 run_id = prior.get("run_id") if prior else None
@@ -301,7 +300,7 @@ async def main(args):
                     flush=True,
                 )
                 if trial["run_status"] != "completed" or not trial.get("environment_checks_passed"):
-                    return  # Preserve the checkpoint before another trial can start.
+                    return
     print(progress_path)
 
 

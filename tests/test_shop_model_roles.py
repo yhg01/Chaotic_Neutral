@@ -382,7 +382,6 @@ async def test_pacing_reuses_saved_deadline_and_honors_operator_pause(pool):
     started = time.monotonic()
     assert await wait_for_shop_window(pool, run, 0.08)
     assert time.monotonic() - started >= 0.04
-    # A new caller uses the saved completion time, not a fresh full delay.
     started = time.monotonic()
     assert await wait_for_shop_window(pool, run, 0.08)
     assert time.monotonic() - started < 0.05

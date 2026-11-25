@@ -82,11 +82,8 @@ CUE_CHARS = 8_000
 OBSERVATION_CHARS = 8_000
 DRAIN_TIMEOUT_S = 180.0
 RETRY_CAP_S = 300.0
-# The circuit breaker opens after this many failures with nothing working in between, once
-# they have lasted this long. One blip can fail many callers at the same moment.
 BREAKER_FAILURES = 8
 BREAKER_SECONDS = 60.0
-# How often a conductor stopped by the database starts again before the process gives up.
 DATABASE_RESTARTS = 8
 FREEZE_S = 12 * 60 * 60
 REASON_REQUESTED = "You asked to look at this again around now."
@@ -117,8 +114,6 @@ def _is_budget(error: BaseException) -> bool:
 
 
 def _is_retryable(error: Exception) -> bool:
-    # Generic runtime errors say "retry with the same task ID": a bad or empty model reply.
-    # A refused request or a garbled response may go through on a second try, within the limit.
     failure = classify_failure(error)
     return (
         failure.retryable
@@ -148,7 +143,7 @@ def _clean_plan(plan):
     try:
         return type(plan).model_validate(cleaned)
     except ValueError:
-        return plan  # The event handler records what cannot be saved.
+        return plan
 
 
 def _how_long(seconds: int) -> str:
@@ -161,12 +156,10 @@ def _how_long(seconds: int) -> str:
 
 IDLE_ACTION_S = 2 * 60 * 60
 MIN_ACTION_MINUTES = 30
-# A shorter limit cut long assistant messages, and owners then said "you cut off".
 ACTOR_MESSAGE_CHARS = 5000
 ACTOR_MAIL_ITEMS = 12
 ACTOR_MAIL_CHARS = 1500
 ACTOR_RECORD_CHARS = 2000
-# Owners who could not see what they had done ran the same shift twice in one day.
 ACTOR_RECENT_SECONDS = 30 * 3600
 ACTOR_RECENT_ACTIONS = 14
 
@@ -250,8 +243,6 @@ class ClockEngine:
         self._outage_since: float | None = None
         self._successes_seen = 0
 
-    # Conductor ---------------------------------------------------------------------------
-
     async def advance(self, run_id, max_sim_minutes: int | None = None) -> dict:
         """Run until the story moves max_sim_minutes on, or the run stops running."""
         run_id = UUID(str(run_id))
@@ -283,8 +274,6 @@ class ClockEngine:
                 await self.advance(run_id)
                 restarts = 0
             except psycopg.OperationalError:
-                # Saved state lets a new conductor continue. The process exits only if the
-                # database stays away, so an outer restart loop can take over.
                 restarts += 1
                 if restarts > self.database_restarts:
                     raise
@@ -368,7 +357,7 @@ class ClockEngine:
             async with self.pool.connection() as conn:
                 durable = await next_event(conn, ctx.id)
             if gate.generation != generation:
-                # A process reported while the queue was read. Its event may be lower.
+                # A process reported during the read. Its event may sort first: read again.
                 continue
             parked = gate.head()
             use_parked = parked is not None and (
@@ -446,7 +435,6 @@ class ClockEngine:
     async def _redispatch(self, ctx: _Run) -> None:
         """Resume unfinished jobs from checkpoints. They block until they report (R5)."""
         async with self.pool.connection() as conn:
-            # A call that committed before the stop has a saved result and will not run again.
             await conn.execute(
                 """UPDATE clock_actions a SET status='done'
                    WHERE a.run_id=%s AND a.process='agent' AND a.status='active' AND EXISTS (
@@ -463,8 +451,7 @@ class ClockEngine:
             )
             processes = await rows(conn, "SELECT * FROM clock_processes WHERE run_id=%s", (ctx.id,))
             bars = {(p["owner_id"], p["kind"]): p["bar_s"] for p in processes}
-            # A call that was running at the stop has no saved effect yet. The bar already moved
-            # past it, so block from where it began, or a later event could commit before it.
+            # Resume the bar at the earliest unfinished call, or a later event commits first.
             unfinished = await rows(
                 conn,
                 "SELECT owner_id,start_s FROM clock_actions "
@@ -576,7 +563,7 @@ class ClockEngine:
     async def _release_tool(self, ctx: _Run, entry) -> None:
         owner = entry.process.split(":", 1)[1]
         async with self.pool.connection() as conn, conn.transaction():
-            # The run row first: this fences a pause, and it is the lock order everywhere.
+            # Lock order everywhere: the run row first. This lock also fences a pause.
             run = await row(
                 conn, "SELECT status FROM environment_runs WHERE id=%s FOR SHARE", (ctx.id,)
             )
@@ -610,7 +597,6 @@ class ClockEngine:
                 ),
             )
             if state["sim_s"] != entry.stamp_s:
-                # Only a dropped call that arrived late can do this. Record it; do not hide it.
                 await emit(
                     conn,
                     ctx.id,
@@ -690,9 +676,8 @@ class ClockEngine:
                 else:
                     await handler(ctx, event, now_s)
             except (_BudgetPause, _Interrupted, psycopg.OperationalError):
-                raise  # The event stays queued. A resume or a new conductor repeats it.
+                raise
             except Exception as error:
-                # A bad saved plan or a logic error would stop every resume at this event.
                 logger.exception("A clock event failed and is recorded: %s", kind)
                 await self._simulator_error(
                     ctx,
@@ -778,8 +763,6 @@ class ClockEngine:
             )
         return {item["call_id"] for item in saved}
 
-    # Wakes (R8, R9) ----------------------------------------------------------------------
-
     async def _undelivered(self, conn, ctx: _Run, recipient_kind: str, kinds, owner=None) -> list:
         return await rows(
             conn,
@@ -795,7 +778,6 @@ class ClockEngine:
 
     @staticmethod
     def _can_wake(event, config: ClockConfig) -> bool:
-        # What was already there when the run began is news for the first wake. It wakes nobody.
         return not (
             event["cause_process"] is None and event_time_s(event["created_at"], config) == 0
         )
@@ -849,21 +831,16 @@ class ClockEngine:
                 else:
                     action = actions.get(owner)
                     if action is not None and not action["reachable"]:
-                        continue  # R9: frozen. Everything waits for action_end.
+                        continue
                     own_events = [e for e in actor_events if e["recipient"] == owner]
-                    # Owner and assistant can thank each other forever. Once they have only
-                    # chatted a few times in a row, new chat waits until the owner next
-                    # surfaces by themselves. Mail and other news still get through, and an
-                    # assistant that does something real starts the count again.
                     if await self._chat_capped(conn, ctx, owner):
                         own_events = [e for e in own_events if e["kind"] != "owner_message"]
                     desired = self._actor_due(ctx, process, now_s, own_events, action)
                 quota_until = (process["wake_on"] or {}).get("quota_until")
                 if quota_until is not None and quota_until > now_s:
-                    desired = quota_until  # R14: today's quota is spent. Nothing is lost.
+                    desired = quota_until
                 if desired is None:
                     if kind == "agent" or action is None:
-                        # R8: every yield has an until. A first wait takes the next morning.
                         until = next_daily_wake(now_s, config)
                         await conn.execute(
                             "UPDATE clock_processes SET until_s=%s "
@@ -874,7 +851,7 @@ class ClockEngine:
                     else:
                         continue
                 if desired >= config.duration_s:
-                    continue  # Nothing new starts at the last moment of the run.
+                    continue
                 if existing is None:
                     await schedule(
                         conn,
@@ -924,8 +901,6 @@ class ClockEngine:
         due = []
         owner = process["owner_id"]
         agent_id = ctx.participants[owner]["agent_id"]
-        # Two assistants can answer each other forever. After a few wakes caused only by each
-        # other, their messages wait as ambient news does, until the owner speaks again.
         limited = (process["wake_on"] or {}).get("peer_streak", 0) >= PEER_WAKE_LIMIT
         ambient = []
         for event in events:
@@ -960,12 +935,9 @@ class ClockEngine:
         if messages:
             delay = notice_delay_s(config.seed, f"{owner}:{process['wait_id']}")
             due.append(max(now_s, min(messages) + delay))
-        # A running action ends with its own event, which wakes this person.
         if action is None and process["until_s"] is not None:
             due.append(max(now_s, process["until_s"]))
         return min(due) if due else None
-
-    # Agent activations -------------------------------------------------------------------
 
     async def _on_agent_wake(self, ctx: _Run, event: dict, now_s: int) -> None:
         owner = event["owner_id"]
@@ -1082,7 +1054,7 @@ class ClockEngine:
                 or size + cost > EVENT_CHARS
                 or (event["kind"] == "owner_message" and owner_count >= OWNER_MESSAGE_LIMIT)
             ):
-                break  # The rest stay undelivered, so a follow-up wake carries them.
+                break
             bounded.append(event)
             size += cost
             owner_count += event["kind"] == "owner_message"
@@ -1147,7 +1119,7 @@ class ClockEngine:
             )
         streak = (process["wake_on"] or {}).get("peer_streak", 0)
         if owner_messages or not eligible:
-            streak = 0  # The owner spoke, or this is its own timer with nothing waiting.
+            streak = 0
         elif any(is_peer_event(e, owner) for e in eligible):
             streak += 1
         return job, streak
@@ -1176,7 +1148,6 @@ class ClockEngine:
                 except asyncio.CancelledError:
                     raise
                 except AgentRunStopped:
-                    # An operator pause, not a failure. The conductor stops this task soon.
                     self.gate.attempt_failed(process)
                     if self._stopping:
                         return
@@ -1374,7 +1345,6 @@ class ClockEngine:
                 (ctx.id, owner),
             )
             redelivered = await self._undo_delivery(conn, ctx, job, "agent")
-            # Calls of this activation that never finished will not run now.
             await conn.execute(
                 "UPDATE clock_actions SET status='cancelled' WHERE run_id=%s AND owner_id=%s "
                 "AND process='agent' AND status='active'",
@@ -1558,8 +1528,6 @@ class ClockEngine:
                 owner,
             )
 
-    # Owners ------------------------------------------------------------------------------
-
     async def _on_actor_wake(self, ctx: _Run, event: dict, now_s: int) -> None:
         owner = event["owner_id"]
         job = None
@@ -1573,7 +1541,7 @@ class ClockEngine:
             ):
                 return
             if action is not None and not action["reachable"]:
-                # A plan froze this person after the wake was queued. Retire this wake's key.
+                # This wake's key is spent. Bump wait_id, or the next wake is not queued.
                 await conn.execute(
                     "UPDATE clock_processes SET wait_id=wait_id+1 "
                     "WHERE run_id=%s AND owner_id=%s AND kind='actor'",
@@ -1838,8 +1806,6 @@ class ClockEngine:
                             or isinstance(error, ActorContractError)
                             or not (failure.retryable or failure.kind == "provider_request_refused")
                         ):
-                            # R14 and the Actor contract: a simulator failure becomes a wait.
-                            # An outage never does: it retries with the same ID and view.
                             failure_reason = failure.kind
                             output = ActorOutput(kind="wait", source_event_id=view.source_event_id)
                             break
@@ -2006,8 +1972,6 @@ class ClockEngine:
             booking = output.booking_approval
 
             async def add_booking():
-                # A yes adds to what the person already allowed. It never replaces it, so a
-                # second booking does not withdraw the first.
                 held = await row(
                     conn,
                     """SELECT consent_budget,consent_assets,consent_kinds,consent_expires_window
@@ -2022,10 +1986,15 @@ class ClockEngine:
                 kinds = set(held["consent_kinds"] or ()) if current else set()
                 budget = held["consent_budget"] if current else 0
                 kind = "reserve" if booking.action == "book" else "cancel"
+                repeated = booking.booking in assets and kind in kinds
                 await self.world.set_consent(
                     run_id,
                     owner,
-                    budget + (booking.up_to if kind == "reserve" else 0),
+                    budget
+                    if kind != "reserve"
+                    else max(budget, booking.up_to)
+                    if repeated
+                    else budget + booking.up_to,
                     sorted(assets | {booking.booking}),
                     uuid5(job["id"], "booking"),
                     allowed_kinds=sorted(kinds | {kind}),
@@ -2105,7 +2074,6 @@ class ClockEngine:
             card = await wallet.limits(conn, run_id, owner)
             ignored = None
             if job["clock_seq"] == 1:
-                # The allowance already covers what the owner's opening request states.
                 ignored = "opening_request"
             elif card["remaining"] >= output.online_spend_approval:
                 ignored = "already_covered"
@@ -2197,7 +2165,6 @@ class ClockEngine:
                 (ctx.id, owner),
             )
             return
-        # A person always has something next, so the owner resurfaces and can be frozen later.
         await self._begin_action(
             conn,
             ctx,
@@ -2231,7 +2198,6 @@ class ClockEngine:
             (ctx.id, owner),
         )
         run = await row(conn, "SELECT current_window FROM environment_runs WHERE id=%s", (ctx.id,))
-        # It is said at the owner's next moment. It does not make a moment by itself.
         await emit(
             conn,
             ctx.id,
@@ -2294,7 +2260,6 @@ class ClockEngine:
         )
         if not draw:
             return
-        # R10: the draw is saved even when nothing happens, so the rate can be measured.
         level = ctx.spec.clock.drama
         result = drama.draw(ctx.config.seed, key, level)
         fire = drama.fire_s(now_s, duration_s, result.fire_fraction)
@@ -2324,8 +2289,7 @@ class ClockEngine:
 
     async def _retire_action(self, conn, ctx: _Run, action: dict, status: str, new_key=None):
         await cancel(conn, ctx.id, f"action_end:{action['key']}")
-        # A perturbation that already fired, and may be the cause of this, is no longer queued
-        # work. It keeps its own record: only one that never happened is cancelled.
+        # Not cancel(): a perturbation that already fired (popped) keeps its own record.
         await conn.execute(
             "UPDATE clock_events SET status='cancelled' WHERE run_id=%s AND key=%s "
             "AND status='queued' AND popped_seq IS NULL",
@@ -2365,8 +2329,6 @@ class ClockEngine:
             run = await self._locked_run(conn, ctx)
             process = await self._process(conn, ctx, owner, "actor")
             if detail.get("default"):
-                # Nothing was planned, so nothing has finished and nothing is paid for. This
-                # person stays reachable until a message, something happening, or tomorrow.
                 if process["state"] == "busy":
                     await conn.execute(
                         "UPDATE clock_processes SET state='waiting',until_s=%s "
@@ -2387,7 +2349,6 @@ class ClockEngine:
                 f"action_over:{key}",
                 owner,
             )
-            # The answer to what this action sought can itself have changed their plans.
             current = await self._current_action(conn, ctx, owner)
             if after and current is not None:
                 await conn.execute(
@@ -2414,8 +2375,6 @@ class ClockEngine:
                     "WHERE run_id=%s AND owner_id=%s AND kind='actor'",
                     (ctx.id, owner),
                 )
-
-    # The Director ------------------------------------------------------------------------
 
     async def _ask_brain(self, make_call, ctx: _Run):
         """One decision with no transaction open. The story waits for the world's model.
@@ -2460,7 +2419,6 @@ class ClockEngine:
                     if self._stopping or current["status"] != "running":
                         raise _Interrupted from None
                     continue
-                # One request the provider refused. Another decision can still work.
                 await self._simulator_error(
                     ctx, {"reason": "director_failed", "failure": failure.kind}
                 )
@@ -2507,7 +2465,6 @@ class ClockEngine:
         except psycopg.OperationalError:
             raise
         except Exception as error:
-            # A plan that cannot be applied must not cost the owner what comes after it.
             logger.exception("A plan could not be applied.")
             await self._simulator_error(
                 ctx,
@@ -2545,9 +2502,8 @@ class ClockEngine:
         current = await self._current_action(conn, ctx, owner)
         key = f"replaced:{owner}:{cause}"
         if current is not None and current["key"] == key:
-            return  # A resume repeated this event after the replacement was saved.
+            return
         detail = {"category": spec.get("category"), "replaced_by_world": True}
-        # What the owner hoped to get, and what they meant to do next, survive the change.
         for name in ("seeks", "after"):
             carried = (current["detail"] or {}).get(name) if current is not None else None
             if carried:
@@ -2712,8 +2668,6 @@ class ClockEngine:
                     )
             await self._mark_done(ctx, event, conn)
 
-    # Time boundaries ---------------------------------------------------------------------
-
     async def _settle(self, ctx: _Run, window: int) -> None:
         try:
             await self.world.settle(ctx.id, window, ctx.config.seed)
@@ -2735,7 +2689,6 @@ class ClockEngine:
             except (_Interrupted, psycopg.OperationalError):
                 raise
             except Exception as error:
-                # Without the next boundary no later order would ever settle. Keep time going.
                 logger.exception("A settlement failed and is recorded.")
                 await self._simulator_error(
                     ctx,
@@ -2807,8 +2760,7 @@ class ClockEngine:
                 "WHERE run_id=%s AND owner_id=%s AND kind='agent'",
                 (ctx.id, owner),
             )
-            # What this assistant already wrote, and has not yet landed in story time, dies
-            # with it. How fast the model answered must not decide whether it speaks.
+            # Cancel saved replies that have not landed too: model speed must not decide the story.
             await conn.execute(
                 "UPDATE clock_events SET status='cancelled' WHERE run_id=%s AND owner_id=%s "
                 "AND kind IN ('agent_wake','agent_finish') AND status='queued'",
@@ -2849,7 +2801,6 @@ class ClockEngine:
                 f"assistant_expired:{owner}:{item['bill_id']}",
                 owner,
             )
-            # The owner learns through ordinary channels. The assistant is gone and reads nothing.
             site = await row(
                 conn,
                 "SELECT name FROM web_sites WHERE run_id=%s AND site_id=%s",

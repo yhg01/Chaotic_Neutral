@@ -157,7 +157,6 @@ async def test_thread_reply_and_safe_retries(client, provision):
         f"{base}/threads", json={**payload, "title": "Other"}, headers=author
     )
     assert changed.status_code == 409
-    # Another identity may independently use the same operation ID.
     own = await client.post(f"{base}/threads", json=payload, headers=headers(agents[1]))
     assert own.status_code == 201
     reply_payload = {"body": "Reply", "request_id": str(uuid4())}
@@ -179,7 +178,6 @@ async def test_thread_reply_and_safe_retries(client, provision):
         next(item for item in listing.json()["items"] if item["id"] == root["id"])["reply_count"]
         == 1
     )
-    # Keys cover operation type and thread identity, not just body content.
     changed_operation = await client.post(
         f"{base}/threads", json=thread(request_id=reply_payload["request_id"]), headers=author
     )
@@ -210,7 +208,6 @@ async def test_invalid_and_cross_cluster_reply_targets(client, provision, db_poo
             headers=headers(agents[0]),
         )
         assert response.status_code == 404
-    # The database also rejects a cross-cluster parent if a client bypasses the API.
     with pytest.raises(psycopg.errors.ForeignKeyViolation):
         async with db_pool.connection() as connection:
             await connection.execute(
@@ -332,7 +329,6 @@ async def test_receipts_validate_batch_and_are_independent(client, provision):
     assert [item["id"] for item in remaining.json()["items"]] == [roots[1]["id"]]
     independent = await client.get(f"{base}/updates", headers=headers(agents[1]))
     assert len(independent.json()["items"]) == 2
-    # New members can read full history.
     newcomer = await client.post(f"{base}/agents", json={"name": "New Agent"})
     history = await client.get(f"{base}/updates", headers=headers(newcomer.json()))
     assert len(history.json()["items"]) == 2
@@ -359,7 +355,6 @@ async def test_database_outage_response_hides_details(settings):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as http:
-            # Hold the only usable connections to model pool unavailability.
             connections = [await app.state.pool.getconn() for _ in range(settings.pool_max_size)]
             try:
                 response = await http.get("/health")

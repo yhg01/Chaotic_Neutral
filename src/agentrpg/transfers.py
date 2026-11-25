@@ -178,7 +178,6 @@ class TransferService:
                 (run_id, owner_id, arguments.authorization_id),
             )
             if used:
-                # New tool call IDs cannot spend the same instruction twice.
                 prior = await row(
                     conn,
                     "SELECT result FROM world_requests WHERE run_id=%s "

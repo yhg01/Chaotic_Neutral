@@ -66,7 +66,6 @@ def audit_summary(events, *, interventions=0, pauses=0, executions=(), branches=
         e for e in controls if e["payload"] == {"action": "start", "previous_status": "pending"}
     ]
     manual_controls = len(controls) - min(1, len(initial))
-    # A first Continue may start a run. Step and later launches require operation.
     execution_operations = max(0, len(executions) - 1) + sum(
         e["mode"] == "step" for e in executions[:1]
     )
@@ -112,8 +111,6 @@ class _SnapshotPool:
 
 async def collect_run(pool, run_id, *, profile, case, local_checks=None):
     async with pool.connection() as conn, conn.transaction():
-        # Existing account inspectors take a row lock. They write no records,
-        # but PostgreSQL does not permit that lock in a READ ONLY transaction.
         await conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
         return await _collect_run(
             _SnapshotPool(conn), run_id, profile=profile, case=case, local_checks=local_checks
@@ -131,7 +128,6 @@ async def _collect_run(pool, run_id, *, profile, case, local_checks=None):
     if profile == "transfer":
         from agentrpg.transfer_validation import validation_report, validation_scenario
 
-        # A caller cannot relabel another scenario to select an easier rubric.
         if run["scenario_hash"] != validation_scenario(case).content_hash():
             raise ValueError("The saved scenario does not match this transfer case.")
         report = await validation_report(pool, run_id, case)

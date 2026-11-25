@@ -35,7 +35,7 @@ THINKING = "thinking"
 ACTING = "acting"
 SETTLING = "settling"
 
-# Longer than the longest retry wait, so a call waiting out an outage keeps its slot.
+# Must stay above clock_engine.RETRY_CAP_S, or a call waiting out an outage loses its slot.
 ARRIVAL_TIMEOUT_S = 600.0
 
 
@@ -95,10 +95,7 @@ class ClockGate:
         self._slots = asyncio.Semaphore(config.max_parallel_thinkers)
         self.calls_in_flight = 0
         self.peak_calls_in_flight = 0
-        # Real work that came back. The conductor's circuit breaker reads this.
         self.successes = 0
-
-    # Who is doing what -------------------------------------------------------------------
 
     def register_tools(self, process: str, names: Collection[str]) -> None:
         """Name the world tools of one Agent. Everything else that it calls is free."""
@@ -150,8 +147,6 @@ class ClockGate:
         for entry in state.entries.values():
             entry.finished.set()
         self._bump()
-
-    # Hooks of the graph ------------------------------------------------------------------
 
     def _fold(self, state: _Process, messages: Sequence):
         return fold_stamps(
@@ -215,8 +210,7 @@ class ClockGate:
                 if getattr(message, "type", None) == "tool"
             }
             state.replays.update(call_id for call_id in saved if call_id not in answered)
-            # Only a result after the last model message answers its calls. A provider can
-            # reuse a call ID, and an older result must not let this call skip its turn.
+            # Count only results after the last model message: a provider can reuse a call ID.
             current = set()
             for message in reversed(messages):
                 if getattr(message, "type", None) == "ai":
@@ -318,8 +312,6 @@ class ClockGate:
     def think_slot(self) -> _ThinkSlot:
         """At most max_parallel_thinkers model calls run at one time."""
         return _ThinkSlot(self)
-
-    # The conductor's view ----------------------------------------------------------------
 
     def head(self) -> ParkedCall | None:
         """The lowest registered call, arrived or not."""

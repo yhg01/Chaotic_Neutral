@@ -48,7 +48,6 @@ from agentrpg.scenario_schema import vehicle_scenario
 pytestmark = pytest.mark.asyncio
 
 SOURCE = Path(__file__).resolve().parents[1] / "src" / "agentrpg"
-# Text that a model reads must not name the machinery of the experiment.
 BACKSTAGE = re.compile(
     r"director|activation|simulat|scenario|fiction|\bwindow\b|\btick\b|\brun\b|run_id|\bbeat\b|"
     r"\bactor\b|evaluat|\btest\b|\bcue\b|\bplot\b|cluster|environment",
@@ -111,9 +110,6 @@ def data(result):
     return result["data"]
 
 
-# --- Only Agents write ---------------------------------------------------------------------
-
-
 async def test_board_writes_need_an_agent_credential(app, client, provision):
     cluster, agents = await provision(count=2)
     base = f"/api/v1/clusters/{cluster['id']}"
@@ -126,7 +122,7 @@ async def test_board_writes_need_an_agent_credential(app, client, provision):
         f"{base}/threads/{root['id']}/replies": reply_payload(),
         f"{base}/acknowledgements": {"message_ids": [root["id"]]},
     }
-    # Every POST route on the board is covered, so a new one cannot escape this check.
+    # A new board POST route must also be added to writes, or it escapes the credential check.
     declared = {
         route.path
         for route in app.routes
@@ -145,11 +141,9 @@ async def test_board_writes_need_an_agent_credential(app, client, provision):
         base_url="http://127.0.0.1",
     ) as local:
         for path, payload in writes.items():
-            # The administrator token is research access and cannot write.
             admin = await client.post(path, json=payload)
             assert admin.status_code == 403, (path, admin.text)
             assert admin.json()["detail"] == "An Agent credential is required."
-            # The loopback console exception does not reach the board.
             anonymous = await local.post(path, json=payload)
             assert anonymous.status_code == 401, (path, anonymous.text)
             forged = await local.post(path, json=payload, headers={"Authorization": "Bearer no"})
@@ -160,16 +154,11 @@ async def test_board_writes_need_an_agent_credential(app, client, provision):
 
 
 async def test_no_console_or_observer_route_writes_board_rows():
-    # Run branching copies saved rows into a new cluster and does not post anything new.
     for name in ("console_api.py", "console_execution.py", "observer_api.py", "environment_api.py"):
         assert "INTO messages" not in (SOURCE / name).read_text()
 
 
-# --- Owners and the Director see no board text ---------------------------------------------
-
-
 async def test_source_keeps_board_tables_and_tools_out_of_owner_and_world_code():
-    # Listed by name, so a new file that reads the board must be considered here on purpose.
     closed = [
         "actor.py",
         "director.py",
@@ -259,7 +248,6 @@ async def test_owner_views_and_agent_prompts_hold_no_board_text_and_wake_only_th
     actor_jobs = [job for job in jobs if job["kind"] == "actor"]
     assert actor_jobs
     for job in actor_jobs:
-        # The saved input is the whole view, and the view is the source of the owner's prompt.
         view = ActorView.model_validate(job["input"])
         text = json.dumps(job["input"], default=str)
         assert not marker.search(text)
@@ -268,7 +256,6 @@ async def test_owner_views_and_agent_prompts_hold_no_board_text_and_wake_only_th
     for job in jobs:
         assert not marker.search(json.dumps(job["input"], default=str))
 
-    # Only the public post reaches the assistant who was not named.
     def delivered(owner):
         found = set()
         for envelope in agents[owner].calls:
@@ -281,7 +268,6 @@ async def test_owner_views_and_agent_prompts_hold_no_board_text_and_wake_only_th
     assert delivered(three["owner_id"]) == {posted["public"]}
     assert posted["direct"] not in delivered(one["owner_id"])
 
-    # The saved events name people and IDs only. The direct subject stays out too.
     direct_events = [e for e in trace if e["payload"].get("message_id") == posted["direct"]]
     assert len(direct_events) == 1
     assert "DIRECT-MARKER" not in json.dumps([e["payload"] for e in trace])
@@ -330,9 +316,6 @@ async def test_director_log_keeps_out_board_text_and_board_tool_calls(client, po
     assert not any("board" in item["kind"] or "tool" in item["kind"] for item in saved)
 
 
-# --- Visibility ----------------------------------------------------------------------------
-
-
 async def test_visibility_matrix(client, provision):
     cluster, (author, named, unnamed) = await provision("Direct cluster", 3)
     other_cluster, (outsider,) = await provision("Other cluster", 1)
@@ -349,7 +332,6 @@ async def test_visibility_matrix(client, provision):
     ]
     assert direct["participants"][1]["name"] == "Agent 2"
 
-    # (identity, may see the direct thread)
     for identity, allowed in ((author, True), (named, True), (unnamed, False)):
         headers = bearer(identity)
         listing = await client.get(f"{base}/threads", headers=headers)
@@ -373,7 +355,6 @@ async def test_visibility_matrix(client, provision):
         )
         assert receipt.status_code == (200 if allowed else 404), identity
 
-    # An outsider's own cluster shows nothing, and this cluster answers 404 on every path.
     other_headers = bearer(outsider)
     other_base = f"/api/v1/clusters/{other_cluster['id']}"
     assert (await client.get(f"{other_base}/threads", headers=other_headers)).json()["items"] == []
@@ -464,7 +445,6 @@ async def test_replies_inherit_the_audience_of_their_root(client, provision, poo
     saved = reply.json()
     assert saved["direct"] is True and saved["audience"] == direct["audience"]
     assert saved["participants"] == direct["participants"]
-    # The audience has one stored source, the root.
     async with pool.connection() as conn:
         stored = await row(conn, "SELECT audience FROM messages WHERE id=%s", (saved["id"],))
     assert stored["audience"] is None
@@ -478,7 +458,6 @@ async def test_replies_inherit_the_audience_of_their_root(client, provision, poo
     by_id = {item["id"]: item for item in updates}
     assert by_id[saved["id"]]["direct"] is True
     assert by_id[saved["id"]]["participants"] == direct["participants"]
-    # Nothing on this thread reaches the Agent who was not named.
     assert (await client.get(f"{base}/updates", headers=bearer(unnamed))).json()["items"] == []
     listing = await client.get(f"{base}/threads", headers=bearer(author))
     assert listing.json()["items"][0]["reply_count"] == 1
@@ -522,9 +501,6 @@ async def test_thread_pages_skip_hidden_threads_without_short_pages(client, prov
     ).json()
     assert [item["id"] for item in second["items"]] == expected[2:]
     assert second["next_cursor"] is None
-
-
-# --- Research reads ------------------------------------------------------------------------
 
 
 async def test_admin_research_reads_see_everything_and_label_the_audience(client, provision):
@@ -579,14 +555,10 @@ async def test_replay_portal_records_label_the_audience(client):
     assert by_id[public.json()["id"]]["audience"] is None
     assert by_id[direct.json()["id"]]["audience"] == audience
     assert by_id[answer.json()["id"]]["audience"] == audience
-    # An Agent credential cannot open these views.
     denied = await client.get(
         f"/api/v1/observer/runs/{run['run_id']}/records/board", headers=bearer(one)
     )
     assert denied.status_code == 403
-
-
-# --- Legacy compatibility ------------------------------------------------------------------
 
 
 async def test_public_rows_keep_their_shape_and_their_saved_hash(client, provision, pool):
@@ -621,7 +593,6 @@ async def test_public_rows_keep_their_shape_and_their_saved_hash(client, provisi
 
 
 async def test_window_runs_keep_their_exact_prompt():
-    # The saved hash of the instructions that scenarios with no clock section have always used.
     digest = hashlib.sha256(WINDOW_INSTRUCTIONS.encode()).hexdigest()
     assert digest == "33e23a79db2953cac393a3fa56cc34a7a1de57f88c81661a92aca81da45bd0c7"
     assert "direct message" not in WINDOW_INSTRUCTIONS
@@ -652,7 +623,6 @@ async def test_legacy_tool_lists_do_not_change(app, provision):
     async with client:
         assert set(direct.tools) == {*_TOOLS, "direct_message"}
         assert {item["function"]["name"] for item in direct.definitions()} == set(direct.tools)
-        # A caller's copy cannot change what later adapters offer.
         direct.tools.pop("reply")
         assert "reply" in direct.tools
 
@@ -717,7 +687,6 @@ async def test_direct_thread_survives_a_branch_with_mapped_people_and_retries(
     )
     assert hidden.status_code == 404
     await Director(pool).control(child_id, "resume")
-    # A retry in the child names the same person and finds the copied row.
     retried = await client.post(
         f"{child_base}/direct-threads",
         json=payload,
@@ -725,9 +694,6 @@ async def test_direct_thread_survives_a_branch_with_mapped_people_and_retries(
     )
     assert retried.status_code == 200, retried.text
     assert retried.json()["id"] == str(copied["id"])
-
-
-# --- Concurrency and idempotency -----------------------------------------------------------
 
 
 async def test_concurrent_direct_writes_stay_private(client, provision):
@@ -816,7 +782,6 @@ async def test_uncommitted_direct_write_does_not_block_other_writes_or_reads(
             headers=bearer(named),
         )
         assert receipt.status_code == 200, receipt.text
-    # The earlier insert commits after a later message was acknowledged and is still delivered.
     after = await client.get(f"{base}/updates", headers=bearer(named))
     assert [item["id"] for item in after.json()["items"]] == [str(late_id)]
 
@@ -842,7 +807,6 @@ async def test_concurrent_retries_create_one_direct_thread(client, provision, po
     assert replayed.headers["Idempotent-Replay"] == "true"
     created = next(response for response in responses if response.status_code == 201)
     assert replayed.json() == created.json()
-    # Order and repeated names are not part of the operation.
     reordered = await client.post(
         f"{base}/direct-threads",
         json={**payload, "to": [to[1], to[0], to[1], to[0].upper()]},
@@ -874,7 +838,6 @@ async def test_changed_direct_payload_returns_conflict(client, provision):
         response = await client.post(f"{base}/direct-threads", json=changed, headers=headers)
         assert response.status_code == 409, changed
         assert response.json()["detail"] == "The request ID was already used for a different write."
-    # The same ID cannot change a direct thread into a public one or the reverse.
     public = {"title": payload["title"], "body": payload["body"]}
     same_id = await client.post(
         f"{base}/threads", json={**public, "request_id": payload["request_id"]}, headers=headers
@@ -886,7 +849,6 @@ async def test_changed_direct_payload_returns_conflict(client, provision):
         f"{base}/direct-threads", json={**second, "to": [agent_id(agents[1])]}, headers=headers
     )
     assert crossed.status_code == 409, crossed.text
-    # Concurrent writers with one ID and different content give one winner.
     racing = direct_payload([agent_id(agents[1])], body="First candidate")
     responses = await asyncio.gather(
         client.post(f"{base}/direct-threads", json=racing, headers=headers),
@@ -925,14 +887,10 @@ async def test_paused_run_error_tells_the_model_the_real_reason(app, client):
         result = await tools.execute(
             "direct_message", {"to": [two["owner_id"]], "subject": "S", "body": "B"}, "call-1"
         )
-    # Before this fix the model read that its write conflicted with an existing record.
     assert result["error"] == {"status": 409, "detail": "The environment run is not running."}
     shown = present_result("direct_message", result)
     assert shown["error"]["detail"] == "The service is not available now."
     assert not BACKSTAGE.search(json.dumps(shown))
-
-
-# --- Cluster boundary ----------------------------------------------------------------------
 
 
 async def test_cluster_boundary_in_code(client, provision, pool):
@@ -950,14 +908,12 @@ async def test_cluster_boundary_in_code(client, provision, pool):
             f"{base}/direct-threads", json=direct_payload(to), headers=bearer(author)
         )
         answers.append((response.status_code, response.json()))
-    # Another cluster's Agent gives the same answer as an ID that does not exist.
     assert answers == [(404, {"detail": "One or more recipients were not found."})] * 4
     async with pool.connection() as conn:
         count = await row(
             conn, "SELECT count(*) AS n FROM messages WHERE cluster_id=%s", (cluster["id"],)
         )
     assert count["n"] == 0
-    # A cluster the author does not belong to answers 404 before any lookup.
     away = await client.post(
         f"/api/v1/clusters/{outsider['agent']['cluster_id']}/direct-threads",
         json=direct_payload([agent_id(outsider)]),
@@ -971,7 +927,6 @@ async def test_owner_ids_resolve_only_inside_the_senders_run(client):
     second = await create_run(client, 2)
     author = first["participants"][0]
     base = f"/api/v1/clusters/{first['cluster_id']}"
-    # Both runs use owner-2. It must map to the Agent in the sender's own cluster.
     sent = await client.post(
         f"{base}/direct-threads", json=direct_payload(["owner-2"]), headers=bearer(author)
     )
@@ -979,7 +934,6 @@ async def test_owner_ids_resolve_only_inside_the_senders_run(client):
     assert sent.json()["audience"] == [str(first["participants"][1]["agent_id"])]
     assert sent.json()["audience"] != [str(second["participants"][1]["agent_id"])]
     assert sent.json()["participants"][1]["owner_id"] == "owner-2"
-    # The other run's board ID is refused.
     foreign = await client.post(
         f"{base}/direct-threads",
         json=direct_payload([str(second["participants"][1]["agent_id"])]),
@@ -1017,7 +971,6 @@ async def test_database_enforces_the_audience_rules(provision, pool):
     root = await insert([named_id, author_id, named_id])
     async with pool.connection() as conn:
         stored = await row(conn, "SELECT audience FROM messages WHERE id=%s", (root,))
-    # The author is implied and repeated names collapse.
     assert stored["audience"] == [named_id]
 
     refused = (
@@ -1030,13 +983,11 @@ async def test_database_enforces_the_audience_rules(provision, pool):
     for audience in refused:
         with pytest.raises(psycopg.errors.CheckViolation):
             await insert(audience)
-    # A reply takes its audience from the root and cannot hold its own.
     with pytest.raises(psycopg.errors.CheckViolation):
         await insert([named_id], parent=root)
     with pytest.raises(psycopg.errors.CheckViolation):
         await insert(None, parent=root, writer=UUID(agent_id(unnamed)))
     await insert(None, parent=root, writer=named_id)
-    # The audience of a saved thread cannot change.
     async with pool.connection() as conn:
         with pytest.raises(psycopg.errors.CheckViolation):
             await conn.execute(
@@ -1085,7 +1036,6 @@ async def test_direct_message_needs_someone_else_and_public_threads_refuse_an_au
     )
     assert alone.status_code == 422
     assert alone.json()["detail"] == "Name at least one other assistant."
-    # Naming yourself with someone else is allowed and adds nothing.
     with_self = await start_direct(client, cluster, author, [agent_id(author), agent_id(named)])
     assert with_self["audience"] == [agent_id(named)]
     assert len(with_self["participants"]) == 2
@@ -1107,9 +1057,6 @@ async def test_message_text_stays_plain_text(client, provision):
     )
     assert detail.headers["content-type"] == "application/json"
     assert detail.json()["thread"]["body"] == markup
-
-
-# --- Tools ---------------------------------------------------------------------------------
 
 
 async def test_group_direct_message_through_the_tools(app, provision):
@@ -1191,7 +1138,6 @@ async def test_tool_replay_conflict_and_public_errors(app, provision):
     async with client:
         arguments = {"to": [agent_id(named)], "subject": "Same", "body": "Same body"}
         first = data(await tools.execute("direct_message", arguments, "call-1"))
-        # The same call ID after a restart reuses the operation, even in a fresh adapter.
         restored = BoardTools(client, cluster["id"], namespace, direct=True)
         assert data(await restored.execute("direct_message", arguments, "call-1")) == first
         changed = await tools.execute(
@@ -1201,7 +1147,6 @@ async def test_tool_replay_conflict_and_public_errors(app, provision):
             "status": 409,
             "detail": "The request ID was already used for a different write.",
         }
-        # A chosen request_id makes a retry safe across different tool calls.
         keyed = {**arguments, "request_id": "morning-check"}
         original = data(await tools.execute("direct_message", keyed, "call-2"))
         assert original["id"] != first["id"]
@@ -1253,7 +1198,6 @@ async def test_tool_accepts_owner_and_board_ids_from_the_contact_list(app, clien
     people = {person["owner_id"]: person for person in sent["participants"]}
     assert set(people) == {one["owner_id"], two["owner_id"], three["owner_id"]}
     assert sent["audience"] == sorted([str(two["agent_id"]), str(three["agent_id"])])
-    # What the model reads has no backstage terms and still names the people.
     shown = present_result("direct_message", {"ok": True, "data": sent})
     text = json.dumps(shown)
     assert not BACKSTAGE.search(text), text
@@ -1358,7 +1302,6 @@ async def test_deep_agent_sends_a_direct_message_and_recovers_after_commit(
             resumed = make(runtime, model)
             assert await resumed.run("Tell them quietly.", task_id=task_id) == "Done."
             assert resumed.events[0]["result"]["data"]["direct"] is True
-            # The model reads the shaped copy, which keeps the labels and hides saved fields.
             shown = json.loads(next(m for m in model.seen if m.type == "tool").content)
             assert shown["data"]["direct"] is True
             assert "created_at" not in shown["data"] and "cluster_id" not in shown["data"]
@@ -1366,7 +1309,6 @@ async def test_deep_agent_sends_a_direct_message_and_recovers_after_commit(
                 author["owner_id"],
                 named["owner_id"],
             }
-    # The retried tool call reused its request ID, so there is one message.
     reader, peer = tools_for(app, run["cluster_id"], named)
     async with reader:
         items = data(await peer.execute("get_updates", {}, "read"))["items"]
@@ -1394,9 +1336,6 @@ async def test_deep_agent_keeps_the_legacy_tool_list_without_direct(
         assert await agent.run("Hello.", task_id=uuid4()) == "Done."
     assert set(_TOOLS) <= set(model.offered)
     assert "direct_message" not in model.offered
-
-
-# --- What the model is told ----------------------------------------------------------------
 
 
 async def test_instructions_say_who_can_see_the_board_and_keep_the_authority_rule():
@@ -1437,11 +1376,7 @@ async def test_tool_text_and_notices_have_no_backstage_terms(app, provision):
     assert "1 new message board post(s)" in rendered
     assert "2 new message board post(s)" in rendered
     assert not BACKSTAGE.search(rendered)
-    # No payload field reaches the assistant in the direct notice.
     assert json.loads(direct.content)["audience"][0] not in rendered
-
-
-# --- Wake payload --------------------------------------------------------------------------
 
 
 async def test_board_events_carry_the_audience_and_no_body(client, pool):
@@ -1480,7 +1415,6 @@ async def test_board_events_carry_the_audience_and_no_body(client, pool):
         )
     by_message = {event["payload"]["message_id"]: event for event in events}
     assert len(by_message) == 4
-    # The saved event is the wake record. It has IDs and the audience, and no body.
     assert "BODY-MARKER" not in json.dumps(events)
     assert "SUBJECT-MARKER" not in json.dumps(events)
     assert all(event["owner_id"] is None for event in events)
@@ -1496,7 +1430,6 @@ async def test_board_events_carry_the_audience_and_no_body(client, pool):
     assert payload["author_id"] == str(one["agent_id"])
     assert payload["audience"] == sorted([str(two["agent_id"]), str(three["agent_id"])])
 
-    # A reply is for everyone else on the thread, including its original author.
     payload = by_message[reply.json()["id"]]["payload"]
     assert payload["thread_id"] == direct.json()["id"]
     assert payload["audience"] == sorted([str(one["agent_id"]), str(three["agent_id"])])
@@ -1504,7 +1437,6 @@ async def test_board_events_carry_the_audience_and_no_body(client, pool):
 
     assert by_message[public_reply.json()["id"]]["payload"]["audience"] is None
 
-    # A retry adds no second wake.
     async with pool.connection() as conn:
         total = await row(
             conn,
@@ -1573,7 +1505,6 @@ async def test_direct_writes_on_a_clocked_run_take_story_time_without_deadlock(c
         asyncio.gather(*(send(index, member) for index, member in enumerate(members))),
         timeout=30,
     )
-    # Story time is the clock's start plus one hour, with a small offset for insert order.
     assert all(item["created_at"].startswith("2026-11-09T07:00:00") for item in saved)
     assert len({item["created_at"] for item in saved}) == len(saved)
 

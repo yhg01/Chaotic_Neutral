@@ -2,18 +2,62 @@
 
 ## Read first
 
-Read `README.md`, `PRD.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_RUNTIME.md`, and
-`docs/API.md` before implementation.
+Read `docs/ONBOARDING.md` first. Then read `README.md`, `PRD.md`, `docs/ARCHITECTURE.md`,
+`docs/AGENT_RUNTIME.md`, and `docs/API.md` before implementation. For a scenario with a
+`clock` section, `docs/EVENT_CLOCK.md` is the contract.
 The agreed diagram in `docs/diagram-source.html`, its rendered copy, and the
 connection list in `docs/diagram.json` are the system source of truth. Later
 explicit user instructions take precedence. Keep these sources consistent.
+
+## Where to run
+
+- Every contributor other than the repository owner runs this repository on their own
+  machine, or on a service that they operate. "Local setup" in `README.md` has the
+  commands. Each contributor uses their own PostgreSQL, `.env` and provider key.
+- The Mac mini is the repository owner's private machine. Only the owner and the agents in
+  the owner's sessions use it. A session is the owner's when `git config user.name` gives
+  `yhg01`. The next rule applies to those sessions only.
+- By the owner's instruction of 10 November 2026, all runs in the owner's sessions happen
+  on the Mac mini, through the SSH profile `mini`. This includes each run that an agent
+  starts. Do not run them on the owner's laptop. Runs include
+  scenario and model runs, campaigns, the board and observer servers, PostgreSQL, and
+  integration and browser tests. On the laptop, only edit files, read files, and use git.
+  If `mini` is not reachable, stop and tell the user. Do not run on the laptop as a
+  fallback.
+- Keep the Mac mini out of `docs/ONBOARDING.md`, which is the guide for other contributors
+  (22 November 2026).
+
+## Working rules from the user
+
+- Commit after each sub-step of a task and before any test run (12 November 2026).
+- Push to GitHub only when the user asks. Before a push, read the diff and scan it for
+  credentials and local runtime files. Keep `.env`, `.local/` and `.venv*` out.
+- A spending approval covers the task it was given for. Get the user's agreement before
+  a paid run outside it.
+- The project keeps one provider key, `OPENROUTER_API_KEY` (19 November 2026). Do not add
+  a key for another provider.
+- The project is called Chaotic Neutral in text that people read. Code, package and
+  setting names keep `agentrpg` (11 November 2026).
+- Do not claim parity with state-of-the-art personal assistants or a validated research
+  benchmark.
+- Make routine decisions without repeated permission questions. Keep progress messages
+  short.
+- Keep code comments to the few that state a hidden rule: an invariant, an ordering or
+  concurrency constraint, a security or privacy boundary. Do not explain a workaround in
+  a comment. Remove the workaround, or record it as an open problem (22 November 2026).
 
 ## Scope and boundaries
 
 - Implement this version in this directory. Preserve work by other contributors.
 - The message board uses FastAPI and PostgreSQL. Personal Agents use Deep Agents
   with LangChain and LangGraph in the local application. Keep runtime code open
-  source and editable. Do not add a managed Agent Server requirement.
+  source and editable. Do not add a managed Agent Server requirement. Do not replace
+  Deep Agents with another agent SDK without a new decision by the user. Hermes was
+  considered and set aside; that selection is closed.
+- A ZeroClaw assistant backend exists as a trial that the user asked for on 12 November
+  2026 (`docs/ZEROCLAW_TRIAL.md`). It is not the default runtime, and its adoption needs
+  the user's decision. In the trial, each assistant is one continuous ZeroClaw session,
+  not one process for each activation.
 - Update the PRD component, connection, and integration rows with actual evidence
   when their implementation or verification changes.
 - Support up to 15 Agents per cluster. Use identities and membership records;
@@ -28,7 +72,9 @@ explicit user instructions take precedence. Keep these sources consistent.
   The user's 28 October 2026 request authorizes their implemented permission
   contract in docs/ENVIRONMENT_EXTENSIONS.md. Use that explicit contract: owner
   workspaces, delegated Agent content changes, typed Actor requests, and private
-  peer boundaries. Do not infer broader access from the drawing.
+  peer boundaries. Do not infer broader access from the drawing. The user's
+  12 November 2026 instruction adds shared editing: a scenario can mark a shared
+  record so that the owners it names can change its content.
 - Use the old prototypes as reference for the message board only. Do not import
   their world state, subscriptions, activities, task rules, or Director design.
 - Treat any synced `sources/` content outside this repository as read-only.
@@ -98,7 +144,8 @@ explicit user instructions take precedence. Keep these sources consistent.
   the distinction between scene definitions, private observations, participant
   actions, and world resolution.
 - Validate and freeze each scenario before execution. Store its canonical JSON
-  and hash. The runtime Director can select declared branches only.
+  and hash. On a run with no `clock` section, the runtime Director can select declared
+  branches only.
 - Actors are simulated human owners. They express requests and grant their own
   consent. They have no board, reservation, or payment tools. Keep assistant
   decisions and model history separate from Actor state.
@@ -106,8 +153,9 @@ explicit user instructions take precedence. Keep these sources consistent.
   for every pair. Preserve the diagram's original labels and directions.
 - Apply world effects in code. Prose, a pending receipt, or an assistant claim
   cannot establish a reservation, payment, consent grant, or cancellation.
-- Preserve the Actor, Agent, and settlement phases. Respect explicit operator
-  pauses, queued cues, future clock beats, and stable input/output identities.
+- On a run with no `clock` section, preserve the Actor, Agent, and settlement phases.
+  On every run, respect explicit operator pauses, queued cues, future clock beats, and
+  stable input/output identities.
 - Preserve every material initial owner task and constraint in Actor dialogue.
   Later replies must not restart completed work. Actor fact_ids refer only to
   declared known facts; observation, message, Resource, and receipt IDs are not

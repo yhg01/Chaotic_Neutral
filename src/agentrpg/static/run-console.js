@@ -56,13 +56,11 @@
   const color = id => colors[Math.max(0, owners().findIndex(owner => owner.owner_id === id)) % colors.length];
   const agentName = id => translate(owners().find(owner => owner.owner_id === id)?.agent_name) || "Assistant for " + ownerName(id);
   const activeSummary = () => state.turns.find(turn => turn.window === state.turn);
-  // A clocked run's window is a page of story time. Its name is a time in place of "Turn NN".
   const clocked = () => !!state.overview?.run?.scenario?.clock;
   const pageWord = () => clocked() ? "page" : "turn";
   const turnName = window => clocked()
     ? state.turns.find(turn => turn.window === window)?.at || "Page " + padded(window + 1)
     : "Turn " + padded(window + 1);
-  // Page length comes from the clock section. A week of two-hour pages is the common case.
   const pageLength = () => {
     const minutes = Number(state.overview?.run?.scenario?.clock?.epoch_minutes) || 120;
     const hours = minutes / 60;
@@ -596,7 +594,6 @@
       button.classList.toggle("is-active", selected); button.setAttribute("aria-pressed", String(selected));
     }
     if (!state.replay) return;
-    // One owner can have many jobs on a clocked page. A picker reaches each one in story order.
     const views = state.replay.perspectives.filter(item => item.owner_id === state.owner);
     const agentJobs = state.replay.jobs.filter(item => item.owner_id === state.owner && item.kind === "agent");
     const perspective = state.inspect === "agent" ? views[0] : pickJob(body, "actor", views, item => item.job_id, "Actor job");
@@ -719,7 +716,6 @@
     records.sort((a, b) => a.time.localeCompare(b.time) || String(a.record.id).localeCompare(String(b.record.id)));
     state.logRows = records;
   }
-  // These records already have their own row, so a clocked page does not list them twice.
   const DUPLICATE_EVENTS = new Set(["owner_message", "inbox_received", "board_posted", "board_batch"]);
   const RECORD_EVENT = /^(resource_|record_|world_|market_|wallet_|bill_|listing_|order_|site_|web_|transfer_|reservation_)/;
   function buildClockLogs(replay, records, add) {
@@ -898,7 +894,6 @@
     for (const id of ["clock-now", "clock-range"]) $(id).textContent = "";
     for (const id of ["clock-stats", "clock-sites", "clock-week", "clock-board", "clock-queue", "clock-perturbations"]) $(id).replaceChildren();
   }
-  // Window runs keep their layout. Only a run with a clock section changes these labels.
   function applyRunKind() {
     const isClocked = clocked();
     document.body.classList.toggle("is-clocked", isClocked);
@@ -1075,7 +1070,6 @@
     const axis = node("div", null, "clock-lane clock-axis");
     const ruler = node("div", null, "clock-ruler");
     ruler.setAttribute("aria-hidden", "true");
-    // A short final day has no room for its name inside the track.
     for (const day of clock.days) ruler.append(place(node("span", 1 - day.start_s / clock.horizon_s < .05 ? "" : day.label, "clock-day"), day.start_s));
     axis.append(node("span", "Week", "clock-lane-name"), ruler);
     const lanes = node("div", null, "clock-lanes");
@@ -1323,7 +1317,6 @@
   $("detail-dialog").addEventListener("cancel", event => { event.preventDefault(); closeDetail(); });
   $("detail-language").addEventListener("click", () => { state.detailOriginal = !state.detailOriginal; renderDetail(); });
   $("language-toggle").addEventListener("click", () => setLanguage(state.language === "en" ? "original" : "en"));
-  // Animate disclosure height without replacing native keyboard semantics.
   document.addEventListener("click", event => {
     const summary = event.target.closest("summary");
     if (!summary || reducedMotion()) return;

@@ -188,7 +188,6 @@ class PlanOwnBill(BaseModel):
 
 
 def _bounded(value, name):
-    # allow_nan is off because PostgreSQL JSON has no NaN or Infinity, and a model can send them.
     if len(json.dumps(value, ensure_ascii=False, default=str, allow_nan=False)) > MAX_PAYLOAD_CHARS:
         raise ValueError(f"{name} is too long.")
     return value
@@ -278,7 +277,6 @@ class PlanEvent(BaseModel):
     @field_validator("kind", mode="before")
     @classmethod
     def contract_kind(cls, value):
-        # The contract names stay valid for saved plans. The message reaches the model.
         if value in ("plan", "changes"):
             return "plan"
         if value in ("cue", "news"):
@@ -319,11 +317,9 @@ class DirectorPlan(BaseModel):
     )
     retime_events: list[PlanRetime] = Field(default_factory=list, max_length=8)
     need_more: list[Line] = Field(default_factory=list, max_length=3)
-    # Set by code after validation. A value in model output is overwritten.
     scale: SkipJsonSchema[Scale] = "review"
     about_owner: SkipJsonSchema[str | None] = None
     handled_events: SkipJsonSchema[list[str]] = Field(default_factory=list)
-    # True for the canned plan used when no decision could be made. Never in model output.
     _fell_back: bool = False
 
     @model_validator(mode="after")
@@ -362,7 +358,6 @@ def _parts(plan: DirectorPlan) -> list[DirectorPlan]:
     return [plan, *(later_plan(event) for event in plan.events)]
 
 
-# Fields that are references or settings rather than text a person reads.
 _REFERENCE_FIELDS = frozenset(
     {
         "owner_id",
@@ -621,8 +616,6 @@ Add nothing else. If no such site could plausibly exist, return an empty answer.
 """
 )
 
-# The public page is already written, with no notes. This answer can only add bills, and a bill
-# shows only to the person who owes it, so nothing private can reach a visitor.
 ACCOUNTS_PROMPT = """A new website has just opened for the business in site. setting describes a \
 small group of people and their week, and people lists them. Decide whether setting names a bill \
 or a fee that one of these people owes to exactly this business.
@@ -663,8 +656,6 @@ If it is false, add nothing beyond answers to waiting.
 _MESSAGE_HIDDEN = re.compile(
     r"(^|_)(request|operation|key|hash|window|run|sim|version|token)(_|$)", re.I
 )
-# What is still waiting, newest first, so old unanswered items cannot crowd out new ones. A listing
-# that closed or an application that was answered on the site no longer needs a review.
 _WAITING_SQL = """
     SELECT e.id,e.owner_id,e.payload,e.created_at FROM run_events e
     WHERE e.run_id=%(run)s AND e.kind='site_message'
@@ -920,7 +911,6 @@ def _answered(plan: DirectorPlan, items: list[_Waiting], moment: _Moment) -> set
                 )
             done.add(item.event_id)
     for part, part_changes in zip(parts, changes, strict=True):
-        # A buyer's mail that travels with a sale belongs to that sale.
         settled = {item.owner_id for item in items if item.rows & part_changes}
         for mail in part.mail:
             if mail.answers is not None or mail.to in settled:
@@ -1019,9 +1009,11 @@ class DirectorBrain:
         usage=None,
         caps: PlanCaps | None = None,
         timeout_seconds: int = MODEL_TIMEOUT_SECONDS,
+        site_model=None,
     ):
         self.pool = pool
         self.model = model
+        self.site_model = site_model or model
         self.web = web
         self.usage = usage
         self.caps = caps or PlanCaps()
@@ -1038,7 +1030,6 @@ class DirectorBrain:
             if record is None or state is None:
                 raise DirectorPlanError("This run has no clock.")
             newest = await recent(conn, run_id, RECENT_ENTRIES)
-            # Facts that stay true however old they are, whatever the query asks.
             related = await recent(conn, run_id, STANDING_ENTRIES, kinds=STANDING_KINDS)
             related += await search(conn, run_id, query, RELATED_ENTRIES)
             if owner_id is not None:
@@ -1289,7 +1280,7 @@ class DirectorBrain:
         while True:
             try:
                 plan = await generate_json(
-                    self.model,
+                    self.site_model if scale == "site" else self.model,
                     DirectorPlan,
                     prompt,
                     data,
@@ -1297,7 +1288,6 @@ class DirectorBrain:
                     usage=self.usage,
                     on_candidate=remember,
                 )
-                # A new public site is built with no notes, so it asks for none.
                 if plan.need_more and not looked_up and scale != "site":
                     looked_up = True
                     data = {
@@ -1413,7 +1403,7 @@ class DirectorBrain:
         for _attempt in range(2):
             try:
                 found = await generate_json(
-                    self.model,
+                    self.site_model,
                     SiteAccounts,
                     ACCOUNTS_PROMPT,
                     data,
@@ -1596,7 +1586,6 @@ class DirectorBrain:
             query=(query or notes or "")[:QUERY_LIMIT],
             key=f"review:{now_s}:{_digest(str(reason))[:8]}",
             settle=_review_rules(items),
-            # Nothing is marked as answered here, so the next review tries again.
             fallback=lambda _moment: DirectorPlan(scale="review"),
         )
 
@@ -1923,7 +1912,6 @@ class _Effects:
 
     def _balance(self, index, item):
         async def write():
-            # The same payment under a new cause is a repeat, not a second payment.
             repeat = await _one(
                 self.conn,
                 """SELECT 1 AS found FROM wallet_ledger WHERE run_id=%s AND owner_id=%s

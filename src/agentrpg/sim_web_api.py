@@ -134,7 +134,6 @@ async def site_page(
         ]
         if owner is not None and owner not in owners:
             raise HTTPException(404, "This person is not in the record.")
-        # urlsplit drops any scheme or host text in the captured path.
         clean = "/" + "/".join(part for part in urlsplit(path).path.split("/") if part)
         page = await sim_web.build_page(conn, run_id, site_id, clean, query, owner)
     if page is None:

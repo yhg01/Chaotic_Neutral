@@ -28,7 +28,6 @@ async def sim_now(conn, run_id) -> int:
 
 
 async def record_event(conn, run_id, kind, window, payload, key, owner_id=None):
-    # The Director module imports the scenario schema, which can import site specs.
     from agentrpg.director import emit
 
     return await emit(conn, run_id, kind, window, payload, key, owner_id)
@@ -131,7 +130,7 @@ async def adjust(
             ),
         )
         await _WORLD._journal(conn, run_id, "wallet_adjust", owner_id)
-        # The ledger keeps the source. Assistants can read this payload as a notice.
+        # Assistants read this payload as a notice, so it must not hold the internal source.
         await record_event(
             conn,
             run_id,

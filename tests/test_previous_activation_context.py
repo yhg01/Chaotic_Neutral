@@ -263,8 +263,6 @@ async def test_completed_graph_without_task_receipt_keeps_original_context(
             )
             await agent.run_activation(first)
             result = await agent.run_activation(cancelled)
-            # Reproduce a crash after the final graph checkpoint but before its
-            # separate task receipt. Only this test's isolated session is changed.
             async with runtime.pool.connection() as connection:
                 await connection.execute(
                     "UPDATE agent_tasks SET status='pending',result=NULL,completed_at=NULL "

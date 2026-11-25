@@ -188,9 +188,9 @@ this same campaign; its charges must not replace the cost of earlier failures.
 
 ## Inspect the evidence
 
-Open <http://127.0.0.1:8000/runs> and enter `ADMIN_TOKEN` from the ignored local
-`.env` file. Keep that credential out of chat and Agent messages. Select final
-run `7b17d4bc-0019-46b9-92c9-88fc28a1f65c` or one of the earlier attempts.
+Open <http://127.0.0.1:8000/runs>. The observer opens without a token on the
+loopback server. Select final run `7b17d4bc-0019-46b9-92c9-88fc28a1f65c` or one
+of the earlier attempts.
 Use **Owner chat** for delivered dialogue, **Steps and errors**
 for saved activation outputs, **Mail** for the inquiries and receipts, and
 **Resources** for access. **Report** preserves the checks and automatic review.

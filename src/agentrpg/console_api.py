@@ -113,8 +113,6 @@ async def run_state(conn, run_id):
 
 
 async def summaries(conn, run):
-    # The saved event establishes a board post's turn. Text equality avoids a
-    # UUID cast error from an old or orphan event payload.
     records = await rows(
         conn,
         '''WITH windows AS (
@@ -356,16 +354,12 @@ async def turn(
     )
 
 
-# Clocked runs. A window is one page of story time, usually two hours. One owner can have many
-# jobs on one page, and created_at holds story time. Window runs never reach the code below,
-# except the board read.
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 MAX_WINDOW = 2**31 - 1
 TIME_BOUND = 10**11
 QUEUE_LIMIT = 20
 MAX_BLOCKS = 2400
 BOARD_PAGE = 500
-# The timeline already has its own row for these records.
 TIMELINE_HIDDEN = [*AUDIT_EVENTS, "owner_message", "inbox_received", "board_posted", "board_batch"]
 PLOT_EVENTS = {"director_plan", "beat", "perturbation", "director_review"}
 

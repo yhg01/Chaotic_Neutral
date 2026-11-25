@@ -87,7 +87,6 @@ def default_session(cluster_id: UUID, agent_id: UUID) -> UUID:
 
 
 async def run_task(args, *, root: Path = ROOT) -> str:
-    # Import only when running, so help and configuration checks do not open a database.
     from agentrpg.deep_agent import AgentRuntime
 
     env = {**dotenv_values(root / ".env"), **os.environ}
@@ -166,8 +165,6 @@ def main(argv=None) -> None:
     except AgentRuntimeError as error:
         raise SystemExit(str(error)) from None
     except ValueError as error:
-        # Only local validation errors are safe to show; provider and database
-        # exceptions can include credentials or response bodies.
         safe_messages = {
             "Set OPENROUTER_API_KEY and DATABASE_URL in the local configuration.",
             "The selected Agent has no valid local credential. Run scripts/seed_demo.py.",

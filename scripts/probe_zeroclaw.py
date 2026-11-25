@@ -74,10 +74,11 @@ PERSONA = {
 }
 
 
-def script(prefix: str, duplicate: bool = False) -> list[dict]:
+def script(prefix: str, duplicate: bool = False, steps: int = 0) -> list[dict]:
     """Model replies, chosen by how many assistant messages the request already holds.
 
     With duplicate, the first reply asks for the same tool twice with the same arguments.
+    With steps, one long turn: that many replies with two tool calls each, then the end.
     """
 
     def call(call_id, name, arguments):
@@ -87,6 +88,21 @@ def script(prefix: str, duplicate: bool = False) -> list[dict]:
             "function": {"name": prefix + name, "arguments": json.dumps(arguments)},
         }
 
+    if steps:
+        return [
+            *[
+                {
+                    "content": None,
+                    "tool_calls": [
+                        call(f"call_long_{n:04d}_a", "get_updates", {"limit": n + 1}),
+                        call(f"call_long_{n:04d}_b", "get_updates", {"limit": n + 1001}),
+                    ],
+                }
+                for n in range(steps)
+            ],
+            {"content": None, "tool_calls": [call("call_long_end", "end_turn", {})]},
+            {"content": "All done for now.", "tool_calls": None},
+        ]
     return [
         {
             "content": "I'll check what is new and tell Dan.",
@@ -105,7 +121,7 @@ def script(prefix: str, duplicate: bool = False) -> list[dict]:
     ]
 
 
-def build_app(seen: dict, replies: list[dict], tool_delay: float) -> FastAPI:
+def build_app(seen: dict, replies: list[dict], tool_delay: float, result_chars: int = 0) -> FastAPI:
     app = FastAPI()
 
     def note(kind: str, request: Request, body):
@@ -201,6 +217,9 @@ def build_app(seen: dict, replies: list[dict], tool_delay: float) -> FastAPI:
             name = body["params"]["name"]
             seen["tool_calls"] += 1
             payload = {"ok": True, "data": {"tool": name, "n": seen["tool_calls"], "items": []}}
+            if result_chars:
+                words = f"item {seen['tool_calls']} of the list for the week "
+                payload["data"]["text"] = (words * (result_chars // len(words) + 1))[:result_chars]
             result = {"content": [{"type": "text", "text": json.dumps(payload)}], "isError": False}
         elif method == "ping":
             result = {}
@@ -231,6 +250,7 @@ model_provider = "custom.sim"
 risk_profile = "sim"
 runtime_profile = "sim"
 mcp_bundles = ["harness"]
+acp_enable_mcp = true
 
 [agents.{args.agent}.memory]
 backend = "none"
@@ -334,51 +354,147 @@ def collect(root: Path, args) -> dict:
     return found
 
 
-async def run(args) -> dict:
-    binary = args.zeroclaw
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    seen = {"events": [], "tool_calls": 0, "t0": time.monotonic()}
-    app = build_app(seen, script(f"{SERVER}__", args.duplicate), args.tool_delay)
-    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    serving = asyncio.create_task(server.serve())
-    while not server.started:  # noqa: ASYNC110
-        await asyncio.sleep(0.05)
-    root, env = await asyncio.to_thread(prepare, port, args)
-    turns = []
-    for message in args.message:
-        started = time.monotonic()
-        process = await asyncio.create_subprocess_exec(
+async def acp_turns(binary: str, args, env: dict, root: Path) -> list[dict]:
+    """Drive one long-lived `zeroclaw acp` process: one session, one prompt for each message.
+
+    After the last message but one, the process is stopped and a new one loads the same
+    session, to show whether the history lasts beyond one process.
+    """
+    turns, session_id = [], None
+
+    async def start():
+        return await asyncio.create_subprocess_exec(
             binary,
-            "agent",
-            "-a",
+            "acp",
+            "--agent",
             args.agent,
-            "-m",
-            message,
             "--log-level",
-            "debug",
-            stdin=asyncio.subprocess.DEVNULL,
+            "info",
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
             cwd=str(root),
             start_new_session=True,
         )
-        try:
-            out, err = await asyncio.wait_for(process.communicate(), args.timeout)
-        except TimeoutError:
+
+    async def rpc(process, number, method, params=None):
+        request = {"jsonrpc": "2.0", "id": number, "method": method}
+        if params is not None:
+            request["params"] = params
+        process.stdin.write((json.dumps(request) + "\n").encode())
+        await process.stdin.drain()
+        updates = []
+        while True:
+            line = await asyncio.wait_for(process.stdout.readline(), args.timeout)
+            if not line:
+                return {"error": "the process closed its output"}, updates
+            try:
+                message = json.loads(line)
+            except ValueError:
+                updates.append({"not_json": line.decode(errors="replace")[:300]})
+                continue
+            if message.get("id") == number and "method" not in message:
+                return message, updates
+            updates.append(message)
+
+    process = await start()
+    number = 0
+    for position, message in enumerate(args.message):
+        if position == 0:
+            number += 1
+            hello, _ = await rpc(process, number, "initialize")
+            number += 1
+            opened, _ = await rpc(process, number, "session/new", {"agentAlias": args.agent})
+            session_id = (opened.get("result") or {}).get("sessionId")
+            turns.append({"initialize": hello, "session_new": opened})
+        elif position == len(args.message) - 1 and len(args.message) > 2:
             process.kill()
-            out, err = await process.communicate()
+            await process.wait()
+            process = await start()
+            number += 1
+            await rpc(process, number, "initialize")
+            number += 1
+            loaded, _ = await rpc(process, number, "session/load", {"sessionId": session_id})
+            turns.append({"restarted": True, "session_load": loaded})
+        started = time.monotonic()
+        number += 1
+        answer, updates = await rpc(
+            process, number, "session/prompt", {"sessionId": session_id, "prompt": message}
+        )
+        kinds = [
+            (item.get("params") or {}).get("update", {}).get("sessionUpdate") for item in updates
+        ]
         turns.append(
             {
                 "message": message,
-                "exit_code": process.returncode,
                 "seconds": round(time.monotonic() - started, 2),
-                "stdout": out.decode(errors="replace"),
-                "stderr": err.decode(errors="replace")[-6000:],
+                "answer": answer,
+                "update_kinds": kinds,
+                "first_tool_update": next(
+                    (item for item in updates if "tool_call" in json.dumps(item)[:400]), None
+                ),
             }
         )
+    process.kill()
+    _, err = await process.communicate()
+    turns.append({"stderr_tail": err.decode(errors="replace")[-3000:]})
+    return turns
+
+
+async def run(args) -> dict:
+    binary = args.zeroclaw
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    seen = {"events": [], "tool_calls": 0, "t0": time.monotonic()}
+    app = build_app(
+        seen,
+        script(f"{SERVER}__", args.duplicate, args.steps),
+        args.tool_delay,
+        args.result_chars,
+    )
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    serving = asyncio.create_task(server.serve())
+    while not server.started:  # noqa: ASYNC110
+        await asyncio.sleep(0.05)
+    root, env = await asyncio.to_thread(prepare, port, args)
+    if args.acp:
+        turns = await acp_turns(binary, args, env, root)
+    else:
+        turns = []
+        for message in args.message:
+            started = time.monotonic()
+            process = await asyncio.create_subprocess_exec(
+                binary,
+                "agent",
+                "-a",
+                args.agent,
+                "-m",
+                message,
+                "--log-level",
+                "debug",
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                cwd=str(root),
+                start_new_session=True,
+            )
+            try:
+                out, err = await asyncio.wait_for(process.communicate(), args.timeout)
+            except TimeoutError:
+                process.kill()
+                out, err = await process.communicate()
+            turns.append(
+                {
+                    "message": message,
+                    "exit_code": process.returncode,
+                    "seconds": round(time.monotonic() - started, 2),
+                    "stdout": out.decode(errors="replace"),
+                    "stderr": err.decode(errors="replace")[-6000:],
+                }
+            )
     server.should_exit = True
     await serving
     return {
@@ -402,6 +518,8 @@ def main() -> None:
     parser.add_argument("--max-tool-iterations", type=int, default=25)
     parser.add_argument("--tool-timeout", type=int, default=120)
     parser.add_argument("--tool-delay", type=float, default=0.0)
+    parser.add_argument("--steps", type=int, default=0, help="One long turn of this many steps.")
+    parser.add_argument("--result-chars", type=int, default=0, help="Size of each tool result.")
     parser.add_argument(
         "--text-tools",
         action="store_true",
@@ -409,6 +527,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--duplicate", action="store_true", help="Ask for one tool twice in one model reply."
+    )
+    parser.add_argument(
+        "--acp",
+        action="store_true",
+        help="Use one long-lived `zeroclaw acp` process with one session for all messages.",
     )
     parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--trace-lines", type=int, default=0)
@@ -425,7 +548,12 @@ def main() -> None:
     report = asyncio.run(run(args))
     Path(args.out).write_text(json.dumps(report, indent=1), encoding="utf-8")
     for turn in report["turns"]:
-        print(f"exit {turn['exit_code']} in {turn['seconds']}s: {turn['stdout'].strip()[:200]!r}")
+        if "exit_code" in turn:
+            print(
+                f"exit {turn['exit_code']} in {turn['seconds']}s: {turn['stdout'].strip()[:200]!r}"
+            )
+        else:
+            print(json.dumps(turn, default=str)[:300])
     kinds = [event["kind"] for event in report["events"]]
     print({kind: kinds.count(kind) for kind in sorted(set(kinds))})
 

@@ -200,5 +200,5 @@ async def test_actor_agent_director_feedback_and_private_views(app, pool, alice_
     assert report["checks"]["owner_messages_generated_by_actors"]
     assert report["checks"]["bob_actor_reacted_after_receipt"]
     assert report["checks"]["alice_actor_reacted_after_assistant"]
-    # Stub assistants do not emit real graph tool events, so do not claim a model pass.
+    # Stub assistants emit no real graph tool events, so this report must not pass.
     assert not report["passed"]

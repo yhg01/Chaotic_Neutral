@@ -123,8 +123,6 @@ async def test_run_board_posts_remain_concurrent_and_pause_waits_for_late_commit
     path = f"/api/v1/clusters/{created['cluster_id']}/threads"
     delayed_payload = post_body("Delayed post")
     lock_key = uuid4().int % (2**31 - 1)
-    # Generated UUID and integer literals are safe; the function is confined
-    # to the disposable test schema and does not add application test hooks.
     async with pool.connection() as conn:
         await conn.execute(f"""
             CREATE FUNCTION delay_environment_post() RETURNS trigger LANGUAGE plpgsql AS $$

@@ -59,7 +59,6 @@ async def main(args):
         or origin.fragment
     ):
         raise SystemExit("Use a plain loopback HTTP origin without a path or credential.")
-    # ShopBrowser owns a separate Chrome context per Agent.
     async with httpx.AsyncClient() as client:
         health = await client.get(args.origin.rstrip("/") + "/health", timeout=5)
         health.raise_for_status()
@@ -141,8 +140,6 @@ async def main(args):
                     evidence["repeat"] = repeat + 1
                     runs.append(evidence)
                 except Exception as error:
-                    # Exceptions may contain private request data. Retain only their type here;
-                    # the original run/jobs and graph checkpoints remain in PostgreSQL.
                     errors.append(
                         {
                             "repeat": repeat + 1,

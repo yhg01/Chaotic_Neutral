@@ -94,8 +94,9 @@ The real API and model test described above supplies separate integration eviden
 The actual saved child was also inspected in a browser at 1600×1000 and 390×844.
 Turn 03, the parent link, and live controls were correct. No script error or
 horizontal page overflow was observed. Mutations were blocked during inspection.
-The [desktop screenshot](../.local/console-tests/real-branch-desktop.png) and
-[mobile screenshot](../.local/console-tests/real-branch-mobile.png) show this child.
+The desktop and mobile screenshots of this child are local files that the
+repository does not hold (`.local/console-tests/real-branch-desktop.png` and
+`real-branch-mobile.png`).
 
 A child restores the complete boundary, including Agent graph memory and private
 scratch files. It also preserves pending and applied console prompt receipts at
@@ -108,9 +109,8 @@ the capture time. Known paged tool messages from `list_threads`, `read_thread`, 
 first page. Arbitrary document JSON retains its content; a document field named
 `next_cursor` is not a tool paging command.
 
-The detailed local evidence is in
-[console-live-validation.json](../.local/console-live-validation.json) and
-[browser results](../.local/console-tests/results.json). These ignored files
-contain private synthetic run records. They contain no administrator or provider
+The detailed local evidence is in `.local/console-live-validation.json` and
+`.local/console-tests/results.json`. The repository does not hold these ignored
+files. They contain private synthetic run records. They contain no administrator or provider
 credentials. [E-18 in the PRD](../PRD.md#evidence-register) records this delivery
 separately from the earlier replay result E-17.

@@ -35,7 +35,6 @@ def test_low_is_always_mild_and_off_never_fires():
     assert {item.outcome for item in fired} == {"mild"}
     draws, fired, _ = measure("off")
     assert not fired
-    # The values exist even when nothing can happen, so the rate stays measurable.
     assert all(0 <= item.u < 1 and 0 <= item.v < 1 for item in draws[:100])
 
 
@@ -48,7 +47,6 @@ def test_values_follow_the_contract_hash_and_order_is_irrelevant():
     draw(11, "another", "high")
     assert draw(11, "dan:errand:3", "high") == first
     assert draw(12, "dan:errand:3", "high") != first
-    # One action keeps the same u under each level, so higher levels only add events.
     assert draw(11, "dan:errand:3", "low").u == first.u
 
 

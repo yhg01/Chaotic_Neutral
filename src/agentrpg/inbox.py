@@ -24,7 +24,6 @@ def _public(message):
         for key, value in message.items()
         if key not in {"payload_hash", "sender_key", "sequence", "request_id", "outside_recipient"}
     }
-    # Mail to someone outside the run reads like any other sent mail.
     if message.get("outside_recipient") is not None:
         result["recipient_owner_id"] = message["outside_recipient"]
     return result
@@ -78,7 +77,7 @@ class InboxService:
             raise InboxError("Mailbox not found.", 404)
 
     async def _missing_reference(self, conn, run_id, owner_id, ids):
-        # Inspect only this caller's own chat. A foreign private ID stays a 404.
+        # Privacy: look only in the caller's own chat. A foreign private ID stays a plain 404.
         if await row(
             conn,
             "SELECT 1 FROM owner_messages WHERE run_id=%s AND owner_id=%s AND id=ANY(%s)",
@@ -107,7 +106,6 @@ class InboxService:
 
     @staticmethod
     def _counterpart(original, sender_owner_id):
-        # A reply stays between the participants of the original message.
         return (
             original["recipient_owner_id"]
             if original["sender_owner_id"] == sender_owner_id
@@ -200,7 +198,6 @@ class InboxService:
             except ValidationError:
                 if source != "agent":
                     raise
-                # A free address counts only on a clocked run. That is checked below.
                 payload = AddressedMailRequest(**fields)
                 addressed = True
             request_id = UUID(str(request_id))
@@ -279,7 +276,6 @@ class InboxService:
             if existing["payload_hash"] != payload_hash:
                 raise InboxError("The mail request ID has different content.")
             if outside is not None:
-                # Nobody here reads it. The world's next review decides any answer.
                 await emit(
                     conn,
                     run_id,
@@ -443,9 +439,6 @@ class InboxService:
             limit=limit,
             connection=connection,
         )
-        # The Actor receives observations, not an unbounded email archive.
-        # Keep the original history cursor and every returned message identity.
-        # Only this private observation copy has shortened body text.
         bodies = [item["body"] for item in result["items"]]
         for item in result["items"]:
             item.update(body="", body_truncated=True)

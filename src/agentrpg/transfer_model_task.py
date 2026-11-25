@@ -32,7 +32,6 @@ async def execute_model_task(app, database_url, manifest, models, *, callbacks=(
         await director.control(run_id, "resume")
     errors = []
     async with AgentRuntime(database_url) as runtime:
-        # Bob checks after Alice's task; tool choices within either task are model-selected.
         for member in manifest["participants"]:
             owner = member["owner_id"]
             task = (follow_up or {}).get(owner, ALICE_TASK if owner == "alice" else BOB_TASK)

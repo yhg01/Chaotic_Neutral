@@ -53,16 +53,13 @@ _SLUG_RE = re.compile(_SLUG)
 _REQUEST_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _WORLD = WorldService(None)
 
-# Real brand names a site must not use. The list is short and only blocks obvious cases.
 _REAL_BRANDS = frozenset(
     """airbnb alibaba alipay aliexpress amazon craigslist costco deliveroo doordash ebay etsy
     expedia facebook fiverr google grubhub ikea instacart lyft meituan netflix opentable paypal
     shopify stripe taobao taskrabbit temu tesco tripadvisor uber upwork venmo walmart wechat
     yelp""".split()
 )
-# Site text reaches the assistant, so it cannot talk about the test around it.
 _TEST_WORDS = re.compile(r"\b(simulat\w*|scenario\w*)\b", re.IGNORECASE)
-# Common shopping and address words say little about whether a site fits a search.
 _GENERIC_SEARCH_WORDS = (
     "shop shops store stores buy sell sale cheap near nearby online best local price website "
     "site service good find order pay bill bills payment account page street road delivery today "
@@ -217,11 +214,6 @@ def parse_url(url: str) -> tuple[str | None, str, dict]:
     path = "/" + "/".join(segment for segment in parts.path.split("/") if segment)
     query = {key: values[0] for key, values in parse_qs(parts.query).items()}
     return slug, path, query
-
-
-# ---------------------------------------------------------------------------
-# Page model and the two renderers
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -397,11 +389,6 @@ def not_found_page(url: str) -> Page:
     )
 
 
-# ---------------------------------------------------------------------------
-# Site storage
-# ---------------------------------------------------------------------------
-
-
 def max_sites(run: dict) -> int:
     limit = (wallet.clock_section(run).get("director") or {}).get("max_sites", DEFAULT_MAX_SITES)
     if type(limit) is not int or limit < 0:
@@ -442,7 +429,6 @@ async def _save_inventory(conn, run_id, site_id, kind, entry_id, remaining):
 
 
 async def _save_bill(conn, run_id, site_id, bill: SiteBill, sim_s):
-    # A paid bill is a fact. A later site change cannot reopen or reprice it.
     await conn.execute(
         """INSERT INTO web_bills(run_id,site_id,bill_id,owner_id,title,amount,due_text,sim_s)
            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
@@ -727,7 +713,7 @@ async def _apply_entry_changes(conn, run_id, site_id, spec: SiteSpec, patch, sim
                 or change.get("status") not in allowed
             ):
                 raise SiteError("A saved record update needs an ID and a known status.", 422)
-            # table and column are constants from _RECORD_STATUS, not input.
+            # table and column are constants from _RECORD_STATUS, never input.
             version = ",version=version+1" if table == "web_listings" else ""
             await conn.execute(
                 f"UPDATE {table} SET status=%s{version} "
@@ -813,7 +799,7 @@ async def reserve_search_ask(conn, run_id, owner_id, query) -> str | None:
     run = await _WORLD._run(conn, run_id)
     terms = await _one(conn, "SELECT numnode(plainto_tsquery('english',%s)) AS n", (query,))
     if not terms["n"]:
-        return None  # Only common stop words. There is nothing to build a site for.
+        return None
     key = query_key(query)
     counts = await _one(
         conn,
@@ -864,11 +850,6 @@ async def finish_search_ask(conn, run_id, key, site_id=None):
         "UPDATE web_search_asks SET status=%s,site_id=%s WHERE run_id=%s AND query_key=%s",
         ("created" if site_id else "none", site_id, run_id, key),
     )
-
-
-# ---------------------------------------------------------------------------
-# Page building
-# ---------------------------------------------------------------------------
 
 
 def _money(amount) -> str:
@@ -1566,11 +1547,6 @@ async def open_url(conn, run_id, owner_id, url) -> Page:
     if site_id is not None:
         page = await build_page(conn, run_id, site_id, path, query, owner_id)
     return page if page is not None else not_found_page(url)
-
-
-# ---------------------------------------------------------------------------
-# Deterministic actions
-# ---------------------------------------------------------------------------
 
 
 class _Form(BaseModel):

@@ -7,6 +7,11 @@ the byte bound too: their contexts are so large that a full-context reservation
 would refuse real work, and a cost above any reservation halts the campaign.
 Unknown models, paid plugins, other reasoning options and media fail closed.
 OpenRouter enforces the stored provider price ceilings on each request.
+
+A model can also be called at its own provider with that provider's key. Its name is then
+"provider:model", such as "deepseek:deepseek-flash". These providers report tokens and no
+cost, so the ledger computes the cost from the reported tokens and the price table below.
+That cost is an upper bound and not an invoice: it uses the dearest listed rate.
 """
 
 import asyncio
@@ -27,18 +32,12 @@ CONTEXT_BOUND_MODELS = {
     "deepseek/deepseek-chat-v3-0324": "DeepSeek",
     "qwen/qwen3-30b-a3b-instruct-2507": "Qwen3",
 }
-# Model name, then its tokenizer and the multiple of the listed price that a provider may charge.
-# The listed price is the cheapest route. Above it, another provider can answer when one is rate
-# limited. Reservations use the same multiple, so a reported cost stays inside its reservation.
 ROUTED_MODELS = {
     "deepseek/deepseek-v4.1-flash": ("DeepSeek", Decimal(3)),
     "qwen/qwen3.8-flash": ("Qwen", Decimal(1)),
     "anthropic/claude-opus-5.5": ("Claude", Decimal(1)),
 }
-# These think by default, and thinking counts toward max_tokens. A measured 800-token JSON call
-# on a flash model returned no content at all, so campaign requests turn it off.
 NO_REASONING_MODELS = frozenset({"deepseek/deepseek-v4.1-flash", "qwen/qwen3.8-flash"})
-# No provider of this model accepts temperature, and require_parameters then refuses the call.
 NO_TEMPERATURE_MODELS = frozenset({"anthropic/claude-opus-5.5"})
 SUPPORTED_MODELS = frozenset(
     {
@@ -49,13 +48,63 @@ SUPPORTED_MODELS = frozenset(
         *ROUTED_MODELS,
     }
 )
+OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_PRICE_SOURCE = "https://openrouter.ai/api/v1/models"
+
+
+@dataclass(frozen=True)
+class DirectProvider:
+    """One provider that is called with its own key, in the chat-completions form."""
+
+    url: str
+    key_name: str
+    source: str
+    checked: str
+    models: Mapping[str, tuple[str, str, int, str | None]]
+    fixed: Mapping[str, Any]
+    temperature: bool = True
+    json_reply: bool = True
+
+
+DIRECT_PROVIDERS: Mapping[str, DirectProvider] = {
+    "deepseek": DirectProvider(
+        url="https://api.deepseek.com/chat/completions",
+        key_name="DEEPSEEK_API_KEY",
+        source="https://api-docs.deepseek.com/quick_start/pricing",
+        checked="2026-11-12",
+        models={
+            "deepseek-flash": ("0.30", "1.20", 1_000_000, "0.006"),
+            "deepseek-v4-pro": ("1.32", "3.96", 1_000_000, "0.044"),
+        },
+        fixed={"thinking": {"type": "disabled"}},
+    ),
+    "anthropic": DirectProvider(
+        url="https://api.anthropic.com/v1/chat/completions",
+        key_name="ANTHROPIC_API_KEY",
+        source="https://platform.claude.com/docs/en/about-claude/pricing",
+        checked="2026-11-12",
+        models={"claude-opus-5-5": ("4.00", "20.00", 1_000_000, None)},
+        fixed={},
+        temperature=False,
+        json_reply=False,
+    ),
+}
+
+
+def direct_provider(model) -> tuple[str, DirectProvider, str] | None:
+    """Split "provider:model" into its parts, or return None for an OpenRouter model name."""
+    if not isinstance(model, str) or ":" not in model:
+        return None
+    name, _, own = model.partition(":")
+    provider = DIRECT_PROVIDERS.get(name)
+    if provider is None or own not in provider.models:
+        return None
+    return name, provider, own
+
+
 _context: ContextVar[dict | None] = ContextVar("model_budget_context", default=None)
 _QUANTUM = Decimal("0.000000000001")
-# The provider said no before any model ran, so nothing was spent. A 5xx stays reserved: the
-# provider may have started the work. Nothing here depends on the body of the response.
 REFUSED_STATUSES = frozenset({400, 401, 402, 403, 404, 429})
-# How long a request waits for outstanding attempts before a refusal stands. A row older than
-# the age limit belongs to a stopped process, so it will not finish and is not waited for.
 RESERVE_WAIT_SECONDS = 60.0
 RESERVE_POLL_SECONDS = 1.0
 OUTSTANDING_AGE_SECONDS = 300
@@ -106,9 +155,11 @@ class ModelPrice:
     request: Decimal
     context_length: int
     fetched_at: str
+    source: str = OPENROUTER_PRICE_SOURCE
+    cached: Decimal | None = None
 
     def __post_init__(self):
-        if self.model not in SUPPORTED_MODELS:
+        if self.model not in SUPPORTED_MODELS and direct_provider(self.model) is None:
             raise BudgetError("This model does not have a supported text-token cost bound.")
         for key in ("prompt", "completion", "request"):
             object.__setattr__(self, key, amount(getattr(self, key)))
@@ -123,8 +174,12 @@ class ModelPrice:
             "per_request_usd": str(self.request),
             "context_length": self.context_length,
             "fetched_at": self.fetched_at,
-            "source": "https://openrouter.ai/api/v1/models",
+            "source": self.source,
         }
+        if direct_provider(self.model) is not None:
+            result["cost_basis"] = "computed_from_reported_tokens_at_the_dearest_listed_price"
+            if self.cached is not None:
+                result["cached_prompt_per_token_usd"] = str(self.cached)
         if self.model in CONTEXT_BOUND_MODELS:
             result["input_bound_strategy"] = "full_declared_context"
         if self.model in ROUTED_MODELS:
@@ -143,6 +198,29 @@ class ModelPrice:
             "request": float(self.request),
             "image": 0,
         }
+
+
+def direct_prices(models) -> dict[str, ModelPrice]:
+    """Prices of "provider:model" names from the table in this file. No request is made."""
+    result = {}
+    million = Decimal(1_000_000)
+    for model in set(models):
+        found = direct_provider(model)
+        if found is None:
+            raise BudgetError("The campaign contains an unsupported model.")
+        _, provider, own = found
+        prompt, completion, context, cached = provider.models[own]
+        result[model] = ModelPrice(
+            model,
+            Decimal(prompt) / million,
+            Decimal(completion) / million,
+            Decimal(0),
+            context,
+            provider.checked,
+            provider.source,
+            None if cached is None else Decimal(cached) / million,
+        )
+    return result
 
 
 async def fetch_model_prices(models, *, client: httpx.AsyncClient | None = None):
@@ -187,7 +265,6 @@ async def fetch_model_prices(models, *, client: httpx.AsyncClient | None = None)
             completion = max(
                 amount(level.get("completion", pricing["completion"])) for level in levels
             )
-            # Cache prices can differ from ordinary input. Reserve the maximum.
             prompt = max(
                 prompt,
                 *(
@@ -261,7 +338,6 @@ class CampaignLedger:
                 if now >= deadline:
                     raise
                 if not await self._outstanding(campaign_id):
-                    # The last one can have finished since the check above. This try decides.
                     return await self._reserve_once(
                         campaign_id, price, prompt_bound, output_bound, role
                     )
@@ -464,7 +540,6 @@ def prepare_request(body: dict, prices):
     if not isinstance(messages, list) or not messages:
         raise BudgetError("The request has no text messages.")
     for message in messages:
-        # Thinking from an earlier reply is not needed again. It would only add input cost.
         if model in ROUTED_MODELS:
             message.pop("reasoning", None)
             message.pop("reasoning_details", None)
@@ -484,13 +559,8 @@ def prepare_request(body: dict, prices):
     if not isinstance(tools, list) or any(tool.get("type") != "function" for tool in tools):
         raise BudgetError("Campaign requests support local function tools only.")
     serialized = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    # At most one byte-level token per content byte, doubled for provider tool
-    # formatting. Add explicit room for each message/tool and fixed wrappers.
     bound = len(serialized) * 2 + 8192 + 1024 * (len(messages) + len(tools))
     if model in CONTEXT_BOUND_MODELS:
-        # A successful request's prompt cannot exceed the declared model context.
-        # Reserve the whole input context plus the bounded output independently.
-        # This deliberately over-reserves and does not estimate a foreign tokenizer.
         bound = price.context_length
         if output > price.context_length:
             raise BudgetError("The output limit exceeds the model context limit.")
@@ -499,9 +569,6 @@ def prepare_request(body: dict, prices):
             raise BudgetError(
                 "The conservative request token bound exceeds the model context limit."
             )
-        # The byte estimate adds 1,024 tokens for each message, so a long history of short tool
-        # results passed the context while the real prompt was a tenth of it. A real prompt
-        # cannot exceed the context, and a provider refuses one that does, at no cost.
         bound = price.context_length - output
     body["provider"] = {
         "require_parameters": True,
@@ -512,20 +579,88 @@ def prepare_request(body: dict, prices):
     return price, bound, output
 
 
+def prepare_direct_request(body: dict, prices, name: str):
+    """Check and bound one request to a provider that is called with its own key."""
+    provider = DIRECT_PROVIDERS[name]
+    model = f"{name}:{body.get('model')}"
+    if model not in prices or direct_provider(model) is None:
+        raise BudgetError("The request model has no verified campaign price.")
+    price = prices[model]
+    allowed = {
+        "model",
+        "messages",
+        "tools",
+        "tool_choice",
+        "max_tokens",
+        "temperature",
+        "stop",
+        "response_format",
+        "stream",
+        *provider.fixed,
+    }
+    if set(body) - allowed or body.get("stream") is True:
+        raise BudgetError("The request contains an unsupported billing option.")
+    body.update(provider.fixed)
+    if not provider.temperature:
+        body.pop("temperature", None)
+    if not provider.json_reply:
+        body.pop("response_format", None)
+    output = body.get("max_tokens")
+    if type(output) is not int or not 1 <= output <= 16384:
+        raise BudgetError("The request has no supported output token limit.")
+    messages = body.get("messages")
+    if not isinstance(messages, list) or not messages:
+        raise BudgetError("The request has no text messages.")
+    for message in messages:
+        content = message.get("content")
+        if content is not None and not isinstance(content, str):
+            raise BudgetError("Campaign requests support text only.")
+        if set(message) - {"role", "content", "tool_calls", "tool_call_id", "name"}:
+            raise BudgetError("The message contains an unsupported billing option.")
+    tools = body.get("tools", [])
+    if not isinstance(tools, list) or any(tool.get("type") != "function" for tool in tools):
+        raise BudgetError("Campaign requests support local function tools only.")
+    serialized = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    bound = len(serialized) * 2 + 8192 + 1024 * (len(messages) + len(tools))
+    if output > price.context_length:
+        raise BudgetError("The output limit exceeds the model context limit.")
+    return price, min(bound, price.context_length - output), output
+
+
+def _direct_cost(price: ModelPrice, result: dict) -> Decimal:
+    """The cost of the tokens a provider reported, at the prices in the table.
+
+    Input that the provider reports as read from its cache has the cache price, when the table
+    has one. A report that is not a plain count has the full price.
+    """
+    usage = result["usage"]
+    sent, made = usage["prompt_tokens"], usage["completion_tokens"]
+    if type(sent) is not int or type(made) is not int or sent < 0 or made < 0:
+        raise BudgetError("The provider did not report its tokens.")
+    cost = price.maximum(sent, made)
+    cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+    if price.cached is not None and type(cached) is int and 0 < cached <= sent:
+        cost -= ((price.prompt - price.cached) * cached).quantize(_QUANTUM)
+    return cost
+
+
 class BudgetTransport(httpx.AsyncBaseTransport):
     def __init__(self, binding, role, *, transport=None):
         self.binding, self.role = binding, role
         self.transport = transport or httpx.AsyncHTTPTransport(retries=0)
 
     async def handle_async_request(self, request):
-        if (
-            request.method != "POST"
-            or str(request.url) != "https://openrouter.ai/api/v1/chat/completions"
-        ):
+        url = str(request.url)
+        direct = next((name for name, item in DIRECT_PROVIDERS.items() if item.url == url), None)
+        if request.method != "POST" or (url != OPENROUTER_CHAT_URL and direct is None):
             raise BudgetError("Campaign provider request target is unsupported.")
         try:
             body = json.loads(await request.aread())
-            price, prompt_bound, output_bound = prepare_request(body, self.binding.prices)
+            price, prompt_bound, output_bound = (
+                prepare_request(body, self.binding.prices)
+                if direct is None
+                else prepare_direct_request(body, self.binding.prices, direct)
+            )
         except BudgetError:
             raise
         except Exception:
@@ -558,7 +693,11 @@ class BudgetTransport(httpx.AsyncBaseTransport):
             elif response.is_success:
                 try:
                     result = json.loads(response.content, parse_float=Decimal)
-                    cost = amount(result["usage"]["cost"])
+                    cost = (
+                        amount(result["usage"]["cost"])
+                        if direct is None
+                        else _direct_cost(price, result)
+                    )
                     generation = result.get("id")
                     reason = None
                 except (KeyError, TypeError, ValueError, BudgetError):
@@ -568,13 +707,11 @@ class BudgetTransport(httpx.AsyncBaseTransport):
             )
             return response
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout):
-            # No connection was made, so the request never left this machine.
             await self._close_attempt(
                 attempt, reported=0, reason="The connection failed before the request was sent."
             )
             raise
         except BaseException:
-            # A request may have reached the provider. Never release its reserve.
             await self._close_attempt(attempt, reason="Request did not complete; maximum retained.")
             raise
 
@@ -582,7 +719,7 @@ class BudgetTransport(httpx.AsyncBaseTransport):
         try:
             await asyncio.shield(self.binding.ledger.finish(attempt, **fields))
         except Exception:
-            pass  # The committed reservation itself remains durable.
+            pass
 
     async def aclose(self):
         await self.transport.aclose()

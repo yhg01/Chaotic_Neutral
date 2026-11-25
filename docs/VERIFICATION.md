@@ -1,14 +1,19 @@
-# Verification
+# Verification record: 27 October to 1 November 2026
+
+This page is a closed record. It holds the checks made from 27 October to
+1 November 2026 and it is not updated with later work. For later results, read the
+[evidence register](../PRD.md#evidence-register) in the PRD. Words such as "current",
+"latest" and "now" on this page refer to the date of each record.
 
 On 1 November 2026, the four unavailable source files were restored before the
 first GitHub push. The complete PostgreSQL suite passed 901 tests in 68.69
-seconds, with no exclusions. See the [source recovery record](SOURCE_RECOVERY.md).
+seconds, with no exclusions. Row E-20 of the evidence register records this recovery.
 The records below retain the results and storage limits from their original dates.
 
 Checked on 27–28 October 2026 on the local macOS machine. Historical board
 results retain their original dates. Director results are recorded below.
 
-## Current extension result
+## Extension result, 28 October 2026
 
 The two-owner storm run `0b6c3edb-92da-4877-96ee-0ac4957f0242` completed ten windows
 and passed every recorded integration check. The independent automatic review
@@ -29,7 +34,7 @@ uncertain reservations. All eleven runs, including failed attempts, repairs, and
 reviews, remain in the [safe campaign summary](environment-results.json).
 The earlier three-of-fifteen trade result remains a failed historical run.
 
-The latest available automated suite passed **674 tests in 46.11 seconds** after
+On 28 October 2026, the available automated suite passed **674 tests in 46.11 seconds** after
 the code changes, excluding exactly two dataless test modules. The 674 total
 includes six new evaluator checks. A later report-persistence fix passed 60 focused
 CLI, observer, and report tests in 3.93 seconds. This includes one new test; it is
@@ -180,7 +185,8 @@ The [extension test record](ENVIRONMENT_TEST_RESULTS.md) tracks the current work
 The fresh extension suite stopped in collection on two dataless files:
 `tests/test_evaluation.py` and `tests/test_scenario_author.py`. Cloud recovery
 requests did not restore them. Any run that excludes these files is a partial
-suite and cannot establish a fresh full-suite result.
+suite and cannot establish a fresh full-suite result. The two files were restored
+on 1 November 2026, as the start of this page records.
 
 The final credential scan checked 173 source, documentation, scenario, and local
 evidence files against 170 configured credential values. It found no matches.
@@ -199,7 +205,7 @@ resumed and completed with fourteen owners holding transport. Exclude this run
 from assistant performance comparisons; its purpose is recovery verification.
 
 The local configuration now sets `AGENTRPG_PGDATA` to
-`/Users/yuhe/Library/Application Support/agentRPG/pgdata`. The native setup helper
+`~/Library/Application Support/agentRPG/pgdata`. The native setup helper
 uses that selection for start, stop, and status. Tests cover the override,
 private directory and password-file permissions, and invalid target directories.
 The default path remains compatible for other installations. The API health
@@ -373,7 +379,7 @@ fixture checks are separate from the real-database checks above.
 
 The original diagram source was preserved. The static render contains all 13
 nodes and 28 connections. The four dashed resource links retain unspecified
-directions. README and AGENTS.md were written before the implementation.
+directions. The first README and AGENTS.md were written before the implementation.
 
 This delivery implements the message board, persistent Deep Agents runtime,
 Agent board tools, and local operator/observer tools. The previous custom model
@@ -382,7 +388,9 @@ components and twenty-eight connections to implementation and test status.
 The JSON diagram register now matches the source directions and labels.
 
 The first Director, owner Actors, private chat, transport world, environment
-Database, logical Clock, and recurring beats are implemented. Inboxes, Resources,
-the four unspecified dashed links, and general search/fetch/buy/sell behavior
-remain planned. The real tests used separate verification clusters and bounded
-runs. The local API and PostgreSQL remain available.
+Database, logical Clock, and recurring beats are implemented. When this section
+was written, Inboxes, Resources, the four unspecified dashed links, and general
+search/fetch/buy/sell behavior were planned. They were implemented later: see the
+extension result above and rows EX-01 to EX-03 of the [PRD](../PRD.md). The real
+tests used separate verification clusters and bounded runs. The local API and
+PostgreSQL remained available after the tests.

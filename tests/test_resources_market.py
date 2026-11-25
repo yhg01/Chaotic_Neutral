@@ -17,7 +17,7 @@ from agentrpg.world import WorldError, WorldService
 
 @pytest.fixture
 def environment(pool, provision):
-    async def create(count=2, quantity=2, credits=20):
+    async def create(count=2, quantity=2, credits=20, records=None):
         cluster, agents = await provision(name=f"Resources {uuid4()}", count=count)
         run_id = uuid4()
         owners = [f"owner-{index + 1}" for index in range(count)]
@@ -45,7 +45,8 @@ def environment(pool, provision):
         resources = ResourceService(pool)
         await resources.initialize(
             run_id,
-            [
+            records
+            or [
                 {
                     "id": "manual",
                     "owner_id": "owner-1",
@@ -129,7 +130,7 @@ async def test_private_resources_search_and_explicit_sharing(environment, pool):
     )
     assert shared["version"] == 2
     assert (await resources.fetch(run_id, "owner-2", "manual"))["content"] == "Owner edit"
-    with pytest.raises(WorldError, match="not found"):
+    with pytest.raises(WorldError, match="shared for reading only"):
         await resources.update(run_id, "owner-2", "manual", uuid4(), "stolen", 2)
     with pytest.raises(WorldError, match="other owners"):
         await resources.apply_request(
@@ -535,7 +536,6 @@ async def test_http_identity_and_permissions_are_server_bound(environment, clien
     prefix = f"/api/v1/runs/{run_id}"
     owner1 = {"Authorization": f"Bearer {agents[0]['token']}"}
     owner2 = {"Authorization": f"Bearer {agents[1]['token']}"}
-    # Administrators observe through their own interface, never impersonate an Agent.
     assert (await client.get(prefix + "/resources")).status_code == 403
     own = await client.get(prefix + "/resources", headers=owner1)
     assert own.status_code == 200 and {r["id"] for r in own.json()["items"]} == {
@@ -763,6 +763,253 @@ async def test_actor_resource_view_has_bounded_content(environment):
     assert len(view["items"]) == 30 and view["truncated"]
     assert sum(len(r["content"]) for r in view["items"]) <= 24000
     assert any(r["content_truncated"] for r in view["items"])
+
+
+async def test_a_write_to_a_shared_record_of_someone_else_says_why_it_is_refused(environment, app):
+    import httpx
+
+    from agentrpg.agent_surface import present_result
+    from agentrpg.environment_tools import EnvironmentTools
+
+    run_id, resources, _, _, agents = await environment()
+    await resources.apply_request(
+        run_id,
+        "owner-1",
+        uuid4(),
+        {
+            "kind": "share",
+            "resource_id": "manual",
+            "expected_version": 0,
+            "visibility": "shared",
+            "shared_owner_ids": ["owner-2"],
+        },
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test/api/v1/",
+        headers={"Authorization": f"Bearer {agents[1]['token']}"},
+    ) as http:
+        tools = EnvironmentTools(http, run_id)
+        assert (await tools.execute("fetch_resource", {"resource_id": "manual"}, "read"))["ok"]
+        refused = await tools.execute(
+            "write_resource",
+            {"resource_id": "manual", "content": "My lines", "expected_version": 1},
+            "write",
+        )
+        unknown = await tools.execute(
+            "write_resource",
+            {"resource_id": "no-such-record", "content": "x", "expected_version": 0},
+            "write-unknown",
+        )
+    assert refused["error"]["status"] == 403 and refused["error"]["code"] == "shared_read_only"
+    shown = str(present_result("write_resource", refused, time_text=lambda value: value))
+    assert "belongs to someone else" in shown and "not found" not in shown.lower()
+    assert unknown["error"]["status"] == 404
+
+
+def test_shared_editing_is_part_of_a_record_only_when_it_is_set():
+    plain = {"id": "sheet", "owner_id": "owner-1", "title": "Order", "visibility": "shared"}
+    shared = {**plain, "shared_owner_ids": ["owner-2"]}
+    assert "shared_can_edit" not in ResourceSpec.model_validate(shared).model_dump(mode="json")
+    group = ResourceSpec.model_validate({**shared, "shared_can_edit": True})
+    assert group.model_dump(mode="json")["shared_can_edit"] is True
+    assert ResourceSpec.model_validate(group.model_dump(mode="json")) == group
+    for wrong in (
+        {**plain, "shared_can_edit": True},
+        {**plain, "visibility": "public", "shared_can_edit": True},
+        {**plain, "visibility": "private", "shared_can_edit": True},
+    ):
+        with pytest.raises(ValueError):
+            ResourceSpec.model_validate(wrong)
+
+
+GROUP_SHEET = [
+    {
+        "id": "order-sheet",
+        "owner_id": "owner-1",
+        "title": "Thursday order",
+        "content": "Flat 1:\nFlat 2:",
+        "visibility": "shared",
+        "shared_owner_ids": ["owner-2"],
+        "shared_can_edit": True,
+    },
+    {
+        "id": "locked-sheet",
+        "owner_id": "owner-1",
+        "title": "Rota",
+        "content": "Mon:",
+        "visibility": "shared",
+        "shared_owner_ids": ["owner-2"],
+        "shared_can_edit": True,
+        "agent_writable": False,
+    },
+    {
+        "id": "notice",
+        "owner_id": "owner-1",
+        "title": "Notice",
+        "content": "Read only.",
+        "visibility": "shared",
+        "shared_owner_ids": ["owner-2"],
+    },
+]
+
+
+async def test_the_people_a_group_sheet_is_shared_with_can_change_it(environment, app, pool):
+    """Seen in a live run: a sheet said "everyone adds their list here", and a write failed."""
+    import httpx
+
+    from agentrpg.environment_tools import EnvironmentTools
+
+    run_id, resources, _, _, agents = await environment(count=3, records=GROUP_SHEET)
+
+    def client(index):
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test/api/v1/",
+            headers={"Authorization": f"Bearer {agents[index]['token']}"},
+        )
+
+    async with client(1) as shared_http, client(2) as other_http:
+        shared, other = EnvironmentTools(shared_http, run_id), EnvironmentTools(other_http, run_id)
+        read = await shared.execute("fetch_resource", {"resource_id": "order-sheet"}, "read")
+        assert read["data"]["shared_can_edit"] is True and read["data"]["version"] == 0
+        listed = await shared.execute("read_resources", {}, "list")
+        flags = {item["id"]: item.get("shared_can_edit") for item in listed["data"]["items"]}
+        assert flags["order-sheet"] is True and flags["notice"] is None
+        written = await shared.execute(
+            "write_resource",
+            {
+                "resource_id": "order-sheet",
+                "content": "Flat 1:\nFlat 2: oats, tea",
+                "expected_version": 0,
+            },
+            "write-1",
+        )
+        assert written["ok"] and written["data"]["version"] == 1
+        assert written["data"]["owner_id"] == "owner-1"
+        again = await shared.execute(
+            "write_resource",
+            {
+                "resource_id": "order-sheet",
+                "content": "Flat 1:\nFlat 2: oats, tea",
+                "expected_version": 0,
+            },
+            "write-1",
+        )
+        assert again["data"]["version"] == 1
+        stale = await shared.execute(
+            "write_resource",
+            {"resource_id": "order-sheet", "content": "Late", "expected_version": 0},
+            "write-2",
+        )
+        assert stale["error"]["status"] == 409
+        locked = await shared.execute(
+            "write_resource",
+            {"resource_id": "locked-sheet", "content": "Mon: me", "expected_version": 0},
+            "write-3",
+        )
+        assert locked["error"]["status"] == 403
+        notice = await shared.execute(
+            "write_resource",
+            {"resource_id": "notice", "content": "Mine", "expected_version": 0},
+            "write-4",
+        )
+        assert notice["error"]["code"] == "shared_read_only"
+        outside = await other.execute(
+            "write_resource",
+            {"resource_id": "order-sheet", "content": "Flat 3: jam", "expected_version": 1},
+            "write-5",
+        )
+        assert outside["error"]["status"] == 404
+    owner_copy = await resources.fetch(run_id, "owner-1", "order-sheet")
+    assert owner_copy["content"] == "Flat 1:\nFlat 2: oats, tea" and owner_copy["version"] == 1
+    async with pool.connection() as conn:
+        told = await (
+            await conn.execute(
+                "SELECT owner_id, payload FROM run_events WHERE run_id=%s "
+                "AND kind='resource_updated' ORDER BY owner_id",
+                (run_id,),
+            )
+        ).fetchall()
+    assert [row["owner_id"] for row in told] == ["owner-1", "owner-2"]
+    assert all(row["payload"]["changed_by"] == "owner-2" for row in told)
+    with pytest.raises(WorldError, match="title") as refused:
+        await resources.apply_request(
+            run_id,
+            "owner-2",
+            uuid4(),
+            {
+                "kind": "update",
+                "resource_id": "locked-sheet",
+                "expected_version": 0,
+                "title": "My rota",
+                "content": "Mon: me",
+            },
+        )
+    assert refused.value.status_code == 403
+    by_person = await resources.apply_request(
+        run_id,
+        "owner-2",
+        uuid4(),
+        {
+            "kind": "update",
+            "resource_id": "locked-sheet",
+            "expected_version": 0,
+            "content": "Mon: me",
+        },
+    )
+    assert by_person["version"] == 1 and by_person["title"] == "Rota"
+    await resources.update(run_id, "owner-1", "order-sheet", uuid4(), "Flat 1: eggs", 1)
+    async with pool.connection() as conn:
+        last = await (
+            await conn.execute(
+                "SELECT owner_id, payload FROM run_events WHERE run_id=%s "
+                "AND kind='resource_updated' AND payload->>'version'='2' ORDER BY owner_id",
+                (run_id,),
+            )
+        ).fetchall()
+    assert [row["owner_id"] for row in last] == ["owner-1", "owner-2"]
+    assert all("changed_by" not in row["payload"] for row in last)
+    await resources.apply_request(
+        run_id,
+        "owner-1",
+        uuid4(),
+        {
+            "kind": "share",
+            "resource_id": "order-sheet",
+            "expected_version": 2,
+            "visibility": "private",
+            "shared_owner_ids": [],
+        },
+    )
+    with pytest.raises(WorldError) as gone:
+        await resources.update(run_id, "owner-2", "order-sheet", uuid4(), "Flat 2: more", 3)
+    assert gone.value.status_code == 404
+    async with pool.connection() as conn:
+        kept = await (
+            await conn.execute(
+                "SELECT shared_can_edit FROM owner_resources WHERE run_id=%s "
+                "AND resource_id='order-sheet'",
+                (run_id,),
+            )
+        ).fetchone()
+    assert kept["shared_can_edit"] is False
+
+
+def test_the_five_lives_story_marks_only_its_group_sheets():
+    from pathlib import Path
+
+    from agentrpg.scenario_schema import ScenarioSpec
+
+    root = Path(__file__).resolve().parents[1]
+    spec = ScenarioSpec.model_validate_json(
+        (root / "scenarios" / "five_lives_week.json").read_text()
+    )
+    marked = {item.id for item in spec.resources if item.shared_can_edit}
+    assert marked == {"thursday-order-sheet", "fair-stall-rota"}
+    other = (root / "scenarios" / "agent_bill_week.json").read_text()
+    assert "shared_can_edit" not in other
+    assert "shared_can_edit" not in ScenarioSpec.model_validate_json(other).canonical_json()
 
 
 async def test_agent_tools_use_http_and_replay_stable_requests(environment, app, pool):
@@ -1025,7 +1272,6 @@ async def test_market_requests_keep_payloads_for_consent_trade_and_rejection(env
     assert sold["status"] == "accepted"
     await advance(pool, run_id, 1)
     await market.set_consent(run_id, "owner-2", 7, ["battery"], [], buyer_consent)
-    # The stored target uses the canonical UUID, even when input uses capitals.
     item = sold["listing_id"].upper()
     stale_buy = await market.submit_current(
         run_id,

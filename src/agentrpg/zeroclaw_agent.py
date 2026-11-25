@@ -1,7 +1,9 @@
 """Personal Agents whose tool loop runs in ZeroClaw, an external assistant program.
 
-This is a trial backend for clocked runs. One ZeroClaw process runs each activation. It reaches
-the harness through one loopback server, the bridge, in two ways:
+This is a trial backend for clocked runs. Each assistant has one ZeroClaw process for the whole
+run, with one session in it (`zeroclaw acp`). Each activation is one prompt in that session, so
+the program keeps its own history from turn to turn. The process reaches the harness through
+one loopback server, the bridge, in two ways:
 
 - its model client posts to an OpenAI-compatible route of the bridge;
 - its MCP client lists and calls the assistant's tools on an MCP route of the bridge.
@@ -15,11 +17,13 @@ Two modes decide what the model reads:
 
 - ``harness``: the model reads the same instructions, history and tool names as on the Deep
   Agents backend. ZeroClaw only decides when to ask again and which tool to run next.
-- ``zeroclaw``: the model reads the request as ZeroClaw wrote it, with its own system prompt
-  and its prefixed tool names. Use this mode to measure the program, not for evaluation runs.
+- ``zeroclaw``: the model reads the request as ZeroClaw wrote it, with its own system prompt,
+  its own history of the session and its prefixed tool names. Use this mode to measure the
+  program, not for evaluation runs.
 
-A retried activation starts a new process. The saved model messages and tool results are given
-to it again in order, so no model call and no world effect happens twice.
+After a failed attempt the process is stopped. A new process loads the session as it was before
+that turn. The saved model messages and tool results of the turn are then given to it again in
+order, so no model call and no world effect happens twice.
 """
 
 from __future__ import annotations
@@ -33,14 +37,17 @@ import shutil
 import signal
 import socket
 import tempfile
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID, uuid4, uuid5
 
 import uvicorn
+from deepagents.backends import StateBackend
+from deepagents.middleware.filesystem import FilesystemMiddleware
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+from langchain.tools import ToolRuntime
 from langchain_core.messages import (
     AIMessage,
     HumanMessage,
@@ -49,12 +56,16 @@ from langchain_core.messages import (
     message_to_dict,
     messages_from_dict,
 )
+from langchain_core.tools import ToolException
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from psycopg.types.json import Jsonb
+from pydantic import ValidationError
 
 from agentrpg.agent_surface import NATURAL
 from agentrpg.clock import strip_nul
 from agentrpg.deep_agent import (
+    CLOCKED_SUMMARY_KEEP_TOKENS,
+    CLOCKED_SUMMARY_TOKENS,
     AgentRuntimeError,
     AgentTransientError,
     PersonalAgent,
@@ -69,11 +80,9 @@ HARNESS = "harness"
 ZEROCLAW = "zeroclaw"
 MODES = (HARNESS, ZEROCLAW)
 BINARY_ENV = "AGENTRPG_ZEROCLAW"
-# ZeroClaw offers an MCP tool to the model as <server>__<tool>.
 SERVER = "home"
 PREFIX = SERVER + "__"
 ALIAS = "assistant"
-# ZeroClaw reads these files into its own system prompt. An empty file is left out.
 PERSONA_FILES = (
     "AGENTS.md",
     "SOUL.md",
@@ -87,16 +96,51 @@ PERSONA_FILES = (
 UNEXPECTED_CALL = json.dumps(
     {"ok": False, "error": {"code": "not_available", "detail": "That is not available."}}
 )
-# The same words as the Deep Agents library uses for a call that an earlier turn left open.
 OPEN_CALL = (
     "Tool call {name} with id {call_id} did not complete - no result was recorded. "
     "It may have been cancelled or interrupted."
 )
-# In harness mode the program's own message is not read by the model, so the owner's words
-# stay off its command line.
 PLACEHOLDER = "Continue."
-# ZeroClaw cuts each persona file at this size unless compact_context is off.
+SUMMARY_LEAD = "Here is a summary of the conversation to date:\n\n"
+
+
+def _tokens(messages) -> int:
+    """About how many tokens these messages take: four characters each."""
+    size = 0
+    for message in messages:
+        content = message.content
+        size += len(content if isinstance(content, str) else json.dumps(content, default=str))
+        size += len(json.dumps(getattr(message, "tool_calls", None) or [], default=str))
+    return size // 4
+
+
 COMPACT_FILE_CHARS = 6000
+PROGRAM_CONTEXT_TOKENS = 1_000_000
+NOTE_TOOLS = ("ls", "read_file", "write_file", "edit_file", "glob", "grep")
+
+
+class _Notes(StateBackend):
+    """The private scratch files of one assistant, held outside a graph.
+
+    The parent class gives the file rules and the texts of the library's own file tools. It
+    reads and writes a graph channel in two places only, and both are replaced here.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.files: dict = {}
+        self.changed = False
+
+    def _read_files(self) -> dict:
+        return self.files
+
+    def _send_files_update(self, update: dict) -> None:
+        for path, data in update.items():
+            if data is None:
+                self.files.pop(path, None)
+            else:
+                self.files[path] = data
+        self.changed = True
 
 
 class _BridgeServer(uvicorn.Server):
@@ -151,6 +195,109 @@ class _Ask:
     answer: asyncio.Future
 
 
+class _Program:
+    """One assistant's ZeroClaw process. It lives for the whole run and holds one session."""
+
+    def __init__(self, binary: str, directory: Path) -> None:
+        self.binary = binary
+        self.directory = directory
+        self.process = None
+        self.session_id: str | None = None
+        self._reader: asyncio.Task | None = None
+        self._pending: dict[int, asyncio.Future] = {}
+        self._number = 0
+
+    def alive(self) -> bool:
+        return self.process is not None and self.process.returncode is None
+
+    async def start(self) -> None:
+        """Start the process and open its session, or load the session it had before."""
+        log = await asyncio.to_thread(open, self.directory / "program.log", "ab")
+        try:
+            self.process = await asyncio.create_subprocess_exec(
+                self.binary,
+                "acp",
+                "--agent",
+                ALIAS,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=log,
+                env={
+                    "HOME": str(self.directory / "home"),
+                    "PATH": "/usr/bin:/bin",
+                    "ZEROCLAW_CONFIG_DIR": str(self.directory / "config"),
+                    "TZ": "UTC",
+                },
+                cwd=str(self.directory),
+                start_new_session=True,
+                limit=32 * 1024 * 1024,
+            )
+        finally:
+            log.close()
+        self._reader = asyncio.create_task(self._read(self.process))
+        await self.call("initialize", wait=30)
+        saved = self.directory / "session-id"
+        known = await asyncio.to_thread(
+            lambda: saved.read_text().strip() if saved.is_file() else ""
+        )
+        if known:
+            reply = await self.call("session/load", {"sessionId": known}, wait=30)
+            if "error" not in reply:
+                self.session_id = known
+                return
+        reply = await self.call("session/new", {"agentAlias": ALIAS}, wait=30)
+        self.session_id = reply["result"]["sessionId"]
+        await asyncio.to_thread(saved.write_text, self.session_id)
+
+    async def call(self, method: str, params: dict | None = None, *, wait=None) -> dict:
+        """One JSON-RPC request on the program's input, and its answer. wait is in seconds."""
+        self._number += 1
+        number = self._number
+        request = {"jsonrpc": "2.0", "id": number, "method": method}
+        if params is not None:
+            request["params"] = params
+        answer = asyncio.get_running_loop().create_future()
+        self._pending[number] = answer
+        try:
+            self.process.stdin.write((json.dumps(request) + "\n").encode())
+            await self.process.stdin.drain()
+            async with asyncio.timeout(wait):
+                return await answer
+        finally:
+            self._pending.pop(number, None)
+
+    async def _read(self, process) -> None:
+        try:
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                try:
+                    message = json.loads(line)
+                except ValueError:
+                    continue
+                answer = None if "method" in message else self._pending.get(message.get("id"))
+                if answer is not None and not answer.done():
+                    answer.set_result(message)
+        finally:
+            for answer in self._pending.values():
+                if not answer.done():
+                    answer.set_exception(ConnectionError("The assistant program closed."))
+
+    async def stop(self) -> None:
+        process, self.process = self.process, None
+        reader, self._reader = self._reader, None
+        if process is not None:
+            if process.returncode is None:
+                with contextlib.suppress(OSError):
+                    os.killpg(process.pid, signal.SIGKILL)
+            with contextlib.suppress(Exception):
+                await process.wait()
+        if reader is not None:
+            reader.cancel()
+            await asyncio.gather(reader, return_exceptions=True)
+
+
 @dataclass(eq=False)
 class _Seat:
     """One Agent's place at the bridge: its secret path, its folder and its open questions."""
@@ -158,6 +305,7 @@ class _Seat:
     token: str
     directory: Path
     tools: list[dict]
+    program: _Program
     asks: asyncio.Queue | None = None
 
     def open(self) -> asyncio.Queue:
@@ -187,12 +335,19 @@ class _ModelRequest:
 class ZeroClawBridge:
     """The loopback server that ZeroClaw processes of one run talk to."""
 
-    def __init__(self, binary: str | os.PathLike | None = None, *, keep: bool = False) -> None:
+    def __init__(
+        self,
+        binary: str | os.PathLike | None = None,
+        *,
+        keep: bool = False,
+        root: str | os.PathLike | None = None,
+    ) -> None:
         binary = binary or os.environ.get(BINARY_ENV)
         if not binary or not Path(binary).is_file():
             raise ValueError(f"Set {BINARY_ENV} to the ZeroClaw program.")
         self.binary = str(binary)
-        self.keep = keep
+        self.keep = keep or root is not None
+        self._given_root = Path(root) if root is not None else None
         self.root: Path | None = None
         self.port: int | None = None
         self._seats: dict[str, _Seat] = {}
@@ -200,7 +355,11 @@ class ZeroClawBridge:
         self._serving: asyncio.Task | None = None
 
     async def __aenter__(self) -> ZeroClawBridge:
-        self.root = Path(tempfile.mkdtemp(prefix="agentrpg-zeroclaw-"))
+        if self._given_root is not None:
+            self._given_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            self.root = self._given_root
+        else:
+            self.root = Path(tempfile.mkdtemp(prefix="agentrpg-zeroclaw-"))
         listener = socket.socket()
         listener.bind(("127.0.0.1", 0))
         self.port = listener.getsockname()[1]
@@ -208,7 +367,6 @@ class ZeroClawBridge:
             uvicorn.Config(
                 self._app(),
                 log_level="warning",
-                # A model step can take minutes, so an idle connection must stay open.
                 timeout_keep_alive=3600,
                 timeout_graceful_shutdown=1,
             )
@@ -223,6 +381,7 @@ class ZeroClawBridge:
     async def __aexit__(self, *args) -> None:
         for seat in self._seats.values():
             seat.close()
+            await seat.program.stop()
         if self._server is not None:
             self._server.should_exit = True
             with contextlib.suppress(Exception):
@@ -233,17 +392,20 @@ class ZeroClawBridge:
     def alive(self) -> bool:
         return self._serving is not None and not self._serving.done()
 
-    def seat(self, *, tools: list[dict], instructions: str, mode: str, max_steps: int) -> _Seat:
-        """Give one Agent a secret path and a private ZeroClaw folder."""
+    def seat(
+        self, *, key: str, tools: list[dict], instructions: str, mode: str, max_steps: int
+    ) -> _Seat:
+        """Give one Agent a secret path and a private ZeroClaw folder. key names the folder."""
         if self.root is None:
             raise AgentRuntimeError("Open the assistant bridge before creating an Agent.")
         token = secrets.token_urlsafe(24)
-        directory = self.root / f"seat-{len(self._seats)}"
+        directory = self.root / f"seat-{key}"
         workspace = directory / "config" / "agents" / ALIAS / "workspace"
-        workspace.mkdir(parents=True)
-        (directory / "home").mkdir()
+        workspace.mkdir(parents=True, exist_ok=True)
+        (directory / "home").mkdir(exist_ok=True)
         for name in PERSONA_FILES:
-            text = instructions if (name == "AGENTS.md" and mode == ZEROCLAW) else ""
+            # Never write an empty file: ZeroClaw fills it with its own sample persona.
+            text = instructions if (name == "AGENTS.md" and mode == ZEROCLAW) else "-\n"
             (workspace / name).write_text(text, encoding="utf-8")
         base = f"http://127.0.0.1:{self.port}/zc/{token}"
         names = [PREFIX + tool["function"]["name"] for tool in tools]
@@ -251,7 +413,12 @@ class ZeroClawBridge:
         (directory / "config" / "config.toml").write_text(
             _config(base, names, max_steps, compact=compact), encoding="utf-8"
         )
-        seat = _Seat(token=token, directory=directory, tools=tools)
+        seat = _Seat(
+            token=token,
+            directory=directory,
+            tools=tools,
+            program=_Program(self.binary, directory),
+        )
         self._seats[token] = seat
         return seat
 
@@ -276,8 +443,13 @@ class ZeroClawBridge:
 
         @app.post("/zc/{token}/v1/chat/completions")
         async def chat(token: str, request: Request):
-            answer = await self._ask(token, "model", await request.json())
-            return unavailable if answer is None else answer
+            body = await request.json()
+            answer = await self._ask(token, "model", body)
+            if answer is None:
+                return unavailable
+            if not body.get("stream"):
+                return answer
+            return StreamingResponse(_stream(answer), media_type="text/event-stream")
 
         @app.get("/zc/{token}/mcp")
         async def stream(token: str):
@@ -332,10 +504,35 @@ class ZeroClawBridge:
         return app
 
 
+def _stream(answer: dict):
+    """One finished chat-completions reply as a short event stream."""
+    choice = answer["choices"][0]
+    reply = choice["message"]
+    delta = {"role": "assistant", "content": reply.get("content") or ""}
+    if reply.get("tool_calls"):
+        delta["tool_calls"] = [
+            {"index": index, **call} for index, call in enumerate(reply["tool_calls"])
+        ]
+    base = {
+        "id": answer["id"],
+        "object": "chat.completion.chunk",
+        "created": 0,
+        "model": answer["model"],
+    }
+    first = {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
+    last = {
+        **base,
+        "choices": [{"index": 0, "delta": {}, "finish_reason": choice["finish_reason"]}],
+        "usage": answer["usage"],
+    }
+    yield f"data: {json.dumps(first)}\n\n"
+    yield f"data: {json.dumps(last)}\n\n"
+    yield "data: [DONE]\n\n"
+
+
 def _config(base: str, tool_names: list[str], max_steps: int, *, compact: bool = True) -> str:
     """A ZeroClaw 0.8 configuration with no host tools, no memory and no background work."""
     listed = ", ".join(json.dumps(name) for name in tool_names)
-    # With compact_context off, ZeroClaw adds a section about messaging channels.
     compact_line = "" if compact else "compact_context = false\n"
     return f"""schema_version = 3
 
@@ -344,6 +541,7 @@ uri = "{base}/v1"
 model = "assistant-model"
 api_key = "local-bridge"
 max_tokens = 4000
+context_window = {PROGRAM_CONTEXT_TOKENS}
 native_tools = true
 timeout_secs = 3600
 
@@ -352,6 +550,7 @@ model_provider = "custom.local"
 risk_profile = "closed"
 runtime_profile = "closed"
 mcp_bundles = ["harness"]
+acp_enable_mcp = true
 
 [agents.{ALIAS}.memory]
 backend = "none"
@@ -372,6 +571,9 @@ tool_call_dedup_exempt = [{listed}]
 
 [pacing]
 loop_detection_enabled = false
+
+[acp]
+session_timeout_secs = 31536000
 
 [reliability]
 provider_retries = 0
@@ -434,6 +636,7 @@ class ZeroClawStats:
     """What one Agent's program did, for reports. Counts only; no message text."""
 
     processes: int = 0
+    turns: int = 0
     model_asks: int = 0
     model_calls: int = 0
     replayed_messages: int = 0
@@ -443,12 +646,12 @@ class ZeroClawStats:
     changed_arguments: int = 0
     unanswered_calls: int = 0
     open_calls_closed: int = 0
+    summaries: int = 0
     early_exits: int = 0
-    exit_codes: list[int] = field(default_factory=list)
 
 
 class ZeroClawAgent(PersonalAgent):
-    """A clocked personal Agent whose loop runs in a ZeroClaw process.
+    """A clocked personal Agent whose loop runs in one long-lived ZeroClaw process.
 
     The parent class still gives the session lock, the task receipts, the identity check, the
     tool adapters and the saved tool events. Its graph is built and not used.
@@ -463,17 +666,22 @@ class ZeroClawAgent(PersonalAgent):
         self.bridge = bridge
         self.mode = mode
         self.stats = ZeroClawStats()
-        # A session cannot change its backend, so the backend is part of the session's hash.
         self._instructions_hash = _digest(f"{self._instructions_hash}:zeroclaw:{mode}")
         self._offered = {tool.name: tool for tool in self._tools()}
+        self._files = _Notes()
+        self._file_tools = {
+            tool.name: tool
+            for tool in FilesystemMiddleware(backend=self._files, tools=list(NOTE_TOOLS)).tools
+        }
+        self._offered.update(self._file_tools)
         self._specs = [convert_to_openai_tool(tool) for tool in self._offered.values()]
         self._decide = _ActivationYield(self)._decide
         self._calls = _BoundedCalls(self)
         self._seat = bridge.seat(
+            key=str(self.agent_id),
             tools=self._specs,
             instructions=self.instructions,
             mode=mode,
-            # The harness limit must stop a task first, so that it fails in the usual way.
             max_steps=self.max_model_calls + 8,
         )
         self._transcript: list = []
@@ -482,8 +690,10 @@ class ZeroClawAgent(PersonalAgent):
         self._arrived: set[int] = set()
         self._result: dict | None = None
         self._notified: list[str] = []
-
-    # Saved history ---------------------------------------------------------------------
+        # Saved history keeps every message after a summary: the clock reads stamps from all.
+        self._summary: tuple[int, str] | None = None
+        self.summary_tokens = CLOCKED_SUMMARY_TOKENS
+        self.summary_keep_tokens = CLOCKED_SUMMARY_KEEP_TOKENS
 
     async def activation_messages(self) -> list:
         return await self._load()
@@ -521,18 +731,64 @@ class ZeroClawAgent(PersonalAgent):
             )
         self._transcript[index] = message
 
+    async def _load_files(self) -> dict:
+        async with self.runtime.pool.connection() as connection:
+            row = await (
+                await connection.execute(
+                    "SELECT files FROM zeroclaw_files WHERE session_key=%s", (self.session_key,)
+                )
+            ).fetchone()
+        return dict(row["files"]) if row else {}
+
+    async def _save_files(self) -> None:
+        async with self.runtime.pool.connection() as connection:
+            await connection.execute(
+                """INSERT INTO zeroclaw_files(session_key, files) VALUES (%s, %s)
+                   ON CONFLICT (session_key) DO UPDATE
+                   SET files = EXCLUDED.files, updated_at = clock_timestamp()""",
+                (self.session_key, Jsonb(strip_nul(self._files.files))),
+            )
+        self._files.changed = False
+
+    async def _file_call(self, tool, tool_call: dict) -> ToolMessage:
+        """Run one private file tool. The library gives these tools their state at call time."""
+        runtime = ToolRuntime(
+            state={"messages": self._transcript, "files": self._files.files},
+            context=None,
+            config={},
+            stream_writer=lambda _chunk: None,
+            tool_call_id=tool_call["id"],
+            store=None,
+        )
+        try:
+            result = await tool.ainvoke(
+                {**tool_call, "args": {**tool_call["args"], "runtime": runtime}}
+            )
+        except (ValidationError, ToolException) as error:
+            result = ToolMessage(
+                content=f"Error: {error}",
+                name=tool_call["name"],
+                tool_call_id=tool_call["id"],
+                status="error",
+            )
+        if self._files.changed:
+            await self._save_files()
+        if not isinstance(result, ToolMessage):
+            result = ToolMessage(
+                content=str(result), name=tool_call["name"], tool_call_id=tool_call["id"]
+            )
+        return result
+
     async def _notes(self) -> list[dict]:
         async with self.runtime.pool.connection() as connection:
             rows = await (
                 await connection.execute(
-                    "SELECT task_id, note FROM zeroclaw_messages WHERE session_key=%s "
+                    "SELECT seq, task_id, note FROM zeroclaw_messages WHERE session_key=%s "
                     "AND note <> '{}'::jsonb ORDER BY seq",
                     (self.session_key,),
                 )
             ).fetchall()
         return rows
-
-    # One activation --------------------------------------------------------------------
 
     async def _run_locked(self, task: str, task_id: UUID) -> str:
         receipt = await self._claim_task(task, task_id)
@@ -544,7 +800,11 @@ class ZeroClawAgent(PersonalAgent):
         if self.web is not None:
             self.web.operation_namespace = namespace
         self._transcript = await self._load()
+        self._files.files = await self._load_files()
         notes = await self._notes()
+        told = [row for row in notes if "notified_mail_ids" in row["note"]]
+        marks = [row for row in notes if "summary" in row["note"]]
+        self._summary = (marks[-1]["seq"], marks[-1]["note"]["summary"]) if marks else None
         start = next(
             (
                 index
@@ -555,7 +815,7 @@ class ZeroClawAgent(PersonalAgent):
         )
         if start is None:
             await self._close_open_calls()
-            earlier = notes[-1]["note"].get("notified_mail_ids", []) if notes else []
+            earlier = told[-1]["note"]["notified_mail_ids"] if told else []
             self._notified = _unobserved_mail(self._activation_envelope, self._transcript, earlier)
             start = len(self._transcript)
             await self._append(
@@ -563,7 +823,7 @@ class ZeroClawAgent(PersonalAgent):
                 note={"notified_mail_ids": self._notified},
             )
         else:
-            saved = next((row["note"] for row in notes if row["task_id"] == task_id), {})
+            saved = next((row["note"] for row in told if row["task_id"] == task_id), {})
             self._notified = saved.get("notified_mail_ids", [])
         self._start = start
         self._result = None
@@ -586,6 +846,48 @@ class ZeroClawAgent(PersonalAgent):
                 (answer, self.session_key, task_id),
             )
         return answer
+
+    def _visible(self) -> list:
+        """The history as the model reads it: the last summary, then the messages after it."""
+        if self._summary is None:
+            return list(self._transcript)
+        position, text = self._summary
+        lead = HumanMessage(
+            content=SUMMARY_LEAD + text, additional_kwargs={"lc_source": "summarization"}
+        )
+        return [lead, *self._transcript[position:]]
+
+    async def _summarize_if_long(self) -> None:
+        """Put a summary in place of older history when the model's input is too long.
+
+        This counts as one model call of the task, as on the Deep Agents backend.
+        """
+        shown = self._visible()
+        if _tokens(shown) <= self.summary_tokens:
+            return
+        first = self._summary[0] if self._summary else 0
+        kept, cut = 0, None
+        for index in range(len(self._transcript) - 1, first, -1):
+            kept += _tokens([self._transcript[index]])
+            if kept >= self.summary_keep_tokens:
+                cut = index
+                break
+        if cut is None:
+            return
+        while cut < len(self._transcript) and self._transcript[cut].type == "tool":
+            cut += 1
+        if cut >= len(self._transcript) or cut <= first:
+            return
+        older = shown[: len(shown) - (len(self._transcript) - cut)]
+        self.gate.before_model(self.clock_process, self._transcript)
+        text = await self._summarize(older)
+        async with self.runtime.pool.connection() as connection:
+            await connection.execute(
+                "UPDATE zeroclaw_messages SET note = note || %s WHERE session_key=%s AND seq=%s",
+                (Jsonb({"summary": strip_nul(text)}), self.session_key, cut),
+            )
+        self._summary = (cut, text)
+        self.stats.summaries += 1
 
     async def _close_open_calls(self) -> None:
         """Give a result to every call that an abandoned activation left open.
@@ -623,42 +925,32 @@ class ZeroClawAgent(PersonalAgent):
             )
 
     async def _drive(self, task: str) -> None:
-        """Run one program to its end and answer what it asks, one question at a time."""
+        """Give the program one prompt in its session, and answer what it asks until it ends."""
         self._delivered = 0
         self._arrived = set()
-        directory = self._seat.directory
+        program = self._seat.program
         asks = self._seat.open()
-        process = reading = asking = None
+        asking = waiting = reply = None
         asked = False
         try:
-            process = await asyncio.create_subprocess_exec(
-                self.bridge.binary,
-                "agent",
-                "-a",
-                ALIAS,
-                "-m",
-                PLACEHOLDER if self.mode == HARNESS else task,
-                stdin=asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                # No provider key and no board credential reach the program.
-                env={
-                    "HOME": str(directory / "home"),
-                    "PATH": "/usr/bin:/bin",
-                    "ZEROCLAW_CONFIG_DIR": str(directory / "config"),
-                    "TZ": "UTC",
-                },
-                cwd=str(directory),
-                start_new_session=True,
+            if not program.alive():
+                await program.start()
+                self.stats.processes += 1
+            self.stats.turns += 1
+            waiting = asyncio.create_task(
+                program.call(
+                    "session/prompt",
+                    {
+                        "sessionId": program.session_id,
+                        "prompt": PLACEHOLDER if self.mode == HARNESS else task,
+                    },
+                )
             )
-            self.stats.processes += 1
-            reading = asyncio.create_task(process.communicate())
+            waiting.add_done_callback(lambda task: task.cancelled() or task.exception())
             while True:
                 asking = asyncio.create_task(asks.get())
-                # Between two questions the program only starts up or reads a reply. A long
-                # silence there means that it hangs. A step itself is bounded where it runs.
                 done, _ = await asyncio.wait(
-                    {asking, reading},
+                    {asking, waiting},
                     return_when=asyncio.FIRST_COMPLETED,
                     timeout=self.timeout_seconds,
                 )
@@ -678,31 +970,43 @@ class ZeroClawAgent(PersonalAgent):
                     raise
                 if not ask.answer.done():
                     ask.answer.set_result(answer)
+            reply = waiting.result()
+        except (ConnectionError, OSError, TimeoutError):
+            reply = None
+        except BaseException:
+            await program.stop()
+            raise
         finally:
             if asking is not None:
                 if asking.done() and not asking.cancelled() and asking.exception() is None:
                     asking.result().answer.cancel()
                 asking.cancel()
+            if waiting is not None and not waiting.done():
+                waiting.cancel()
             self._seat.close()
-            if process is not None and process.returncode is None:
-                with contextlib.suppress(OSError):
-                    os.killpg(process.pid, signal.SIGKILL)
-            if reading is not None:
-                # A cancellation that arrives here must pass on, so it is not caught.
-                with contextlib.suppress(Exception):
-                    await asyncio.shield(reading)
-        self.stats.exit_codes.append(process.returncode)
-        if process.returncode != 0:
+        if reply is None or "error" in reply:
             self.stats.early_exits += 1
+            # The stop reason can hold model text. Keep it out of errors, reports and prompts.
+            await asyncio.to_thread(self._note_stop, reply)
+            await program.stop()
             if not asked or not self.bridge.alive():
-                # The program could not start or could not reach the bridge. No work failed,
-                # so the activation waits and runs again.
                 raise AgentTransientError(tool=True)
             if self._result is None:
-                # The program's own words can hold model text, so none of them go in the error.
                 raise AgentRuntimeError(
                     "The assistant program stopped early. Retry the same task ID."
                 )
+
+    def _note_stop(self, reply: dict | None) -> None:
+        line = json.dumps(
+            {
+                "task_id": str(self._active_task_id),
+                "delivered": self._delivered,
+                "error": None if reply is None else reply.get("error"),
+            },
+            default=str,
+        )
+        with (self._seat.directory / "stops.jsonl").open("a", encoding="utf-8") as file:
+            file.write(line[:4000] + "\n")
 
     def _state(self) -> dict:
         return {
@@ -745,7 +1049,6 @@ class ZeroClawAgent(PersonalAgent):
             if call["id"] in answered:
                 continue
             self.stats.unanswered_calls += 1
-            # In harness mode the model reads this result, so the program's words stay out.
             content = reported.get(call["id"]) if self.mode == ZEROCLAW else None
             await self._append(
                 ToolMessage(
@@ -758,16 +1061,17 @@ class ZeroClawAgent(PersonalAgent):
 
     async def _model_step(self, body: dict) -> dict:
         self.stats.model_asks += 1
-        if body.get("stream"):
-            raise AgentRuntimeError("The assistant program asked for a streamed model reply.")
-        heard = sum(1 for item in body.get("messages", []) if item.get("role") == "assistant")
+        heard = 0
+        for item in body.get("messages", []):
+            if item.get("role") == "user":
+                heard = 0
+            elif item.get("role") == "assistant":
+                heard += 1
         if heard != self._delivered:
-            # An extra or repeated request. Answering it would put the two histories out of step.
             raise AgentRuntimeError("The assistant program is out of step. Retry the same task ID.")
         await self._settle(body)
         said = self._said()
         if self._delivered < len(said):
-            # A new process after a failed attempt. It gets the saved message, not a new one.
             message = self._transcript[said[self._delivered]]
             self._delivered += 1
             self._arrived = set()
@@ -784,10 +1088,11 @@ class ZeroClawAgent(PersonalAgent):
         if decision and decision.get("activation_result") is not None:
             self._result = decision["activation_result"]
         if self._result is not None:
-            # The turn has ended. This reply only lets the program stop. It is not model text,
-            # so it is not saved and the model never reads it.
+            # Not model text: this reply only lets the program stop. Never save it as history.
             return self._wire(AIMessage(content=self._result.get("text") or "Done."), body)
-        base = list(self._transcript)
+        if self.mode == HARNESS:
+            await self._summarize_if_long()
+        base = self._visible() if self.mode == HARNESS else list(self._transcript)
 
         async def handler(request: _ModelRequest):
             if self.mode == HARNESS:
@@ -860,9 +1165,7 @@ class ZeroClawAgent(PersonalAgent):
             self.stats.unexpected_calls += 1
             return UNEXPECTED_CALL
         position = said[self._delivered - 1]
-        # The MCP request carries no model call ID. Calls arrive in the model's order. The first
-        # call of this name with these arguments that has not arrived is the one. If the
-        # program changed the arguments, the first call of this name is.
+        # MCP carries no call ID: match by name and arguments in the model's order, else by name.
         waiting = [
             (index, call)
             for index, call in enumerate(self._transcript[position].tool_calls)
@@ -895,10 +1198,12 @@ class ZeroClawAgent(PersonalAgent):
             self.stats.unexpected_calls += 1
             result = ToolMessage(content=UNEXPECTED_CALL, name=name, tool_call_id=call["id"])
         else:
-            # The model's own arguments run, not the program's copy of them.
+            # Run the model's saved arguments, never the program's copy of them.
             tool_call = {"name": name, "args": call["args"], "id": call["id"], "type": "tool_call"}
 
             async def run(_request):
+                if name in self._file_tools:
+                    return await self._file_call(tool, tool_call)
                 return await tool.ainvoke(tool_call)
 
             result = await self._calls._gated_tool_call(

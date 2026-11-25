@@ -701,7 +701,6 @@ async def test_shutdown_retains_pending_cost_reservation(
     spawn = asyncio.create_subprocess_exec
 
     async def idle_process(*args, **kwargs):
-        # An actual process waits without importing the worker or using models.
         return await spawn(sys.executable, "-c", "import time; time.sleep(60)", **kwargs)
 
     monkeypatch.setattr(console.asyncio, "create_subprocess_exec", idle_process)

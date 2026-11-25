@@ -296,7 +296,6 @@ async def test_many_board_events_are_coalesced_without_acknowledging_messages(cl
     await director.control(run_id, "start")
     await director.fire_beats(run_id)
     author = created["participants"][0]
-    # These are real board commits and durable outbox notifications.
     for index in range(120):
         result = await client.post(
             f"/api/v1/clusters/{created['cluster_id']}/threads",
@@ -581,8 +580,6 @@ async def test_queued_actor_cue_keeps_run_open_until_delivery(pool):
     class FinishedAgent:
         async def run_activation(self, envelope):
             if envelope.window_id == 0:
-                # A resumed Director can produce a cue after this window's Actor
-                # input has been frozen. Deliver it in the next Actor turn.
                 async with pool.connection() as conn:
                     await emit(
                         conn,

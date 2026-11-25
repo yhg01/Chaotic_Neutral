@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Body = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20000)]
-# An owner ID or a board ID (Agent UUID) from the sender's contact list.
 Recipient = Annotated[
     str,
     StringConstraints(strip_whitespace=True, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}$"),

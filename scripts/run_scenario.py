@@ -510,7 +510,6 @@ async def collect_report(
             review_failure_kind = (
                 error.kind if isinstance(error, ModelGenerationError) else type(error).__name__
             )
-            # Keep exact results and traces when an optional provider call fails.
             review_error = "The independent semantic review failed. Exact checks were retained."
         review_usage = reviewer.usage.summary()
         review_attempts = reviewer.last_attempts
@@ -856,7 +855,6 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 callbacks=[usage],
                 surface=config.get("agent_surface", LEGACY),
             )
-            # Check every HTTP identity before any Actor or assistant model call.
             await agents[owner]._verify_identity()
             if config["actors"] == "scripted":
                 actors[owner] = ScriptedActor()
@@ -884,8 +882,7 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 )
         engine = RunEngine(runtime.pool, actors=actors, agents=agents)
         if args.console_operation:
-            # Pause and start use the same row lock. A pause accepted during
-            # startup must not be undone by this worker's delayed resume.
+            # Same row lock as pause: a pause accepted during startup must not be undone here.
             async with runtime.pool.connection() as conn, conn.transaction():
                 current = await (
                     await conn.execute(
@@ -983,7 +980,6 @@ async def execute(args, *, root: Path = ROOT, env: dict | None = None) -> dict:
                 if not isinstance(prior_tools, list):
                     prior_tools = []
             except (OSError, ValueError, AttributeError):
-                # An unreadable prior artifact must not discard current database evidence.
                 prior_tools = []
         with budget_context(run_id=manifest["run_id"]):
             report, trace = await collect_report(

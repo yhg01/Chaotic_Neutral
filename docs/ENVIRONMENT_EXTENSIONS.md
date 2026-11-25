@@ -15,10 +15,10 @@ below are explicit application rules; they do not change those arrows or labels.
 
 | Participant | Mail | Resources | Transactions |
 | --- | --- | --- | --- |
-| Personal Agent | Read its owner's received and sent mail; send to owners in the same run; reply; explicitly mark received mail as read. | Read its owner's records and public or explicitly shared records. Create private documents. Update its owner's records only when `agent_writable` permits it. | Submit transport or market actions under recorded owner consent. Read its own receipts. |
-| Owner Actor | Receive a bounded view of its own inbox. Ask the Director to send mail with its own sender identity. | Receive its private resource view. Submit typed requests to create or update documents or change access to its own records. | Grant or withdraw its own transport and commerce authority. It has no transaction tools. |
+| Personal Agent | Read its owner's received and sent mail; send to owners in the same run; reply; explicitly mark received mail as read. | Read its owner's records and public or explicitly shared records. Create private documents. Update its owner's records only when `agent_writable` permits it. Change the content of another owner's record only when that record has shared editing and names its owner (see "Resource and market behavior"). | Submit transport or market actions under recorded owner consent. Read its own receipts. |
+| Owner Actor | Receive a bounded view of its own inbox. Ask the Director to send mail with its own sender identity. | Receive its private resource view. Submit typed requests to create or update documents or change access to its own records. Update the content of another owner's record that has shared editing and names this owner. | Grant or withdraw its own transport and commerce authority. It has no transaction tools. |
 | Director | Seed declared mail and apply declared beat mail. Save accepted Actor mail requests with the Actor turn. | Initialize records and apply declared resource effects or accepted Actor requests. | Validate requests and settle actions in code. Narrative text cannot establish an effect. |
-| Human observer | Inspect all synthetic run records through the administrator view. | Inspect private and shared records for verification. | Inspect submissions, receipts, stock, balances, and cost records. |
+| Human observer | Inspect all synthetic run records through the local observer (see "See what is happening"). | Inspect private and shared records for verification. | Inspect submissions, receipts, stock, balances, and cost records. |
 
 Agent identity comes from its credential. Models cannot choose another owner or
 sender. An Agent cannot grant itself spending permission or change resource
@@ -38,6 +38,14 @@ Identical retries return the same message. A changed payload with the same
 request ID returns a conflict. New mail requires a running environment;
 committed retries remain available after pause or completion.
 
+On a clocked run, an assistant can also send mail to a person who is not in the
+run, by name or by an email-like address. It can also reply to mail that has no
+owner sender. That person has no mailbox. The message stays in the sender's sent
+mail, and the Director's next review receives it in place of a recipient
+notification. This outside mail stays inside the simulation; no real email is
+sent. Runs with no `clock` section keep the rule that the recipient is a run
+participant. [Event clock](EVENT_CLOCK.md) is the contract for clocked runs.
+
 Reading does not mark mail as read. The Agent must explicitly acknowledge a
 received message after processing it. The sender can then see the read receipt.
 Unread queries use these receipts, so a late transaction is not skipped by a
@@ -56,10 +64,23 @@ integer quantity. Visibility is `private`, `shared` with named owners, or
 An Agent's newly created documents are private. Agents cannot create item stock,
 change quantities through document edits, or grant access to a private record.
 
+A shared record is read-only for the owners it is shared with, unless it has
+shared editing (`shared_can_edit`). The user approved this setting on 12 November
+2026. Only the scenario sets it, and only on a `shared` record with named owners,
+such as a group sheet whose own text asks people to write in it. With the setting,
+each named owner and that owner's assistant can change the content. `agent_writable`
+still decides whether assistants can. Only the record's owner can change the title
+or the sharing. When the owner stops sharing the record, shared editing ends. Each
+change tells the record's owner and every named owner, and a change by another
+owner carries that owner's ID. A write to a shared record without the setting
+returns a refusal that says the record is read-only for this owner.
+
 Writes require the current resource version. A stale version returns a conflict.
 Stable request IDs protect committed retries. Resource search and fetch operate
 on permitted simulation records and public listings. They do not browse the web
-or retrieve host files. Agent scratch files remain separate from these resources.
+or retrieve host files. Clocked runs add separate tools for simulated sites
+inside the run ([Event clock](EVENT_CLOCK.md)). Agent scratch files remain
+separate from these resources.
 
 A seller needs explicit authority for the item, maximum quantity, and minimum
 unit price. A buyer needs an approved item and spending budget. A sell request
@@ -172,12 +193,13 @@ participants, private views, receipts, safe retries, late commits, and Actor
 observation limits. A separate PostgreSQL plot check passed for initialization,
 scheduled mail, attributed owner mail, and the Director's resource update.
 Resource, market, budget, and observer checks are recorded in the
-[PRD evidence register](../PRD.md#evidence-register). The latest available suite
-passed 674 tests with two unavailable modules excluded. After a later report
+[PRD evidence register](../PRD.md#evidence-register). That register also holds
+the full-suite results; row E-14 has the suite of that time. After a later report
 persistence fix, 60 focused CLI, observer, and report tests passed in 3.93 seconds.
-This focused result includes one new test and overlaps the earlier suite. Observer browser checks
+This focused result includes one new test and overlaps the suite in row E-14. Observer browser checks
 passed on desktop and at 390 px mobile width, including live refresh and filters.
-These are scoped results; the source-storage limitation remains open.
+These are scoped results. Some source files were unavailable for the suite of
+that time; row E-20 of the register records their later recovery.
 
 The final two-owner storm run passed every recorded integration check and its
 independent automatic review. It recorded 36 owner-chat messages, four board
@@ -190,13 +212,18 @@ reviews were active; the separate final fifteen-owner semantic review was not ru
 Direct receipt reads have automated coverage. The live run received final receipts
 through Director observations and did not select `read_market_action`.
 
-The campaign finished at 18.4320344 USD of 30 USD, with zero outstanding or
-uncertain reservations. All eleven successful and failed reports are available
+The extension-test campaign snapshot ended at 18.4320344 USD of 30 USD, with zero
+outstanding or uncertain reservations. Later runs reused this campaign and its
+ceiling; read the campaign ledger or the observer's **Model costs** for current
+values. All eleven successful and failed reports are available
 in the observer. The [campaign test record](ENVIRONMENT_TEST_RESULTS.md) and
 [safe result summary](environment-results.json) separate actual effects, failed
 coverage checks, simulator validity, and costs.
 Live model campaign results must be recorded separately from automated fixtures.
 A successful operation check does not establish general moral judgment, Actor
-fidelity, or long-duration reliability. The system still uses fixed declared
-plots. Adaptive plot search, full simulation forks, and human-calibrated model
-comparisons remain later work.
+fidelity, or long-duration reliability. Runs with no `clock` section use fixed
+declared plots; clocked runs have a live Director ([Event clock](EVENT_CLOCK.md)).
+The [Run console](RUN_CONSOLE.md#branch-before-a-selected-turn) can branch a run
+with no `clock` section from a saved earlier turn. Branching from a clocked run is
+not implemented. Adaptive plot search and human-calibrated model comparisons
+remain later work.

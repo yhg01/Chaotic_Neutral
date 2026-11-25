@@ -90,7 +90,26 @@ def approval_request(args):
     )
 
 
-async def _run(adapters, out, preflight, control_dir, directory_first, history_check, phase, cap):
+def checked_wallet(receipt, ledger, model, cases):
+    if receipt["provider_model"] != model or receipt["case_ids"] != cases:
+        raise ValueError("The preflight receipt belongs to a different step.")
+    for field in ("id", "attempts", "remaining_usd", "uncertain_usd", "reserved_usd"):
+        if str(receipt["ledger"][field]) != str(ledger[field]):
+            raise ValueError("The campaign changed since the approved preflight.")
+    return Decimal(str(receipt["provider_cny"]))
+
+
+async def _run(
+    adapters,
+    out,
+    preflight,
+    control_dir,
+    directory_first,
+    history_check,
+    phase,
+    cap,
+    preflight_record,
+):
     # Use the installed campaign's ledger and tariff adapter, including its uncertain reserves.
     sys.path.insert(0, str(adapters.resolve()))
     from clock_group_buy_live import CAMPAIGN, CEILING, ROOT, bind_models, load_main_budget
@@ -153,8 +172,10 @@ async def _run(adapters, out, preflight, control_dir, directory_first, history_c
         before = await ledger.summary(CAMPAIGN, recent_limit=0)
         assert CEILING == 25 and not before["halted"] and before["limit_usd"] == CEILING
         assert before["reserved_usd"] == 0 and before["remaining_usd"] >= reserve
-        if preflight:
-            assert cny / CNY_PER_USD >= reserve
+        cases = [r["case"] for r in routing_plan(directory_first, history_check, phase)]
+        if not preflight:
+            cny = checked_wallet(json.loads(preflight_record.read_bytes()), before, MODEL, cases)
+        assert cny / CNY_PER_USD >= reserve
         print(
             f"Original campaign available USD {before['remaining_usd']}; provider CNY {cny}; "
             f"maximum single reservation USD {reserve}",
@@ -167,7 +188,10 @@ async def _run(adapters, out, preflight, control_dir, directory_first, history_c
             print(f"Phase {phase} estimate USD {need}; after it USD {left}", flush=True)
             assert left >= Decimal(str(reserve)), "Phase does not fit above the reservation."
         if preflight:
-            save_private(out / "preflight-result.json", {"ledger": before, "provider_cny": cny})
+            save_private(
+                out / "preflight-result.json",
+                {"ledger": before, "provider_cny": cny, "provider_model": MODEL, "case_ids": cases},
+            )
             return
         controls = load(control_dir, "results")
         assert {r["first"] for r in controls} == {*desks, "both", "none"}
@@ -279,6 +303,7 @@ if __name__ == "__main__":
     parser.add_argument("--adapter-dir", required=True, type=Path)
     parser.add_argument("--controls", type=Path)
     parser.add_argument("--preflight", action="store_true")
+    parser.add_argument("--preflight-record", type=Path)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--approval", type=Path)
     parser.add_argument("--out", required=True, type=Path)
@@ -288,6 +313,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--phase", type=int, choices=sorted(v2.PHASES), help="v2 plan phase")
     args = parser.parse_args()
+    if (
+        args.execute
+        and not args.preflight
+        and not (args.preflight_record and args.preflight_record.is_file())
+    ):
+        parser.error("Routing collection requires the separately approved preflight receipt.")
     if args.execute and not args.preflight and not args.controls:
         parser.error("--out requires --controls with verified free controls")
     if args.phase is not None and (args.history_check or args.directory_first != DESKS[0]):
@@ -308,6 +339,7 @@ if __name__ == "__main__":
                 args.history_check,
                 args.phase,
                 cap,
+                args.preflight_record,
             )
         ),
     )

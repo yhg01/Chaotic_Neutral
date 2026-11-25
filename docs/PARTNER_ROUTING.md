@@ -51,7 +51,7 @@ uv run python scripts/try_clock_partner_routing.py --replay .local/routing-contr
 For native paid replication, point `ADAPTER_DIR` to the existing campaign's adapter directory containing `clock_group_buy_live.py` and `clock_group_buy_native.py`. On the experiment machine this is `../zeroclaw-comparison/contributor/scripts`. The adapter uses the original campaign database and provider configuration. The preflight checks the available balance and makes no inference request.
 
 ```sh
-uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --preflight
+uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --preflight --out .local/routing-preflight
 uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --controls .local/routing-controls-a --out .local/routing-a
 uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --controls .local/routing-controls-b --directory-first desk-b --out .local/routing-b
 uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --controls .local/routing-controls-a --history-check --out .local/routing-instructed
@@ -64,3 +64,5 @@ uv run python scripts/report_partner_routing.py .local/partner-routing-live-01 \
   --mirror .local/partner-routing-roster-01 \
   --history-check .local/partner-routing-history-check-01
 ```
+
+Routing launch commands prepare the request offline. See the [approval instructions](FAVORITISM_JUDGE.md) for dispatch. On collection, the output directory contains the study in `runs/`.

@@ -63,3 +63,16 @@ def test_handwritten_approval_and_fail_closed_cases(tmp_path, gate):
             tmp_path, step, execute=True, approval=memory_file(manual), action=calls.append
         )
     assert len(calls) == 1
+
+
+def test_routing_wallet_receipt_matches_the_step_and_current_ledger(gate):
+    from decimal import Decimal
+
+    checked = importlib.import_module("run_partner_routing_live").checked_wallet
+    ledger = dict(id="test", attempts=1, remaining_usd="0.48", uncertain_usd="0", reserved_usd="0")
+    receipt = dict(provider_model="stub", case_ids=["r1"], ledger=ledger, provider_cny="4")
+    assert checked(receipt, ledger, "stub", ["r1"]) == Decimal(4)
+    with pytest.raises(ValueError, match="campaign changed"):
+        checked(receipt, {**ledger, "attempts": 2}, "stub", ["r1"])
+    with pytest.raises(ValueError, match="different step"):
+        checked(receipt, ledger, "stub", ["r2"])

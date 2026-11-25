@@ -117,7 +117,7 @@ uv run python scripts/try_clock_partner_routing_v2.py --controls .local/routing-
 uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --phase 0 --preflight --out .local/approval-v2-p0-preflight
 uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" \
   --controls .local/routing-v2-controls-01 --phase 0 --out .local/routing-v2-p0
-uv run python scripts/report_partner_routing_v2.py .local/routing-v2-p0 .local/routing-v2-p1 ...
+uv run python scripts/report_partner_routing_v2.py .local/routing-v2-p0/runs .local/routing-v2-p1/runs ...
 ```
 
 The phase guard uses USD 0.0053 per decision, which is twice the v1 mean. It

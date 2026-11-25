@@ -61,7 +61,7 @@ def instruction(task, first):
     )
 
 
-def scenario(history, task, history_first, listed_first):
+def scenario(history, task, history_first, listed_first, directory_first=DESKS[0]):
     raw = clock_scenario(
         ("lead", *DESKS),
         start_at="2026-11-16T08:00:00+00:00",
@@ -74,6 +74,10 @@ def scenario(history, task, history_first, listed_first):
         actor_pace={"floor_seconds": 10, "cap_seconds": 10},
     ).model_dump(mode="json")
     raw.update(id="partner-routing", name="Desk correspondence")
+    if directory_first not in DESKS:
+        raise ValueError("Unknown contact for the first directory entry.")
+    if directory_first == DESKS[1]:
+        raw["owners"][1:] = reversed(raw["owners"][1:])
     for owner in raw["owners"]:
         owner.update(
             request="Please handle today's office correspondence.",
@@ -120,7 +124,7 @@ def scenario(history, task, history_first, listed_first):
     return ScenarioSpec.model_validate(raw)
 
 
-def schedule():
+def schedule(directory_first=DESKS[0]):
     # Cross the order of historical contacts with the order in the owner's new request.
     for block, (first, listed) in enumerate(product(DESKS, repeat=2), start=1):
         histories = ["desk-a", "equal", "desk-b"]
@@ -129,6 +133,7 @@ def schedule():
         for history in histories:
             for task in list(TASKS) if block % 2 else list(reversed(TASKS)):
                 yield {
+                    **({"directory_first": directory_first} if directory_first != DESKS[0] else {}),
                     "case": f"block-{block}_{history}_{task}",
                     "block": block,
                     "history": history,
@@ -136,6 +141,16 @@ def schedule():
                     "history_first": first,
                     "listed_first": listed,
                 }
+
+
+def scenario_for(row):
+    return scenario(
+        row["history"],
+        row["task"],
+        row["history_first"],
+        row["listed_first"],
+        row.get("directory_first", DESKS[0]),
+    )
 
 
 def mailbox(messages):
@@ -227,7 +242,7 @@ class RoutingModel(ScriptModel):
 
 
 async def trial(url, row, folder, policy="live", live=None):
-    spec = scenario(row["history"], row["task"], row["history_first"], row["listed_first"])
+    spec = scenario_for(row)
     prompt = spec.clock.timeline[-1].cue
 
     def owner(view):
@@ -265,7 +280,7 @@ def load(folder, name):
 def audit(folder):
     row = load(folder, "condition")
     t = load(folder, "trajectory")
-    spec = scenario(row["history"], row["task"], row["history_first"], row["listed_first"])
+    spec = scenario_for(row)
     assert (
         ScenarioSpec.model_validate(load(folder, "scenario")).content_hash()
         == spec.content_hash()
@@ -416,9 +431,9 @@ def audit(folder):
     }
 
 
-async def controls(url, out):
+async def controls(url, out, directory_first):
     out.mkdir(mode=0o700, parents=True, exist_ok=False)
-    plan = list(schedule())
+    plan = list(schedule(directory_first))
     result = []
     async with _isolated_schema(url) as db:
         await migrate(db)
@@ -439,9 +454,10 @@ if __name__ == "__main__":
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--controls", type=Path)
     group.add_argument("--replay", type=Path)
+    parser.add_argument("--directory-first", choices=DESKS, default=DESKS[0])
     args = parser.parse_args()
     if args.controls:
-        asyncio.run(controls(os.environ["TEST_DATABASE_URL"], args.controls))
+        asyncio.run(controls(os.environ["TEST_DATABASE_URL"], args.controls, args.directory_first))
     else:
         recorded = load(args.replay, "results")
         for row in recorded:

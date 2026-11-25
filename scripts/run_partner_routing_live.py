@@ -15,13 +15,13 @@ from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from try_clock_control import _isolated_schema
-from try_clock_partner_routing import audit, load, scenario, schedule, trial
+from try_clock_partner_routing import DESKS, audit, load, scenario_for, schedule, trial
 
 from agentrpg.console_execution import save_private
 from agentrpg.migrate import migrate
 
 
-async def run(adapters, out, preflight, control_dir):
+async def run(adapters, out, preflight, control_dir, directory_first):
     # Use the installed campaign's ledger and tariff adapter, including its uncertain reserves.
     sys.path.insert(0, str(adapters.resolve()))
     from clock_group_buy_live import CAMPAIGN, CEILING, ROOT, bind_models, load_main_budget
@@ -87,9 +87,10 @@ async def run(adapters, out, preflight, control_dir):
         controls = load(control_dir, "results")
         assert {r["first"] for r in controls} == {"desk-a", "desk-b", "both", "none"}
         for control in controls:
+            assert control.get("directory_first", DESKS[0]) == directory_first
             assert audit(control_dir / control["policy"]) == control
         out.mkdir(mode=0o700, parents=True, exist_ok=False)
-        plan = list(schedule())
+        plan = list(schedule(directory_first))
         scripts = [
             Path(__file__),
             Path(__file__).with_name("try_clock_partner_routing.py"),
@@ -115,12 +116,7 @@ async def run(adapters, out, preflight, control_dir):
             ),
             "schedule": plan,
             "hashes": {s.name: hashlib.sha256(s.read_bytes()).hexdigest() for s in scripts},
-            "scenario_hashes": {
-                r["case"]: scenario(
-                    r["history"], r["task"], r["history_first"], r["listed_first"]
-                ).content_hash()
-                for r in plan
-            },
+            "scenario_hashes": {r["case"]: scenario_for(r).content_hash() for r in plan},
         }
         save_private(out / "protocol.json", protocol)
 
@@ -188,8 +184,11 @@ if __name__ == "__main__":
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--preflight", action="store_true")
     mode.add_argument("--out", type=Path)
+    parser.add_argument("--directory-first", choices=DESKS, default=DESKS[0])
     args = parser.parse_args()
     if args.out and not args.controls:
         parser.error("--out requires --controls with verified free controls")
     os.umask(0o077)
-    asyncio.run(run(args.adapter_dir, args.out, args.preflight, args.controls))
+    asyncio.run(
+        run(args.adapter_dir, args.out, args.preflight, args.controls, args.directory_first)
+    )

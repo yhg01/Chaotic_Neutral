@@ -114,7 +114,7 @@ phases have not been run.
 ```sh
 uv run python scripts/try_clock_partner_routing_v2.py --plan
 uv run python scripts/try_clock_partner_routing_v2.py --controls .local/routing-v2-controls-01
-uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --phase 0 --preflight
+uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" --phase 0 --preflight --out .local/approval-v2-p0-preflight
 uv run python scripts/run_partner_routing_live.py --adapter-dir "$ADAPTER_DIR" \
   --controls .local/routing-v2-controls-01 --phase 0 --out .local/routing-v2-p0
 uv run python scripts/report_partner_routing_v2.py .local/routing-v2-p0 .local/routing-v2-p1 ...
@@ -131,3 +131,5 @@ almost no margin. The report refuses partial phases.
 - A salience arm in which the history includes a one-line speed summary.
 - Neutral-name repeat of v1's roster mirror.
 - Other models.
+
+The routing commands above prepare local approval requests. Live execution and a provider preflight each need a separate hand-written approval. See [approval instructions](FAVORITISM_JUDGE.md).

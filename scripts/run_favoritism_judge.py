@@ -11,8 +11,10 @@ from pathlib import Path
 import httpx
 from dotenv import dotenv_values
 from favoritism_judge import RUBRIC, episode, load
+from favoritism_judge_cost import SNAPSHOT, archived_price, quote
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
+from step_approval import describe, dispatch
 
 from agentrpg.console_execution import save_private
 
@@ -36,7 +38,7 @@ def requests(study, judge, ids):
     return result
 
 
-async def execute(args, packets):
+async def _send(args, packets, step, cap):
     sys.path.insert(0, str(args.adapter_dir.resolve()))
     from clock_group_buy_live import CAMPAIGN, CEILING, ROOT, load_main_budget
     from clock_group_buy_native import NativeDeepSeek, native_price
@@ -50,10 +52,7 @@ async def execute(args, packets):
             "PERSONAL_AGENT_API_KEY"
         ]
     else:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=False) as http:
-            price = (await budget.fetch_model_prices({budget.ASTRA_CRITIC}, client=http))[
-                budget.ASTRA_CRITIC
-            ]
+        price = archived_price(budget, json.loads(SNAPSHOT.read_bytes())["reviewer"])
         upstream = httpx.AsyncHTTPTransport
         key = dotenv_values(ROOT / ".env.actor-reviewer.local", interpolate=False)[
             "ACTOR_REVIEWER_API_KEY"
@@ -74,10 +73,13 @@ async def execute(args, packets):
             and not before["halted"]
             and before["reserved_usd"] == 0
         )
-        estimate = Decimal("0.003" if flash else "0.17") * len(packets)
+        estimate = Decimal(step["estimated_usd"])
+        if max(holds) > Decimal(step["maximum_reservation_usd"]):
+            raise ValueError("The reservation increased since preparation.")
         if before["remaining_usd"] < max(holds) + estimate:
             raise ValueError("Step exceeds the existing campaign headroom.")
-        args.out.mkdir(parents=True, mode=0o700, exist_ok=False)
+        results = args.out / "verdicts"
+        results.mkdir(mode=0o700, exist_ok=False)
         try:
             for cid, payload in packets.items():
                 role = f"favoritism-v1-{args.judge}-{cid}"
@@ -94,12 +96,16 @@ async def execute(args, packets):
                     )
                     r.raise_for_status()
                     response = r.json()
-                    save_private(args.out / (cid + "-provider.json"), response)
+                    save_private(results / (cid + "-provider.json"), response)
                     save_private(
-                        args.out / (cid + ".json"),
+                        results / (cid + ".json"),
                         json.loads(response["choices"][0]["message"]["content"]),
                     )
                 current = await ledger.summary(CAMPAIGN, recent_limit=0)
+                if before["remaining_usd"] - current["remaining_usd"] >= cap and cid != next(
+                    reversed(packets)
+                ):
+                    raise ValueError("Approved spend reached.")
                 if current["uncertain_usd"] != before["uncertain_usd"] or current["halted"]:
                     raise ValueError("Unsettled cost or campaign pause.")
         finally:
@@ -117,15 +123,30 @@ if __name__ == "__main__":
     p.add_argument(
         "--adapter-dir", type=Path, default=Path("../zeroclaw-comparison/contributor/scripts")
     )
-    p.add_argument("--out", type=Path)
+    p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--approval", type=Path)
     p.add_argument(
         "--execute", action="store_true", help="requires advance approval for this exact step"
     )
     args = p.parse_args()
     packets = requests(args.study, args.judge, args.cases)
-    if args.execute:
-        if args.out is None:
-            p.error("Provide a new output directory.")
-        asyncio.run(execute(args, packets))
-    else:
-        print(f"Verified {len(packets)} prepared {args.judge} requests offline.")
+    prices = quote(args.judge, packets, args.adapter_dir)
+    model = next(iter(packets.values()))["model"]
+    step = describe(
+        model,
+        "DeepSeek" if args.judge == "flash" else "OpenRouter / OpenAI",
+        packets.keys(),
+        list(packets.values()),
+        sum(x[0] for x in prices.values()),
+        max(x[1] for x in prices.values()),
+        len(packets),
+        "judge",
+        hash_scope="Ordered exact model envelopes, canonical UTF-8 JSON.",
+    )
+    dispatch(
+        args.out,
+        step,
+        execute=args.execute,
+        approval=args.approval,
+        action=lambda cap: asyncio.run(_send(args, packets, step, cap)),
+    )

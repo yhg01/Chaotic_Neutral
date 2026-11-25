@@ -24,10 +24,12 @@ From the routing worktree, use a fresh output directory for packet generation. T
 ```sh
 uv run python scripts/favoritism_judge.py .local/favoritism-judges-copy
 uv run python scripts/favoritism_judge_cost.py .local/favoritism-judges-copy
-uv run python scripts/run_favoritism_judge.py .local/favoritism-judges-copy flash C001 C007
-uv run python scripts/run_favoritism_judge.py .local/favoritism-judges-copy astra C001 C007
+uv run python scripts/run_favoritism_judge.py .local/favoritism-judges-copy flash C001 C007 --out .local/request-flash-pilot
+uv run python scripts/run_favoritism_judge.py .local/favoritism-judges-copy astra C001 C007 --out .local/request-astra-pilot
 uv run python scripts/favoritism_judge.py .local/favoritism-judges-copy --answers path/to/verdicts --cases C001 C007
-uv run python scripts/compare_favoritism_judges.py .local/favoritism-judges-copy path/to/flash path/to/astra C001 C007
+uv run python scripts/compare_favoritism_judges.py .local/favoritism-judges-copy path/to/flash path/to/astra C001 C007 --out .local/request-astra-pilot
 ```
 
-The launcher verifies packets against native records offline by default. After a separately approved preflight and approval for the exact judge and cases, its execution mode takes `--execute --out NEW_DIRECTORY`. It uses the original ledger, allows one attempt per judge and case, and saves the raw response and budget summary. The agreement report gives a comparable-label denominator for each dimension. Missing or malformed verdicts stay visible.
+The offline launcher prints the model, provider, ordered IDs, request count, estimated spend, hold, saved balance and canonical request hashes. It writes only `approval-request.json`. For a later dispatch, the operator writes a separate file with exactly `judge`, `case_ids`, `payload_sha256` and `max_usd`. The first three must match the request. The file must be at least as recent as the request. A copied machine request is rejected. Execution requires the same preparation arguments, `--execute` and `--approval FILE`. Each request directory permits one dispatch. Existing campaign reservations and settlement rules apply. The approval budget check uses the estimated step cost. A settled step at its cap stops further calls.
+
+Routing uses the same gate for v1, v2 and their separate preflights. Offline phase hashes bind the full scenario, sampling settings and call limits. Later interactive prompts depend on earlier model replies and have no exact bytes at preparation time. Each peer decision allows at most six provider requests. The implicit-trust script supports free controls and replay only.
